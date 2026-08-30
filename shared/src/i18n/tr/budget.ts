@@ -154,5 +154,7 @@ const budget: TranslationStrings = {
   'costs.attachmentsCount': '{count} ek',
   'costs.attachmentsTitle': '"{name}" için ekler',
   'costs.noAttachments': 'Bu harcamaya eklenmiş dosya yok.',
+  'costs.confirm.deleteBodyWithFile': '"{name}" kalıcı olarak silinecek. 1 ekli dosya kalacak.',
+  'costs.confirm.deleteBodyWithFiles': '"{name}" kalıcı olarak silinecek. {count} ekli dosya kalacak.',
 };
 export default budget;

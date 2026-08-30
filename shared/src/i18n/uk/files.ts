@@ -62,5 +62,11 @@ const files: TranslationStrings = {
   'files.notePlaceholder': 'Додати нотатку...',
   'files.assignTransport': 'Транспорт',
   'files.sourceTransport': 'Транспорт',
+  'files.sourceExpense': 'Із витрати',
+  'files.assignExpense': 'Витрата',
+  'files.confirm.deleteWithExpense': 'Цей файл пов’язаний з 1 активною витратою. Перемістити його до кошика?',
+  'files.confirm.deleteWithExpenses': 'Цей файл пов’язаний з {count} активними витратами. Перемістити його до кошика?',
+  'files.confirm.permanentDeleteWithExpense': 'Цей файл пов’язаний з 1 активною витратою. Видалити його безповоротно?',
+  'files.confirm.permanentDeleteWithExpenses': 'Цей файл пов’язаний з {count} активними витратами. Видалити його безповоротно?',
 };
 export default files;

@@ -423,6 +423,17 @@ describe('MCostsTab', () => {
     await waitFor(() => expect(settlementBases).toHaveLength(2))
   })
 
+  it('FE-MOB-COSTT-025a: includes trashed attachments in the Expense delete warning', async () => {
+    const p = planner({
+      files: [buildTripFile({ id: 91, linked_expense_ids: [11], deleted_at: '2026-05-03T00:00:00.000Z' })],
+    })
+    await renderTab(p)
+
+    fireEvent.click(within(rowOf('Ramen')).getByRole('button', { name: 'common.delete' }))
+
+    expect(within(screen.getByRole('dialog')).getByText('costs.confirm.deleteBodyWithFile:Ramen,1')).toBeInTheDocument()
+  })
+
   it('FE-MOB-COSTT-026: toasts when the delete fails', async () => {
     const p = planner()
     vi.mocked(p.tripActions.deleteBudgetItem).mockRejectedValueOnce(new Error('offline'))

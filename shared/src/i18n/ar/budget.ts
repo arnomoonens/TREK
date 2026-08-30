@@ -154,5 +154,7 @@ const budget: TranslationStrings = {
   'costs.attachmentsCount': '{count} مرفقات',
   'costs.attachmentsTitle': 'المرفقات لـ "{name}"',
   'costs.noAttachments': 'لا توجد ملفات مرفقة بهذا المصروف.',
+  'costs.confirm.deleteBodyWithFile': 'سيتم حذف "{name}" نهائيًا. سيبقى ملف مرفق واحد.',
+  'costs.confirm.deleteBodyWithFiles': 'سيتم حذف "{name}" نهائيًا. ستبقى {count} ملفات مرفقة.',
 };
 export default budget;

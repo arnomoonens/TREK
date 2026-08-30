@@ -62,5 +62,11 @@ const files: TranslationStrings = {
   'files.confirm.emptyTrash': 'Trvale smazat všechny soubory v koši? Tuto akci nelze vrátit.',
   'files.noteLabel': 'Poznámka',
   'files.notePlaceholder': 'Přidat poznámku...',
+  'files.sourceExpense': 'Z výdaje',
+  'files.assignExpense': 'Výdaj',
+  'files.confirm.deleteWithExpense': 'Tento soubor je propojen s 1 aktivním výdajem. Přesunout ho do koše?',
+  'files.confirm.deleteWithExpenses': 'Tento soubor je propojen s {count} aktivními výdaji. Přesunout ho do koše?',
+  'files.confirm.permanentDeleteWithExpense': 'Tento soubor je propojen s 1 aktivním výdajem. Trvale ho smazat?',
+  'files.confirm.permanentDeleteWithExpenses': 'Tento soubor je propojen s {count} aktivními výdaji. Trvale ho smazat?',
 };
 export default files;

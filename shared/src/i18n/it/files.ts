@@ -64,5 +64,11 @@ const files: TranslationStrings = {
     'Eliminare in modo permanente tutti i file nel cestino? Questa operazione non può essere annullata.',
   'files.noteLabel': 'Nota',
   'files.notePlaceholder': 'Aggiungi una nota...',
+  'files.sourceExpense': 'Dalla spesa',
+  'files.assignExpense': 'Spesa',
+  'files.confirm.deleteWithExpense': 'Questo file è collegato a 1 spesa attiva. Spostarlo nel cestino?',
+  'files.confirm.deleteWithExpenses': 'Questo file è collegato a {count} spese attive. Spostarlo nel cestino?',
+  'files.confirm.permanentDeleteWithExpense': 'Questo file è collegato a 1 spesa attiva. Eliminarlo definitivamente?',
+  'files.confirm.permanentDeleteWithExpenses': 'Questo file è collegato a {count} spese attive. Eliminarlo definitivamente?',
 };
 export default files;

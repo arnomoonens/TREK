@@ -21,6 +21,7 @@ import type { BookingExpenseRequest } from './BookingCostsSection.types'
 import type { Place, Category, Assignment, BudgetItem } from '../../types'
 import { NumericInput } from '../shared/NumericInput'
 import { PlacesSession } from '../../utils/placesSession'
+import { getExpenseDeleteWarning } from '../Budget/expenseAttachmentUtils'
 
 // The submit payload mirrors the form, but lat/lng are parsed to numbers and
 // category_id is normalised, plus any files chosen before the place existed.
@@ -119,6 +120,7 @@ function usePlaceFormModal(props: PlaceFormModalProps) {
   const canUploadFiles = can('file_upload', tripObj)
   const collectionsEnabled = useAddonStore((s) => s.isEnabled('collections'))
   const isBudgetEnabled = useAddonStore((s) => s.isEnabled('budget'))
+  const files = useTripStore((s) => s.files)
   const deleteBudgetItem = useTripStore((s) => s.deleteBudgetItem)
   // Set right before submit when the user clicked create/edit expense — the
   // place has to exist before an expense can point at it (see ReservationModal).
@@ -499,6 +501,8 @@ function usePlaceFormModal(props: PlaceFormModalProps) {
   const handleCreateExpense = () => { expenseIntentRef.current = { create: true }; void handleSubmit() }
   const handleEditExpense = (item: BudgetItem) => { expenseIntentRef.current = { editItem: item }; void handleSubmit() }
   const handleRemoveExpense = async (item: BudgetItem) => {
+    const warning = getExpenseDeleteWarning(files, item, t)
+    if (warning.count > 0 && !confirm(warning.message)) return
     try { await deleteBudgetItem(Number(tripId), item.id) } catch { toast.error(t('common.unknownError')) }
   }
 

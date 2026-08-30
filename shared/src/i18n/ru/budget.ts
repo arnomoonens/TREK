@@ -154,5 +154,7 @@ const budget: TranslationStrings = {
   'costs.attachmentsCount': '{count} вложения',
   'costs.attachmentsTitle': 'Вложения для «{name}»',
   'costs.noAttachments': 'К этому расходу не прикреплены файлы.',
+  'costs.confirm.deleteBodyWithFile': '«{name}» будет удалено безвозвратно. 1 прикреплённый файл останется.',
+  'costs.confirm.deleteBodyWithFiles': '«{name}» будет удалено безвозвратно. Останутся прикреплённые файлы: {count}.',
 };
 export default budget;

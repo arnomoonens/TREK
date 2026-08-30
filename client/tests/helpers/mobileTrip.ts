@@ -17,12 +17,12 @@ export function buildTripActions(): Record<string, ReturnType<typeof vi.fn>> {
   const names = [
     'addCategory', 'addDayNote', 'addFile', 'addPackingContributor', 'addPackingItem',
     'addPlace', 'addReservation', 'addTodoItem', 'assignPlaceToDay', 'clonePackingItem',
-    'deleteBudgetItem', 'deleteDayNote', 'deleteFile', 'deletePackingItem', 'deletePlace',
+    'attachExpenseFile', 'deleteBudgetItem', 'deleteDayNote', 'deleteFile', 'deletePackingItem', 'deletePlace',
     'deletePlacesMany', 'deleteReservation', 'deleteTodoItem', 'insertDay', 'loadBudgetItems',
     'loadFiles', 'loadReservations', 'loadTrip', 'moveAssignment', 'moveDayNote', 'ratePlace',
     'refreshDays', 'removeAssignment', 'removePackingContributor', 'reorderAssignments',
     'reorderDays', 'setAssignments', 'setPackingItemSharing', 'setSelectedDay',
-    'toggleBudgetMemberPaid', 'togglePackingItem', 'toggleReservationStatus', 'toggleTodoItem',
+    'toggleBudgetMemberPaid', 'togglePackingItem', 'toggleReservationStatus', 'toggleTodoItem', 'detachExpenseFile',
     'updateDayNote', 'updateDayTitle', 'updatePackingItem', 'updatePlace', 'updatePlacesMany',
     'updateReservation', 'updateTodoItem', 'updateTrip', 'uploadPlaceImage',
   ];

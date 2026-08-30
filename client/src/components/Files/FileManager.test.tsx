@@ -6,7 +6,7 @@ import { server } from '../../../tests/helpers/msw/server';
 import { useAuthStore } from '../../store/authStore';
 import { useTripStore } from '../../store/tripStore';
 import { resetAllStores, seedStore } from '../../../tests/helpers/store';
-import { buildUser, buildTrip } from '../../../tests/helpers/factories';
+import { buildBudgetItem, buildUser, buildTrip } from '../../../tests/helpers/factories';
 import type { TripFile } from '../../types';
 import FileManager from './FileManager';
 
@@ -82,6 +82,8 @@ const defaultProps = {
   days: [],
   assignments: {},
   reservations: [],
+  expenses: [],
+  trip: buildTrip({ id: 1 }),
   tripId: 1,
   allowedFileTypes: null,
 };
@@ -611,6 +613,27 @@ describe('FileManager', () => {
     await waitFor(() => {
       expect(screen.getAllByText('doc.pdf').length).toBeLessThan(2);
     });
+  });
+
+  it('FE-COMP-FILEMANAGER-036: renders one source badge per linked Expense', () => {
+    const expense = buildBudgetItem({ id: 7, name: 'Dinner' });
+    const file = buildFile({ linked_expense_ids: [7, 7] });
+
+    render(<FileManager {...defaultProps} files={[file]} expenses={[expense]} />);
+
+    expect(screen.getAllByText('From Expense · Dinner')).toHaveLength(1);
+  });
+
+  it('FE-COMP-FILEMANAGER-037: warns before moving a file with a live Expense link to trash', async () => {
+    const onDelete = vi.fn().mockResolvedValue(undefined);
+    const expense = buildBudgetItem({ id: 7, name: 'Dinner' });
+    const file = buildFile({ linked_expense_ids: [7] });
+    render(<FileManager {...defaultProps} files={[file]} expenses={[expense]} onDelete={onDelete} />);
+
+    await userEvent.click(screen.getByTitle(/delete/i));
+
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('1 live Expense'));
+    expect(onDelete).toHaveBeenCalledWith(1);
   });
 
   it('FE-COMP-FILEMANAGER-012: upload via dropzone calls onUpload', async () => {

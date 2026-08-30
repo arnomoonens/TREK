@@ -10,6 +10,7 @@ import { currencyDecimals } from '../../utils/formatters'
 import { widgetTheme, fmtNum, calcPP, calcPD, calcPPD, hasCustomMemberSplit } from './BudgetPanel.helpers'
 import { PIE_COLORS } from './BudgetPanel.constants'
 import type { TripMember } from './BudgetPanelMemberChips'
+import { getExpenseDeleteWarning } from './expenseAttachmentUtils'
 
 function useIsDark(): boolean {
   const [dark, setDark] = useState<boolean>(() => typeof document !== 'undefined' && document.documentElement.classList.contains('dark'))
@@ -67,7 +68,7 @@ export interface AddItemData {
 }
 
 export function useBudgetPanel(tripId: number, tripMembers: TripMember[]) {
-  const { trip, budgetItems, addBudgetItem, updateBudgetItem, deleteBudgetItem, loadBudgetItems, updateTrip, setBudgetItemMembers, toggleBudgetMemberPaid, reorderBudgetItems, reorderBudgetCategories } = useTripStore()
+  const { trip, budgetItems, files, addBudgetItem, updateBudgetItem, deleteBudgetItem, loadBudgetItems, updateTrip, setBudgetItemMembers, toggleBudgetMemberPaid, reorderBudgetItems, reorderBudgetCategories } = useTripStore()
   const can = useCanDo()
   const toast = useToast()
   const { t, locale } = useTranslation()
@@ -136,7 +137,14 @@ export function useBudgetPanel(tripId: number, tripMembers: TripMember[]) {
 
   const handleAddItem = async (category: string, data: AddItemData) => { try { await addBudgetItem(tripId, { ...data, category }) } catch { toast.error(t('common.error')) } }
   const handleUpdateField = async (id: number, field: string, value: unknown) => { try { await updateBudgetItem(tripId, id, { [field]: value } as Partial<BudgetItem>) } catch { toast.error(t('common.error')) } }
-  const handleDeleteItem = async (id: number) => { try { await deleteBudgetItem(tripId, id) } catch { toast.error(t('common.error')) } }
+  const handleDeleteItem = async (id: number) => {
+    const item = budgetItems.find(expense => expense.id === id)
+    if (item) {
+      const warning = getExpenseDeleteWarning(files, item, t)
+      if (warning.count > 0 && !confirm(warning.message)) return
+    }
+    try { await deleteBudgetItem(tripId, id) } catch { toast.error(t('common.error')) }
+  }
   const handleDeleteCategory = async (cat: string) => {
     const items = grouped.get(cat) || []
     try { for (const item of Array.from(items)) await deleteBudgetItem(tripId, item.id) }

@@ -34,7 +34,10 @@ export function useFiles() {
       ])
       setTrip(tripData.trip)
       setPlaces(placesData.places)
-      await tripStore.loadFiles(tripId)
+      await Promise.all([
+        tripStore.loadFiles(tripId),
+        tripStore.loadBudgetItems(tripId),
+      ])
     } catch (err: unknown) {
       navigate('/dashboard')
     } finally {
@@ -54,5 +57,9 @@ export function useFiles() {
     await tripStore.deleteFile(tripId, fileId)
   }
 
-  return { tripId, navigate, trip, places, files, isLoading, handleUpload, handleDelete }
+  const handleRefresh = async (): Promise<void> => {
+    await tripStore.loadFiles(tripId)
+  }
+
+  return { tripId, navigate, trip, places, files, budgetItems: tripStore.budgetItems, isLoading, handleUpload, handleDelete, handleRefresh }
 }

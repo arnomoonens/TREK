@@ -10,7 +10,7 @@ import { useFiles } from './files/useFiles'
 export default function FilesPage(): React.ReactElement {
   const { t } = useTranslation()
   // Page = wiring container: trip/places load, file sync + handlers live in the hook.
-  const { tripId, navigate, trip, places, files, isLoading, handleUpload, handleDelete } = useFiles()
+  const { tripId, navigate, trip, places, files, budgetItems, isLoading, handleUpload, handleDelete, handleRefresh } = useFiles()
 
   if (isLoading) {
     return (
@@ -45,7 +45,10 @@ export default function FilesPage(): React.ReactElement {
             files={files}
             onUpload={handleUpload}
             onDelete={handleDelete}
+            onUpdate={handleRefresh}
             places={places}
+            expenses={budgetItems}
+            trip={trip}
             tripId={tripId}
           />
         </div>

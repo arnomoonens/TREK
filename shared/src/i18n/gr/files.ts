@@ -62,5 +62,11 @@ const files: TranslationStrings = {
   'files.confirm.emptyTrash': 'Οριστική διαγραφή όλων των αρχείων στον κάδο; Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.',
   'files.noteLabel': 'Σημείωση',
   'files.notePlaceholder': 'Προσθήκη σημείωσης...',
+  'files.sourceExpense': 'Από δαπάνη',
+  'files.assignExpense': 'Δαπάνη',
+  'files.confirm.deleteWithExpense': 'Αυτό το αρχείο συνδέεται με 1 ενεργή δαπάνη. Μετακίνηση στον κάδο;',
+  'files.confirm.deleteWithExpenses': 'Αυτό το αρχείο συνδέεται με {count} ενεργές δαπάνες. Μετακίνηση στον κάδο;',
+  'files.confirm.permanentDeleteWithExpense': 'Αυτό το αρχείο συνδέεται με 1 ενεργή δαπάνη. Οριστική διαγραφή;',
+  'files.confirm.permanentDeleteWithExpenses': 'Αυτό το αρχείο συνδέεται με {count} ενεργές δαπάνες. Οριστική διαγραφή;',
 };
 export default files;

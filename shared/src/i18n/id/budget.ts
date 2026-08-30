@@ -154,5 +154,7 @@ const budget: TranslationStrings = {
   'costs.attachmentsCount': '{count} lampiran',
   'costs.attachmentsTitle': 'Lampiran untuk "{name}"',
   'costs.noAttachments': 'Tidak ada file yang dilampirkan ke pengeluaran ini.',
+  'costs.confirm.deleteBodyWithFile': '"{name}" akan dihapus secara permanen. 1 file terlampir akan tetap ada.',
+  'costs.confirm.deleteBodyWithFiles': '"{name}" akan dihapus secara permanen. {count} file terlampir akan tetap ada.',
 };
 export default budget;

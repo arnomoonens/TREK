@@ -62,5 +62,11 @@ const files: TranslationStrings = {
   'files.confirm.emptyTrash': 'Vill du radera alla filer i papperskorgen permanent? Detta går inte att ångra.',
   'files.noteLabel': 'Notering',
   'files.notePlaceholder': 'Lägg till en notering...',
+  'files.sourceExpense': 'Från utgift',
+  'files.assignExpense': 'Utgift',
+  'files.confirm.deleteWithExpense': 'Den här filen är kopplad till 1 aktiv utgift. Flytta den till papperskorgen?',
+  'files.confirm.deleteWithExpenses': 'Den här filen är kopplad till {count} aktiva utgifter. Flytta den till papperskorgen?',
+  'files.confirm.permanentDeleteWithExpense': 'Den här filen är kopplad till 1 aktiv utgift. Ta bort den permanent?',
+  'files.confirm.permanentDeleteWithExpenses': 'Den här filen är kopplad till {count} aktiva utgifter. Ta bort den permanent?',
 };
 export default files;

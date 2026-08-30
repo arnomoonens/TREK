@@ -62,5 +62,11 @@ const files: TranslationStrings = {
   'files.confirm.emptyTrash': '永久刪除回收站中的所有檔案？此操作無法撤銷。',
   'files.noteLabel': '備註',
   'files.notePlaceholder': '新增備註...',
+  'files.sourceExpense': '來自支出',
+  'files.assignExpense': '支出',
+  'files.confirm.deleteWithExpense': '此檔案連結至 1 筆有效支出。要移至回收站嗎？',
+  'files.confirm.deleteWithExpenses': '此檔案連結至 {count} 筆有效支出。要移至回收站嗎？',
+  'files.confirm.permanentDeleteWithExpense': '此檔案連結至 1 筆有效支出。要永久刪除嗎？',
+  'files.confirm.permanentDeleteWithExpenses': '此檔案連結至 {count} 筆有效支出。要永久刪除嗎？',
 };
 export default files;

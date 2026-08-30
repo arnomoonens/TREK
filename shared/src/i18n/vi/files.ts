@@ -62,5 +62,11 @@ const files: TranslationStrings = {
   'files.confirm.emptyTrash': 'Xóa vĩnh viễn tất cả các tập tin vào thùng rác? Điều này không thể hoàn tác được.',
   'files.noteLabel': 'Ghi chú',
   'files.notePlaceholder': 'Thêm ghi chú...',
+  'files.sourceExpense': 'Từ khoản chi',
+  'files.assignExpense': 'Khoản chi',
+  'files.confirm.deleteWithExpense': 'Tệp này được liên kết với 1 khoản chi đang hoạt động. Chuyển vào thùng rác?',
+  'files.confirm.deleteWithExpenses': 'Tệp này được liên kết với {count} khoản chi đang hoạt động. Chuyển vào thùng rác?',
+  'files.confirm.permanentDeleteWithExpense': 'Tệp này được liên kết với 1 khoản chi đang hoạt động. Xóa vĩnh viễn?',
+  'files.confirm.permanentDeleteWithExpenses': 'Tệp này được liên kết với {count} khoản chi đang hoạt động. Xóa vĩnh viễn?',
 };
 export default files;

@@ -63,5 +63,11 @@ const files: TranslationStrings = {
   'files.linkEmpty': 'Encara no hi ha llocs ni reserves per enllaçar',
   'files.menu': 'Més opcions',
   'files.uploadErrorSize': 'El fitxer és massa gran (màx. 50 MB)',
+  'files.sourceExpense': 'De la despesa',
+  'files.assignExpense': 'Despesa',
+  'files.confirm.deleteWithExpense': "Aquest fitxer està vinculat a 1 despesa activa. Vols moure'l a la paperera?",
+  'files.confirm.deleteWithExpenses': "Aquest fitxer està vinculat a {count} despeses actives. Vols moure'l a la paperera?",
+  'files.confirm.permanentDeleteWithExpense': "Aquest fitxer està vinculat a 1 despesa activa. Vols eliminar-lo definitivament?",
+  'files.confirm.permanentDeleteWithExpenses': "Aquest fitxer està vinculat a {count} despeses actives. Vols eliminar-lo definitivament?",
 };
 export default files;

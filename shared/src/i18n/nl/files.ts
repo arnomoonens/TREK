@@ -63,5 +63,11 @@ const files: TranslationStrings = {
     'Alle bestanden in de prullenbak permanent verwijderen? Dit kan niet ongedaan worden gemaakt.',
   'files.noteLabel': 'Notitie',
   'files.notePlaceholder': 'Notitie toevoegen...',
+  'files.sourceExpense': 'Uit uitgave',
+  'files.assignExpense': 'Uitgave',
+  'files.confirm.deleteWithExpense': 'Dit bestand is gekoppeld aan 1 actieve uitgave. Naar de prullenbak verplaatsen?',
+  'files.confirm.deleteWithExpenses': 'Dit bestand is gekoppeld aan {count} actieve uitgaven. Naar de prullenbak verplaatsen?',
+  'files.confirm.permanentDeleteWithExpense': 'Dit bestand is gekoppeld aan 1 actieve uitgave. Permanent verwijderen?',
+  'files.confirm.permanentDeleteWithExpenses': 'Dit bestand is gekoppeld aan {count} actieve uitgaven. Permanent verwijderen?',
 };
 export default files;

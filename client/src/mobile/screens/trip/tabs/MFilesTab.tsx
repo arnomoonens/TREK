@@ -235,7 +235,7 @@ function FileRow({ file, planner, onOpen, onStar, onMenu }: {
   const { locale } = useTranslation()
   const meta = getFileTypeMeta(file)
   const TypeIcon = meta.icon
-  const linkLabels = buildFileLinkLabels(file, planner.places, planner.reservations, planner.TRANSPORT_TYPES, t)
+  const linkLabels = buildFileLinkLabels(file, planner.places, planner.reservations, planner.TRANSPORT_TYPES, t, planner.budgetItems)
   const starred = !!file.starred
 
   return (

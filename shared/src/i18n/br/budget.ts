@@ -154,5 +154,7 @@ const budget: TranslationStrings = {
   'costs.attachmentsCount': '{count} anexos',
   'costs.attachmentsTitle': 'Anexos de "{name}"',
   'costs.noAttachments': 'Nenhum arquivo anexado a esta despesa.',
+  'costs.confirm.deleteBodyWithFile': '"{name}" será excluído permanentemente. 1 arquivo anexado permanecerá.',
+  'costs.confirm.deleteBodyWithFiles': '"{name}" será excluído permanentemente. {count} arquivos anexados permanecerão.',
 };
 export default budget;

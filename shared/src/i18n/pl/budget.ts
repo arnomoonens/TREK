@@ -154,5 +154,7 @@ const budget: TranslationStrings = {
   'costs.attachmentsCount': '{count} załączniki',
   'costs.attachmentsTitle': 'Załączniki dla „{name}”',
   'costs.noAttachments': 'Do tego wydatku nie ma dołączonych plików.',
+  'costs.confirm.deleteBodyWithFile': '„{name}” zostanie trwale usunięte. 1 załączony plik pozostanie.',
+  'costs.confirm.deleteBodyWithFiles': '„{name}” zostanie trwale usunięte. Pozostaną {count} załączone pliki.',
 };
 export default budget;

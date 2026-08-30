@@ -1,6 +1,7 @@
 // FE-W5ASG-001 to FE-W5ASG-022
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '../../../tests/helpers/render'
+import { buildBudgetItem } from '../../../tests/helpers/factories'
 import type { Day, Place, Reservation, TripFile } from '../../types'
 import type { FileManagerState } from './useFileManager'
 
@@ -26,6 +27,8 @@ import { AssignModal } from './FileManagerAssignModal'
 const setAssignFileId = vi.fn()
 const handleAssign = vi.fn(async (_fileId: number, _data: unknown) => {})
 const refreshFiles = vi.fn(async () => {})
+const attachExpenseFile = vi.fn(async (_tripId: number, _expenseId: number, _fileId: number) => ({} as TripFile))
+const detachExpenseFile = vi.fn(async (_tripId: number, _expenseId: number, _fileId: number) => ({} as TripFile))
 
 const file = (overrides: Partial<TripFile> = {}) =>
   ({ id: 7, original_name: 'ticket.pdf', description: '', url: '/uploads/files/ticket.pdf', ...overrides }) as unknown as TripFile
@@ -44,7 +47,11 @@ function state(overrides: Partial<FileManagerState> = {}): FileManagerState {
     assignments: {},
     places: [],
     reservations: [],
+    expenses: [],
     tripId: 3,
+    trip: null,
+    can: () => true,
+    toast: { error: vi.fn() },
     handleAssign,
     refreshFiles,
     ...overrides,
@@ -56,6 +63,8 @@ beforeEach(() => {
   getLinks.mockResolvedValue({ links: [] })
   addLink.mockResolvedValue({})
   removeLink.mockResolvedValue({})
+  attachExpenseFile.mockResolvedValue({} as TripFile)
+  detachExpenseFile.mockResolvedValue({} as TripFile)
 })
 
 describe('AssignModal shell', () => {
@@ -378,6 +387,27 @@ describe('AssignModal reservation list', () => {
     expect(free.style.background).toBe('var(--bg-hover)')
     fireEvent.mouseLeave(free)
     expect(free.style.background).toBe('transparent')
+  })
+})
+
+describe('AssignModal expense list', () => {
+  it('FE-W5ASG-035: toggles an Expense link through the shared actions', async () => {
+    const expense = buildBudgetItem({ id: 12, name: 'Dinner' })
+    render(<AssignModal {...state({
+      expenses: [expense],
+      files: [file({ linked_expense_ids: [12] })],
+      can: () => true,
+      attachExpenseFile,
+      detachExpenseFile,
+    })} />)
+
+    const row = screen.getByRole('button', { name: 'Dinner' })
+    expect(row).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(row)
+
+    await waitFor(() => expect(detachExpenseFile).toHaveBeenCalledWith(3, 12, 7))
+    expect(refreshFiles).toHaveBeenCalled()
   })
 })
 

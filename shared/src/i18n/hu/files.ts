@@ -62,5 +62,11 @@ const files: TranslationStrings = {
   'files.confirm.emptyTrash': 'Véglegesen törlöd az összes kukába helyezett fájlt? Ez nem vonható vissza.',
   'files.noteLabel': 'Megjegyzés',
   'files.notePlaceholder': 'Megjegyzés hozzáadása...',
+  'files.sourceExpense': 'Kiadásból',
+  'files.assignExpense': 'Kiadás',
+  'files.confirm.deleteWithExpense': 'Ez a fájl 1 aktív kiadáshoz kapcsolódik. Áthelyezed a kukába?',
+  'files.confirm.deleteWithExpenses': 'Ez a fájl {count} aktív kiadáshoz kapcsolódik. Áthelyezed a kukába?',
+  'files.confirm.permanentDeleteWithExpense': 'Ez a fájl 1 aktív kiadáshoz kapcsolódik. Véglegesen törlöd?',
+  'files.confirm.permanentDeleteWithExpenses': 'Ez a fájl {count} aktív kiadáshoz kapcsolódik. Véglegesen törlöd?',
 };
 export default files;

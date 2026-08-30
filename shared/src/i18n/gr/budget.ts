@@ -155,5 +155,7 @@ const budget: TranslationStrings = {
   'costs.attachmentsCount': '{count} συνημμένα',
   'costs.attachmentsTitle': 'Συνημμένα για «{name}»',
   'costs.noAttachments': 'Δεν υπάρχουν αρχεία συνημμένα σε αυτή τη δαπάνη.',
+  'costs.confirm.deleteBodyWithFile': 'Το «{name}» θα διαγραφεί οριστικά. Θα παραμείνει 1 συνημμένο αρχείο.',
+  'costs.confirm.deleteBodyWithFiles': 'Το «{name}» θα διαγραφεί οριστικά. Θα παραμείνουν {count} συνημμένα αρχεία.',
 };
 export default budget;

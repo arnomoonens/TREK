@@ -154,5 +154,7 @@ const budget: TranslationStrings = {
   'costs.attachmentsCount': '{count} melléklet',
   'costs.attachmentsTitle': 'Mellékletek ehhez: „{name}”',
   'costs.noAttachments': 'Ehhez a kiadáshoz nincs csatolt fájl.',
+  'costs.confirm.deleteBodyWithFile': 'A(z) „{name}” véglegesen törlődik. 1 csatolt fájl megmarad.',
+  'costs.confirm.deleteBodyWithFiles': 'A(z) „{name}” véglegesen törlődik. {count} csatolt fájl megmarad.',
 };
 export default budget;

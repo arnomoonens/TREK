@@ -1,7 +1,7 @@
 import { File, FileText, Files, FolderOpen, Image as ImageIcon, Star, StickyNote, Ticket, FileSpreadsheet } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { isMedia, isWalletPass } from '../../../../components/Files/FileManager.helpers'
-import type { Place, Reservation, TranslationFn, TripFile } from '../../../../types'
+import type { BudgetItem, Place, Reservation, TranslationFn, TripFile } from '../../../../types'
 
 /**
  * Pure view-model helpers for the mobile Files tab — the real-data
@@ -114,6 +114,7 @@ export function buildFileLinkLabels(
   reservations: Reservation[],
   transportTypes: Set<string>,
   t: TranslationFn,
+  expenses: BudgetItem[],
 ): string[] {
   const labels: string[] = []
 
@@ -134,6 +135,12 @@ export function buildFileLinkLabels(
       const key = transportTypes.has(res.type) ? 'files.sourceTransport' : 'files.sourceBooking'
       labels.push(`${t(key)} · ${res.title || t(key)}`)
     }
+  }
+
+  const expenseIds = new Set(file.linked_expense_ids || [])
+  for (const id of expenseIds) {
+    const expense = expenses.find(item => item.id === id)
+    if (expense) labels.push(`${t('files.sourceExpense')} · ${expense.name}`)
   }
 
   if (file.note_id != null) labels.push(t('files.sourceCollab'))

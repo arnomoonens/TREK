@@ -22,6 +22,7 @@ import type { TripMember } from '../Budget/BudgetPanelMemberChips'
 import type { BookingExpenseRequest } from './BookingCostsSection.types'
 import type { BookingReviewDraft } from './parsedItemToDraft'
 import { typeToCostCategory } from '@trek/shared'
+import { getExpenseDeleteWarning } from '../Budget/expenseAttachmentUtils'
 
 const TYPE_OPTIONS = [
   { value: 'hotel',      labelKey: 'reservations.type.hotel',      Icon: Hotel },
@@ -349,6 +350,8 @@ export function ReservationModal({ isOpen, onClose, onSave, reservation, days, p
   const handleCreateExpense = () => { expenseIntentRef.current = { create: true }; handleSubmit() }
   const handleEditExpense = (item: BudgetItem) => { expenseIntentRef.current = { editItem: item }; handleSubmit() }
   const handleRemoveExpense = async (item: BudgetItem) => {
+    const warning = getExpenseDeleteWarning(files, item, t)
+    if (warning.count > 0 && !confirm(warning.message)) return
     try { await deleteBudgetItem(Number(tripId), item.id) } catch { toast.error(t('common.unknownError')) }
   }
 

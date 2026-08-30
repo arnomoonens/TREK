@@ -154,5 +154,7 @@ const budget: TranslationStrings = {
   'costs.attachmentsCount': '{count} bijlagen',
   'costs.attachmentsTitle': 'Bijlagen voor "{name}"',
   'costs.noAttachments': 'Aan deze uitgave zijn geen bestanden gekoppeld.',
+  'costs.confirm.deleteBodyWithFile': '"{name}" wordt permanent verwijderd. 1 bijgevoegd bestand blijft behouden.',
+  'costs.confirm.deleteBodyWithFiles': '"{name}" wordt permanent verwijderd. {count} bijgevoegde bestanden blijven behouden.',
 };
 export default budget;

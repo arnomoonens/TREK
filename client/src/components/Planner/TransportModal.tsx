@@ -22,6 +22,7 @@ import type { BookingExpenseRequest } from './BookingCostsSection.types'
 import type { BookingReviewDraft } from './parsedItemToDraft'
 import TransitSearchPanel, { type PickedPlace } from './TransitSearchPanel'
 import { typeToCostCategory } from '@trek/shared'
+import { getExpenseDeleteWarning } from '../Budget/expenseAttachmentUtils'
 
 const TRANSPORT_TYPES = ['flight', 'train', 'bus', 'car', 'taxi', 'bicycle', 'cruise', 'ferry', 'transit', 'transport_other'] as const
 type TransportType = typeof TRANSPORT_TYPES[number]
@@ -595,6 +596,8 @@ export function TransportModal({ isOpen, onClose, onSave, reservation, days, sel
   const handleCreateExpense = () => { expenseIntentRef.current = { create: true }; handleSubmit() }
   const handleEditExpense = (item: BudgetItem) => { expenseIntentRef.current = { editItem: item }; handleSubmit() }
   const handleRemoveExpense = async (item: BudgetItem) => {
+    const warning = getExpenseDeleteWarning(files, item, t)
+    if (warning.count > 0 && !confirm(warning.message)) return
     try { await deleteBudgetItem(Number(tripId), item.id) } catch { toast.error(t('common.unknownError')) }
   }
 

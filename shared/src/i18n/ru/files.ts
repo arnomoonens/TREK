@@ -62,5 +62,11 @@ const files: TranslationStrings = {
   'files.confirm.emptyTrash': 'Безвозвратно удалить все файлы из корзины? Это действие нельзя отменить.',
   'files.noteLabel': 'Заметка',
   'files.notePlaceholder': 'Добавить заметку...',
+  'files.sourceExpense': 'Из расхода',
+  'files.assignExpense': 'Расход',
+  'files.confirm.deleteWithExpense': 'Этот файл связан с 1 активным расходом. Переместить его в корзину?',
+  'files.confirm.deleteWithExpenses': 'Этот файл связан с {count} активными расходами. Переместить его в корзину?',
+  'files.confirm.permanentDeleteWithExpense': 'Этот файл связан с 1 активным расходом. Удалить его безвозвратно?',
+  'files.confirm.permanentDeleteWithExpenses': 'Этот файл связан с {count} активными расходами. Удалить его безвозвратно?',
 };
 export default files;

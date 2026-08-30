@@ -1,13 +1,19 @@
 import { createPortal } from 'react-dom'
-import { X, MapPin, Ticket, Check } from 'lucide-react'
+import { useState } from 'react'
+import { X, MapPin, Receipt, Ticket, Check, Loader2 } from 'lucide-react'
 import { filesApi } from '../../api/client'
-import type { Place, Reservation, Day } from '../../types'
+import type { BudgetItem, Place, Reservation, Day } from '../../types'
 import type { FileManagerState } from './useFileManager'
 import { TRANSPORT_TYPES } from './FileManager.constants'
 import { transportIcon } from './FileManager.helpers'
 
 export function AssignModal(S: FileManagerState) {
-  const { files, assignFileId, setAssignFileId, t, days, assignments, places, reservations, tripId, handleAssign, refreshFiles } = S
+  const {
+    files, assignFileId, setAssignFileId, t, days, assignments, places, reservations, expenses,
+    tripId, trip, can, toast, handleAssign, refreshFiles, attachExpenseFile, detachExpenseFile,
+  } = S
+  const [busyExpenseId, setBusyExpenseId] = useState<number | null>(null)
+  const canAttachExpenses = can('budget_edit', trip) && can('file_edit', trip)
   return createPortal(
     <div role="presentation" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 5000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onClick={() => setAssignFileId(null)}>
@@ -22,7 +28,7 @@ export function AssignModal(S: FileManagerState) {
               {files.find(f => f.id === assignFileId)?.original_name || ''}
             </div>
           </div>
-          <button type="button" onClick={() => setAssignFileId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-faint)', padding: 4, display: 'flex', flexShrink: 0 }}>
+          <button type="button" aria-label={t('common.close')} onClick={() => setAssignFileId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-faint)', padding: 4, display: 'flex', flexShrink: 0 }}>
             <X size={18} />
           </button>
         </div>
@@ -76,8 +82,10 @@ export function AssignModal(S: FileManagerState) {
                         const linksRes = await filesApi.getLinks(tripId, file.id)
                         const link = (linksRes.links || []).find((l: any) => l.place_id === p.id)
                         if (link) await filesApi.removeLink(tripId, file.id, link.id)
-                        refreshFiles()
-                      } catch {}
+                        await refreshFiles()
+                      } catch {
+                        toast.error(t('files.toast.assignError'))
+                      }
                     }
                   } else {
                     if (!file.place_id) {
@@ -85,8 +93,10 @@ export function AssignModal(S: FileManagerState) {
                     } else {
                       try {
                         await filesApi.addLink(tripId, file.id, { place_id: p.id })
-                        refreshFiles()
-                      } catch {}
+                        await refreshFiles()
+                      } catch {
+                        toast.error(t('files.toast.assignError'))
+                      }
                     }
                   }
                 }} style={{
@@ -151,8 +161,10 @@ export function AssignModal(S: FileManagerState) {
                         const linksRes = await filesApi.getLinks(tripId, file.id)
                         const link = (linksRes.links || []).find((l: any) => l.reservation_id === r.id)
                         if (link) await filesApi.removeLink(tripId, file.id, link.id)
-                        refreshFiles()
-                      } catch {}
+                        await refreshFiles()
+                      } catch {
+                        toast.error(t('files.toast.assignError'))
+                      }
                     }
                   } else {
                     if (!file.reservation_id) {
@@ -160,8 +172,10 @@ export function AssignModal(S: FileManagerState) {
                     } else {
                       try {
                         await filesApi.addLink(tripId, file.id, { reservation_id: r.id })
-                        refreshFiles()
-                      } catch {}
+                        await refreshFiles()
+                      } catch {
+                        toast.error(t('files.toast.assignError'))
+                      }
                     }
                   }
                 }} style={{
@@ -200,14 +214,64 @@ export function AssignModal(S: FileManagerState) {
               </div>
             )
 
+            const expenseButton = (expense: BudgetItem) => {
+              const isLinked = (file.linked_expense_ids || []).includes(expense.id)
+              const busy = busyExpenseId === expense.id
+              return (
+                <button
+                  type="button"
+                  key={expense.id}
+                  aria-pressed={isLinked}
+                  disabled={!canAttachExpenses || busy || !attachExpenseFile || !detachExpenseFile}
+                  onClick={async () => {
+                    if (!canAttachExpenses || busy || !attachExpenseFile || !detachExpenseFile) return
+                    setBusyExpenseId(expense.id)
+                    try {
+                      if (isLinked) await detachExpenseFile(tripId, expense.id, file.id)
+                      else await attachExpenseFile(tripId, expense.id, file.id)
+                      await refreshFiles()
+                    } catch {
+                      toast.error(t('files.toast.assignError'))
+                    } finally {
+                      setBusyExpenseId(null)
+                    }
+                  }}
+                  style={{
+                    width: '100%', textAlign: 'left', padding: '6px 10px 6px 20px', background: isLinked ? 'var(--bg-hover)' : 'none',
+                    border: 'none', cursor: !canAttachExpenses || busy ? 'default' : 'pointer', fontSize: 'calc(13px * var(--fs-scale-body, 1))', color: 'var(--text-primary)',
+                    borderRadius: 8, fontFamily: 'inherit', fontWeight: isLinked ? 600 : 400,
+                    display: 'flex', alignItems: 'center', gap: 6, opacity: canAttachExpenses ? 1 : 0.55,
+                  }}
+                  onMouseEnter={e => { if (canAttachExpenses) e.currentTarget.style.background = 'var(--bg-hover)' }}
+                  onMouseLeave={e => e.currentTarget.style.background = isLinked ? 'var(--bg-hover)' : 'transparent'}
+                >
+                  <Receipt size={12} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{expense.name || `#${expense.id}`}</span>
+                  {busy ? <Loader2 size={14} className="animate-spin" style={{ marginLeft: 'auto', flexShrink: 0, color: 'var(--text-muted)' }} /> : isLinked && <Check size={14} style={{ marginLeft: 'auto', flexShrink: 0, color: 'var(--accent)' }} />}
+                </button>
+              )
+            }
+
+            const expensesSection = expenses.length > 0 && (
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 'calc(11px * var(--fs-scale-caption, 1))', fontWeight: 600, color: 'var(--text-faint)', padding: '8px 10px 4px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  {t('files.assignExpense')}
+                </div>
+                {expenses.map(expenseButton)}
+              </div>
+            )
+
             const hasBoth = placesSection && bookingsSection
             return (
-              <div className={hasBoth ? 'md:flex' : ''}>
-                <div className={hasBoth ? 'md:w-1/2' : ''} style={{ overflowY: 'auto', maxHeight: '55vh', paddingRight: hasBoth ? 6 : 0 }}>{placesSection}</div>
-                {hasBoth && <div className="hidden md:block" style={{ width: 1, background: 'var(--border-primary)', flexShrink: 0 }} />}
-                {hasBoth && <div className="block md:hidden" style={{ height: 1, background: 'var(--border-primary)', margin: '8px 0' }} />}
-                <div className={hasBoth ? 'md:w-1/2' : ''} style={{ overflowY: 'auto', maxHeight: '55vh', paddingLeft: hasBoth ? 6 : 0 }}>{bookingsSection}</div>
-              </div>
+              <>
+                <div className={hasBoth ? 'md:flex' : ''}>
+                  <div className={hasBoth ? 'md:w-1/2' : ''} style={{ overflowY: 'auto', maxHeight: '55vh', paddingRight: hasBoth ? 6 : 0 }}>{placesSection}</div>
+                  {hasBoth && <div className="hidden md:block" style={{ width: 1, background: 'var(--border-primary)', flexShrink: 0 }} />}
+                  {hasBoth && <div className="block md:hidden" style={{ height: 1, background: 'var(--border-primary)', margin: '8px 0' }} />}
+                  <div className={hasBoth ? 'md:w-1/2' : ''} style={{ overflowY: 'auto', maxHeight: '55vh', paddingLeft: hasBoth ? 6 : 0 }}>{bookingsSection}</div>
+                </div>
+                {expensesSection && <div style={{ borderTop: placesSection || bookingsSection ? '1px solid var(--border-primary)' : undefined, marginTop: placesSection || bookingsSection ? 8 : 0, paddingTop: placesSection || bookingsSection ? 4 : 0 }}>{expensesSection}</div>}
+              </>
             )
           })()}
         </div>

@@ -154,5 +154,7 @@ const budget: TranslationStrings = {
   'costs.attachmentsCount': '{count}개 첨부 파일',
   'costs.attachmentsTitle': '"{name}"의 첨부 파일',
   'costs.noAttachments': '이 지출에 첨부된 파일이 없습니다.',
+  'costs.confirm.deleteBodyWithFile': '"{name}"이(가) 영구적으로 삭제됩니다. 첨부 파일 1개는 유지됩니다.',
+  'costs.confirm.deleteBodyWithFiles': '"{name}"이(가) 영구적으로 삭제됩니다. 첨부 파일 {count}개는 유지됩니다.',
 };
 export default budget;

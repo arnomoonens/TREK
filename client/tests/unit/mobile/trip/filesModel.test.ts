@@ -10,7 +10,7 @@ import {
   sortFilesStarredFirst,
   type FileFilterId,
 } from '../../../../src/mobile/screens/trip/tabs/filesModel';
-import { buildPlace, buildReservation, buildTripFile } from '../../../helpers/factories';
+import { buildBudgetItem, buildPlace, buildReservation, buildTripFile } from '../../../helpers/factories';
 import type { TranslationFn, TripFile } from '../../../../src/types';
 
 // FE-MOB-FILM-001 to FE-MOB-FILM-017
@@ -148,6 +148,7 @@ describe('filesModel — link labels', () => {
       reservations,
       transportTypes,
       t,
+      [],
     );
     // 11 appears in both columns but is listed once; 99 does not exist any more
     expect(labels).toEqual(['files.sourcePlan · Louvre', 'files.sourcePlan · Eiffel Tower']);
@@ -164,6 +165,7 @@ describe('filesModel — link labels', () => {
       reservations,
       transportTypes,
       t,
+      [],
     );
 
     expect(labels).toEqual([
@@ -176,6 +178,19 @@ describe('filesModel — link labels', () => {
   });
 
   it('FE-MOB-FILM-017: an unlinked file has no labels', () => {
-    expect(buildFileLinkLabels(file({}), places, reservations, transportTypes, t)).toEqual([]);
+    expect(buildFileLinkLabels(file({}), places, reservations, transportTypes, t, [])).toEqual([]);
+  });
+
+  it('FE-MOB-FILM-018: labels unique linked Expenses and hides deleted Expense ids', () => {
+    const labels = buildFileLinkLabels(
+      file({ linked_expense_ids: [30, 30, 99] }),
+      [],
+      [],
+      transportTypes,
+      t,
+      [buildBudgetItem({ id: 30, name: 'Dinner' })],
+    );
+
+    expect(labels).toEqual(['files.sourceExpense · Dinner']);
   });
 });

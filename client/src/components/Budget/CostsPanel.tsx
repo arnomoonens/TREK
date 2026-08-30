@@ -25,7 +25,7 @@ import GuestBadge from '../shared/GuestBadge'
 import { NumericInput } from '../shared/NumericInput'
 import EmptyState from '../shared/EmptyState'
 import ExpenseFilePicker from './ExpenseFilePicker'
-import { filesForExpense } from './expenseAttachmentUtils'
+import { filesForExpense, getExpenseDeleteWarning } from './expenseAttachmentUtils'
 import { ExpenseAttachmentCount, ExpenseAttachmentsDialog, ExpenseAttachmentsSheet } from './ExpenseAttachments'
 
 interface CostsPanelProps {
@@ -246,6 +246,11 @@ export default function CostsPanel({ tripId, tripMembers = [] }: CostsPanelProps
   }, [trip?.start_date, trip?.end_date, locale])
 
   const handleDelete = async (id: number) => {
+    const item = budgetItems.find(expense => expense.id === id)
+    if (item) {
+      const warning = getExpenseDeleteWarning(files, item, t)
+      if (warning.count > 0 && !confirm(warning.message)) return
+    }
     try { await deleteBudgetItem(tripId, id); loadSettlement() } catch { toast.error(t('common.unknownError')) }
   }
 

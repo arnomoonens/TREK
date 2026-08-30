@@ -62,5 +62,11 @@ const files: TranslationStrings = {
   'files.confirm.emptyTrash': 'ゴミ箱内のファイルをすべて完全に削除しますか？元に戻せません。',
   'files.noteLabel': 'メモ',
   'files.notePlaceholder': 'メモを追加...',
+  'files.sourceExpense': '支出から',
+  'files.assignExpense': '支出',
+  'files.confirm.deleteWithExpense': 'このファイルは有効な支出1件にリンクされています。ゴミ箱に移動しますか？',
+  'files.confirm.deleteWithExpenses': 'このファイルは有効な支出{count}件にリンクされています。ゴミ箱に移動しますか？',
+  'files.confirm.permanentDeleteWithExpense': 'このファイルは有効な支出1件にリンクされています。完全に削除しますか？',
+  'files.confirm.permanentDeleteWithExpenses': 'このファイルは有効な支出{count}件にリンクされています。完全に削除しますか？',
 };
 export default files;

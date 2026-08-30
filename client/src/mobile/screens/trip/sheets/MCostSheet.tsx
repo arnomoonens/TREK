@@ -17,7 +17,7 @@ import { calculateTicketShares, hasTicketSplit, NOTE_MAX, readTicketItems, readU
 import type { ExpensePrefill } from '../../../../components/Budget/CostsPanel'
 import { payersBalanced, rebalancePayers } from '../../../../components/Budget/CostsPanel.helpers'
 import ExpenseFilePicker from '../../../../components/Budget/ExpenseFilePicker'
-import { filesForExpense } from '../../../../components/Budget/expenseAttachmentUtils'
+import { filesForExpense, getExpenseDeleteWarning } from '../../../../components/Budget/expenseAttachmentUtils'
 import GuestBadge from '../../../../components/shared/GuestBadge'
 import type { TripMember } from '../../../../components/Budget/BudgetPanelMemberChips'
 import type { BudgetItem } from '../../../../types'
@@ -316,6 +316,13 @@ export default function MCostSheet({ tripId, base, people, me, editing, prefill,
       setDeleteArmed(true)
       toast.warning(t('mobileTrip.tapAgainToDelete'))
       return
+    }
+    const warning = getExpenseDeleteWarning(files, editing, t)
+    if (warning.count > 0) {
+      if (!confirm(warning.message)) {
+        setDeleteArmed(false)
+        return
+      }
     }
     try {
       await deleteBudgetItem(tripId, editing.id)

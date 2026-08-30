@@ -154,5 +154,7 @@ const budget: TranslationStrings = {
   'costs.attachmentsCount': '{count} Anhänge',
   'costs.attachmentsTitle': 'Anhänge für „{name}“',
   'costs.noAttachments': 'An diese Ausgabe sind keine Dateien angehängt.',
+  'costs.confirm.deleteBodyWithFile': '„{name}“ wird unwiderruflich gelöscht. Eine angehängte Datei bleibt erhalten.',
+  'costs.confirm.deleteBodyWithFiles': '„{name}“ wird unwiderruflich gelöscht. {count} angehängte Dateien bleiben erhalten.',
 };
 export default budget;

@@ -154,5 +154,7 @@ const budget: TranslationStrings = {
   'costs.attachmentsCount': '{count} bilagor',
   'costs.attachmentsTitle': 'Bilagor för "{name}"',
   'costs.noAttachments': 'Inga filer är bifogade till denna utgift.',
+  'costs.confirm.deleteBodyWithFile': '"{name}" tas bort permanent. 1 bifogad fil finns kvar.',
+  'costs.confirm.deleteBodyWithFiles': '"{name}" tas bort permanent. {count} bifogade filer finns kvar.',
 };
 export default budget;

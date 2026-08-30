@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Loader2, RotateCcw, Trash2 } from 'lucide-react'
 import MSheet from '../../../components/MSheet'
 import MConfirmSheet from '../../settings/MConfirmSheet'
@@ -9,6 +9,7 @@ import { TileHeader } from '../sheets/MTripSheetUi'
 import { formatFileDate, getFileTypeMeta } from './filesModel'
 import { useTranslation } from '../../../../i18n'
 import { formatSize } from '../../../../components/Files/FileManager.helpers'
+import { linkedExpenseIds } from '../../../../components/Budget/expenseAttachmentUtils'
 
 interface MFileTrashSheetProps {
   planner: TripPlanner
@@ -23,8 +24,10 @@ interface MFileTrashSheetProps {
  * all bypass the store like the rest of §7.3.
  */
 export default function MFileTrashSheet({ planner, open, onClose }: MFileTrashSheetProps) {
-  const { t, tripId, can, trip, toast, tripActions } = planner
+  const { t, tripId, can, trip, budgetItems, toast, tripActions } = planner
   const { locale } = useTranslation()
+  const toastRef = useRef(toast)
+  toastRef.current = toast
   const [files, setFiles] = useState<TripFile[]>([])
   const [loading, setLoading] = useState(false)
   const [busyId, setBusyId] = useState<number | null>(null)
@@ -38,12 +41,19 @@ export default function MFileTrashSheet({ planner, open, onClose }: MFileTrashSh
     setLoading(true)
     filesApi.list(tripId, true)
       .then((data: { files?: TripFile[] }) => { if (!cancelled) setFiles(data.files || []) })
-      .catch(() => {})
+      .catch(() => toastRef.current.error(t('files.toast.deleteError')))
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [open, tripId])
+  }, [open, tripId, t])
 
   const canDelete = can('file_delete', trip)
+  const fileToDelete = confirmDeleteId == null ? null : files.find(file => file.id === confirmDeleteId)
+  const linkedExpenses = fileToDelete
+    ? linkedExpenseIds(fileToDelete).filter(expenseId => budgetItems.some(expense => expense.id === expenseId))
+    : []
+  const permanentDeleteMessage = linkedExpenses.length === 0
+    ? t('files.confirm.permanentDelete')
+    : t(linkedExpenses.length === 1 ? 'files.confirm.permanentDeleteWithExpense' : 'files.confirm.permanentDeleteWithExpenses', { count: linkedExpenses.length })
 
   const restore = (id: number) => {
     setBusyId(id)
@@ -125,6 +135,12 @@ export default function MFileTrashSheet({ planner, open, onClose }: MFileTrashSh
                       <div className="mt-[2px] font-geist text-[0.625rem] text-m-faint">
                         {[formatSize(file.file_size), formatFileDate(file.created_at, locale)].filter(Boolean).join(' · ')}
                       </div>
+                      {linkedExpenseIds(file)
+                        .map(expenseId => budgetItems.find(item => item.id === expenseId))
+                        .filter((expense): expense is NonNullable<typeof expense> => expense != null)
+                        .map(expense => (
+                          <div key={expense.id} className="mt-[2px] truncate font-geist text-[0.5625rem] font-bold text-m-faint">{t('files.sourceExpense')} · {expense.name}</div>
+                        ))}
                     </div>
                     {canDelete && (
                       <div className="flex flex-none items-center gap-1">
@@ -170,7 +186,7 @@ export default function MFileTrashSheet({ planner, open, onClose }: MFileTrashSh
         open={confirmDeleteId != null}
         onClose={() => setConfirmDeleteId(null)}
         title={t('common.delete')}
-        message={t('files.confirm.permanentDelete')}
+        message={permanentDeleteMessage}
         confirmLabel={t('common.delete')}
         cancelLabel={t('common.cancel')}
         danger

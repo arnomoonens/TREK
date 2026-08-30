@@ -154,5 +154,7 @@ const budget: TranslationStrings = {
   'costs.attachmentsCount': '{count} příloh',
   'costs.attachmentsTitle': 'Přílohy k položce „{name}“',
   'costs.noAttachments': 'K tomuto výdaji nejsou připojeny žádné soubory.',
+  'costs.confirm.deleteBodyWithFile': '„{name}“ bude trvale smazáno. Zůstane 1 připojený soubor.',
+  'costs.confirm.deleteBodyWithFiles': '„{name}“ bude trvale smazáno. Zůstanou připojené soubory: {count}.',
 };
 export default budget;

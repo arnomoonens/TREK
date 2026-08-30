@@ -62,5 +62,11 @@ const files: TranslationStrings = {
   'files.confirm.emptyTrash': 'حذف جميع ملفات سلة المهملات نهائيًا؟ لا يمكن التراجع عن ذلك.',
   'files.noteLabel': 'ملاحظة',
   'files.notePlaceholder': 'أضف ملاحظة...',
+  'files.sourceExpense': 'من المصروف',
+  'files.assignExpense': 'المصروف',
+  'files.confirm.deleteWithExpense': 'هذا الملف مرتبط بمصروف نشط واحد. هل تريد نقله إلى سلة المهملات؟',
+  'files.confirm.deleteWithExpenses': 'هذا الملف مرتبط بـ {count} مصاريف نشطة. هل تريد نقله إلى سلة المهملات؟',
+  'files.confirm.permanentDeleteWithExpense': 'هذا الملف مرتبط بمصروف نشط واحد. هل تريد حذفه نهائيًا؟',
+  'files.confirm.permanentDeleteWithExpenses': 'هذا الملف مرتبط بـ {count} مصاريف نشطة. هل تريد حذفه نهائيًا؟',
 };
 export default files;

@@ -62,5 +62,11 @@ const files: TranslationStrings = {
   'files.confirm.emptyTrash': 'Hapus semua file di sampah secara permanen? Tindakan ini tidak bisa dibatalkan.',
   'files.noteLabel': 'Catatan',
   'files.notePlaceholder': 'Tambahkan catatan...',
+  'files.sourceExpense': 'Dari pengeluaran',
+  'files.assignExpense': 'Pengeluaran',
+  'files.confirm.deleteWithExpense': 'File ini tertaut ke 1 pengeluaran aktif. Pindahkan ke sampah?',
+  'files.confirm.deleteWithExpenses': 'File ini tertaut ke {count} pengeluaran aktif. Pindahkan ke sampah?',
+  'files.confirm.permanentDeleteWithExpense': 'File ini tertaut ke 1 pengeluaran aktif. Hapus secara permanen?',
+  'files.confirm.permanentDeleteWithExpenses': 'File ini tertaut ke {count} pengeluaran aktif. Hapus secara permanen?',
 };
 export default files;

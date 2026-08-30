@@ -154,6 +154,8 @@ const budget: TranslationStrings = {
   'costs.attachmentsCount': '{count} fitxers adjunts',
   'costs.attachmentsTitle': 'Fitxers adjunts a "{name}"',
   'costs.noAttachments': 'No hi ha fitxers adjunts a aquesta despesa.',
-};
 
+  'costs.confirm.deleteBodyWithFile': '"{name}" se suprimirà definitivament. Quedarà 1 fitxer adjunt.',
+  'costs.confirm.deleteBodyWithFiles': '"{name}" se suprimirà definitivament. Quedaran {count} fitxers adjunts.',
+};
 export default budget;

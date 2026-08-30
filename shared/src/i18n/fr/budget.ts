@@ -154,5 +154,7 @@ const budget: TranslationStrings = {
   'costs.attachmentsCount': '{count} pièces jointes',
   'costs.attachmentsTitle': 'Pièces jointes de "{name}"',
   'costs.noAttachments': "Aucun fichier n'est joint à cette dépense.",
+  'costs.confirm.deleteBodyWithFile': '« {name} » sera définitivement supprimé. 1 fichier joint restera disponible.',
+  'costs.confirm.deleteBodyWithFiles': '« {name} » sera définitivement supprimé. {count} fichiers joints resteront disponibles.',
 };
 export default budget;

@@ -62,5 +62,11 @@ const files: TranslationStrings = {
   'files.confirm.emptyTrash': '휴지통의 모든 파일을 영구 삭제할까요? 이 작업은 취소할 수 없습니다.',
   'files.noteLabel': '메모',
   'files.notePlaceholder': '메모 추가...',
+  'files.sourceExpense': '지출에서',
+  'files.assignExpense': '지출',
+  'files.confirm.deleteWithExpense': '이 파일은 활성 지출 1개에 연결되어 있습니다. 휴지통으로 이동할까요?',
+  'files.confirm.deleteWithExpenses': '이 파일은 활성 지출 {count}개에 연결되어 있습니다. 휴지통으로 이동할까요?',
+  'files.confirm.permanentDeleteWithExpense': '이 파일은 활성 지출 1개에 연결되어 있습니다. 영구적으로 삭제할까요?',
+  'files.confirm.permanentDeleteWithExpenses': '이 파일은 활성 지출 {count}개에 연결되어 있습니다. 영구적으로 삭제할까요?',
 };
 export default files;

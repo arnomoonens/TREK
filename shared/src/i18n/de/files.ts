@@ -62,5 +62,11 @@ const files: TranslationStrings = {
   'files.confirm.emptyTrash': 'Alle Dateien im Papierkorb endgültig löschen? Das kann nicht rückgängig gemacht werden.',
   'files.noteLabel': 'Notiz',
   'files.notePlaceholder': 'Notiz hinzufügen...',
+  'files.sourceExpense': 'Aus Ausgabe',
+  'files.assignExpense': 'Ausgabe',
+  'files.confirm.deleteWithExpense': 'Diese Datei ist mit 1 aktiven Ausgabe verknüpft. In den Papierkorb verschieben?',
+  'files.confirm.deleteWithExpenses': 'Diese Datei ist mit {count} aktiven Ausgaben verknüpft. In den Papierkorb verschieben?',
+  'files.confirm.permanentDeleteWithExpense': 'Diese Datei ist mit 1 aktiven Ausgabe verknüpft. Endgültig löschen?',
+  'files.confirm.permanentDeleteWithExpenses': 'Diese Datei ist mit {count} aktiven Ausgaben verknüpft. Endgültig löschen?',
 };
 export default files;

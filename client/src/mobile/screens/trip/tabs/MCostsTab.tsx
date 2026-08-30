@@ -15,7 +15,7 @@ import MCostSheet from '../sheets/MCostSheet'
 import { readUserNote } from '../../../../components/Budget/CostsPanel.helpers'
 import { catMeta, COST_CAT_META } from '../../../../components/Budget/costsCategories'
 import { ExpenseAttachmentCount, ExpenseAttachmentsSheet } from '../../../../components/Budget/ExpenseAttachments'
-import { filesForExpense } from '../../../../components/Budget/expenseAttachmentUtils'
+import { filesForExpense, getExpenseDeleteWarning } from '../../../../components/Budget/expenseAttachmentUtils'
 import MConfirmSheet from '../../settings/MConfirmSheet'
 import MSheet from '../../../components/MSheet'
 import MChip from '../../../components/MChip'
@@ -153,6 +153,11 @@ export default function MCostsTab({ planner, shell }: MTabScreenProps) {
       toast.error(t('common.unknownError'))
     }
   }
+
+  const deleteMessage = (() => {
+    if (!confirmDelete) return t('costs.confirm.deleteBody', { name: '' })
+    return getExpenseDeleteWarning(files, confirmDelete, t).message
+  })()
 
   const handleTogglePaid = async (itemId: number, userId: number, paid: boolean) => {
     try {
@@ -525,7 +530,7 @@ export default function MCostsTab({ planner, shell }: MTabScreenProps) {
         open={confirmDelete != null}
         onClose={() => setConfirmDelete(null)}
         title={t('costs.confirm.deleteTitle')}
-        message={t('costs.confirm.deleteBody', { name: confirmDelete?.name ?? '' })}
+        message={deleteMessage}
         confirmLabel={t('common.delete')}
         cancelLabel={t('common.cancel')}
         danger

@@ -62,5 +62,11 @@ const files: TranslationStrings = {
   'files.confirm.emptyTrash': 'Excluir permanentemente todos os arquivos na lixeira? Não é possível desfazer.',
   'files.noteLabel': 'Nota',
   'files.notePlaceholder': 'Adicione uma nota...',
+  'files.sourceExpense': 'Da despesa',
+  'files.assignExpense': 'Despesa',
+  'files.confirm.deleteWithExpense': 'Este arquivo está vinculado a 1 despesa ativa. Movê-lo para a lixeira?',
+  'files.confirm.deleteWithExpenses': 'Este arquivo está vinculado a {count} despesas ativas. Movê-lo para a lixeira?',
+  'files.confirm.permanentDeleteWithExpense': 'Este arquivo está vinculado a 1 despesa ativa. Excluí-lo permanentemente?',
+  'files.confirm.permanentDeleteWithExpenses': 'Este arquivo está vinculado a {count} despesas ativas. Excluí-lo permanentemente?',
 };
 export default files;

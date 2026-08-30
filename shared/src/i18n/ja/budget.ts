@@ -154,5 +154,7 @@ const budget: TranslationStrings = {
   'costs.attachmentsCount': '{count} 件の添付ファイル',
   'costs.attachmentsTitle': '「{name}」の添付ファイル',
   'costs.noAttachments': 'この支出には添付ファイルがありません。',
+  'costs.confirm.deleteBodyWithFile': '「{name}」は完全に削除されます。添付ファイル1件は残ります。',
+  'costs.confirm.deleteBodyWithFiles': '「{name}」は完全に削除されます。添付ファイル{count}件は残ります。',
 };
 export default budget;

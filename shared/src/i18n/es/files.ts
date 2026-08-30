@@ -62,5 +62,11 @@ const files: TranslationStrings = {
   'files.toast.restoreError': 'Error al restaurar',
   'files.confirm.permanentDelete': 'Eliminar este archivo permanentemente? No se puede deshacer.',
   'files.confirm.emptyTrash': 'Eliminar todos los archivos de la papelera? No se puede deshacer.',
+  'files.sourceExpense': 'Del gasto',
+  'files.assignExpense': 'Gasto',
+  'files.confirm.deleteWithExpense': 'Este archivo está vinculado a 1 gasto activo. ¿Moverlo a la papelera?',
+  'files.confirm.deleteWithExpenses': 'Este archivo está vinculado a {count} gastos activos. ¿Moverlo a la papelera?',
+  'files.confirm.permanentDeleteWithExpense': 'Este archivo está vinculado a 1 gasto activo. ¿Eliminarlo permanentemente?',
+  'files.confirm.permanentDeleteWithExpenses': 'Este archivo está vinculado a {count} gastos activos. ¿Eliminarlo permanentemente?',
 };
 export default files;

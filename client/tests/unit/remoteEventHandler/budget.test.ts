@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useTripStore } from '../../../src/store/tripStore';
 import { resetAllStores } from '../../helpers/store';
-import { buildBudgetItem } from '../../helpers/factories';
+import { buildBudgetItem, buildTripFile } from '../../helpers/factories';
 import type { BudgetItemMember } from '../../../src/types';
 
 beforeEach(() => {
@@ -54,6 +54,21 @@ describe('remoteEventHandler > budget', () => {
     const { budgetItems } = useTripStore.getState();
     expect(budgetItems).toHaveLength(1);
     expect(budgetItems.find(i => i.id === 1)).toBeUndefined();
+  });
+
+  it('FE-WSEVT-BUDGET-004a: budget:deleted removes its expense links from local files', () => {
+    useTripStore.setState({
+      files: [buildTripFile({
+        id: 10,
+        linked_expense_ids: [1, 2],
+        expense_attachment_created_at: { '1': '2026-08-30', '2': '2026-08-31' },
+      })],
+    });
+
+    useTripStore.getState().handleRemoteEvent({ type: 'budget:deleted', itemId: 1 });
+
+    expect(useTripStore.getState().files[0].linked_expense_ids).toEqual([2]);
+    expect(useTripStore.getState().files[0].expense_attachment_created_at).toEqual({ '2': '2026-08-31' });
   });
 
   it('FE-WSEVT-BUDGET-005: budget:members-updated replaces entire members array and persons count', () => {

@@ -154,6 +154,8 @@ const budget: TranslationStrings = {
   'costs.attachmentsCount': '{count} tệp đính kèm',
   'costs.attachmentsTitle': 'Tệp đính kèm cho "{name}"',
   'costs.noAttachments': 'Khoản chi này chưa có tệp đính kèm.',
-};
 
+  'costs.confirm.deleteBodyWithFile': '"{name}" sẽ bị xóa vĩnh viễn. 1 tệp đính kèm sẽ được giữ lại.',
+  'costs.confirm.deleteBodyWithFiles': '"{name}" sẽ bị xóa vĩnh viễn. {count} tệp đính kèm sẽ được giữ lại.',
+};
 export default budget;

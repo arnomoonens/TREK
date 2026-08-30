@@ -75,6 +75,18 @@ const putTripFile: DexieWriter = async payload => {
   await offlineDb.tripFiles.put(payload.file as TripFile)
 }
 
+function removeExpenseLink(file: TripFile, expenseId: number): TripFile {
+  if (!file.linked_expense_ids?.includes(expenseId)) return file
+  const linkedExpenseIds = file.linked_expense_ids.filter(id => id !== expenseId)
+  const attachmentCreatedAt = { ...(file.expense_attachment_created_at || {}) }
+  delete attachmentCreatedAt[String(expenseId)]
+  return {
+    ...file,
+    linked_expense_ids: linkedExpenseIds,
+    expense_attachment_created_at: attachmentCreatedAt,
+  }
+}
+
 /**
  * Per-event IndexedDB write-through, keyed by the shared WS event registry.
  * The key set is enumerable on purpose: the registry-parity test asserts every
@@ -133,8 +145,11 @@ export const DEXIE_WRITERS: Partial<Record<TrekWsTripEventName, DexieWriter>> = 
   // ── Budget ───────────────────────────────────────────────────────────────
   'budget:created': putBudgetItem,
   'budget:updated': putBudgetItem,
-  'budget:deleted': async payload => {
-    await offlineDb.budgetItems.delete(payload.itemId as number)
+  'budget:deleted': async (payload, state) => {
+    await Promise.all([
+      offlineDb.budgetItems.delete(payload.itemId as number),
+      offlineDb.tripFiles.bulkPut(state.files),
+    ])
   },
   'budget:members-updated': putCanonicalBudgetItem,
   'budget:member-paid-updated': putCanonicalBudgetItem,
@@ -405,6 +420,7 @@ export const STATE_APPLIERS: Partial<Record<TrekWsTripEventName, StateApplier>> 
   }),
   'budget:deleted': (payload, state) => ({
     budgetItems: state.budgetItems.filter(i => i.id !== payload.itemId),
+    files: state.files.map(file => removeExpenseLink(file, payload.itemId as number)),
   }),
   'budget:members-updated': (payload, state) => ({
     budgetItems: state.budgetItems.map(i =>

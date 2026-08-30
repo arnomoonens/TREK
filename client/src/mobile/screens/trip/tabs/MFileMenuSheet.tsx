@@ -11,6 +11,7 @@ import { Eyebrow, TileHeader } from '../sheets/MTripSheetUi'
 import { formatFileDate, getFileTypeMeta } from './filesModel'
 import { useTranslation } from '../../../../i18n'
 import { formatSize } from '../../../../components/Files/FileManager.helpers'
+import { linkedExpenseIds } from '../../../../components/Budget/expenseAttachmentUtils'
 
 interface MFileMenuSheetProps {
   planner: TripPlanner
@@ -27,7 +28,7 @@ interface MFileMenuSheetProps {
  * regardless of permissions; the sensitive rows gate themselves (§7.6).
  */
 export default function MFileMenuSheet({ planner, file, onClose, onOpenLinks }: MFileMenuSheetProps) {
-  const { t, tripId, can, trip, tripActions, toast } = planner
+  const { t, tripId, can, trip, budgetItems, tripActions, toast } = planner
   const { locale } = useTranslation()
   const open = file != null
 
@@ -54,6 +55,10 @@ export default function MFileMenuSheet({ planner, file, onClose, onOpenLinks }: 
   const canDelete = can('file_delete', trip)
   const meta = getFileTypeMeta(shown)
   const TypeIcon = meta.icon
+  const linkedExpenses = linkedExpenseIds(shown).filter(expenseId => budgetItems.some(expense => expense.id === expenseId))
+  const deleteMessage = linkedExpenses.length === 0
+    ? t('files.confirm.delete')
+    : t(linkedExpenses.length === 1 ? 'files.confirm.deleteWithExpense' : 'files.confirm.deleteWithExpenses', { count: linkedExpenses.length })
 
   const commitNote = () => {
     const value = noteDraft.trim()
@@ -65,7 +70,7 @@ export default function MFileMenuSheet({ planner, file, onClose, onOpenLinks }: 
       .finally(() => setSaving(false))
   }
 
-  const download = () => { downloadFile(shown.url, shown.original_name).catch(() => {}) }
+  const download = () => { downloadFile(shown.url, shown.original_name).catch(() => toast.error(t('files.openError'))) }
 
   const remove = () => {
     setConfirmDelete(false)
@@ -121,7 +126,7 @@ export default function MFileMenuSheet({ planner, file, onClose, onOpenLinks }: 
         open={confirmDelete}
         onClose={() => setConfirmDelete(false)}
         title={t('common.delete')}
-        message={t('files.confirm.delete')}
+        message={deleteMessage}
         confirmLabel={t('common.delete')}
         cancelLabel={t('common.cancel')}
         danger

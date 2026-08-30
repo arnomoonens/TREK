@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Check, Link2, Loader2, MapPin, Ticket, TrainFront } from 'lucide-react'
+import { Check, Link2, Loader2, MapPin, Receipt, Ticket, TrainFront } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import MSheet from '../../../components/MSheet'
 import { filesApi } from '../../../../api/client'
@@ -28,7 +28,7 @@ interface FileLinkRecord {
  * places by day (v1 simplification, see report).
  */
 export default function MFileLinkSheet({ planner, file, onClose }: MFileLinkSheetProps) {
-  const { t, tripId, places, reservations, TRANSPORT_TYPES, tripActions, toast } = planner
+  const { t, tripId, places, reservations, budgetItems, TRANSPORT_TYPES, tripActions, toast, trip, can } = planner
   const open = file != null
 
   const heldRef = useRef<TripFile | null>(file)
@@ -67,7 +67,7 @@ export default function MFileLinkSheet({ planner, file, onClose }: MFileLinkShee
       } else {
         await filesApi.addLink(tripId, shown.id, { place_id: placeId })
       }
-      refresh()
+      await refresh()
     } catch {
       toast.error(t('files.toast.assignError'))
     } finally {
@@ -93,7 +93,7 @@ export default function MFileLinkSheet({ planner, file, onClose }: MFileLinkShee
       } else {
         await filesApi.addLink(tripId, shown.id, { reservation_id: resId })
       }
-      refresh()
+      await refresh()
     } catch {
       toast.error(t('files.toast.assignError'))
     } finally {
@@ -103,7 +103,23 @@ export default function MFileLinkSheet({ planner, file, onClose }: MFileLinkShee
 
   const bookingReservations = reservations.filter(r => !TRANSPORT_TYPES.has(r.type))
   const transportReservations = reservations.filter(r => TRANSPORT_TYPES.has(r.type))
-  const isEmpty = places.length === 0 && reservations.length === 0
+  const expenseIds = new Set(shown.linked_expense_ids || [])
+  const canAttachExpenses = can('budget_edit', trip) && can('file_edit', trip)
+  const toggleExpense = async (expenseId: number) => {
+    if (busyKey || !canAttachExpenses) return
+    const key = `e${expenseId}`
+    setBusyKey(key)
+    try {
+      if (expenseIds.has(expenseId)) await tripActions.detachExpenseFile(tripId, expenseId, shown.id)
+      else await tripActions.attachExpenseFile(tripId, expenseId, shown.id)
+      await refresh()
+    } catch {
+      toast.error(t('files.toast.assignError'))
+    } finally {
+      setBusyKey(null)
+    }
+  }
+  const isEmpty = places.length === 0 && reservations.length === 0 && budgetItems.length === 0
 
   return (
     <MSheet open={open} onClose={onClose} variant="card" material="glass" ariaLabel={t('files.linkTitle')}>
@@ -154,23 +170,43 @@ export default function MFileLinkSheet({ planner, file, onClose }: MFileLinkShee
             </div>
           </>
         )}
+
+        {budgetItems.length > 0 && (
+          <>
+            <Eyebrow className="mb-[6px] mt-3">{t('files.assignExpense')}</Eyebrow>
+            <div className="flex flex-col gap-1">
+              {budgetItems.map(expense => (
+                <LinkRow
+                  key={`e${expense.id}`}
+                  icon={Receipt}
+                  label={expense.name || `#${expense.id}`}
+                  active={expenseIds.has(expense.id)}
+                  busy={busyKey === `e${expense.id}`}
+                  disabled={!canAttachExpenses}
+                  onClick={() => toggleExpense(expense.id)}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </MSheet>
   )
 }
 
-function LinkRow({ icon: Icon, label, active, busy, onClick }: {
+function LinkRow({ icon: Icon, label, active, busy, disabled = false, onClick }: {
   icon: LucideIcon
   label: string
   active: boolean
   busy: boolean
+  disabled?: boolean
   onClick: () => void
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={busy}
+      disabled={disabled || busy}
       className={`flex w-full items-center gap-[10px] rounded-[13px] border px-3 py-[10px] text-left disabled:opacity-60 ${
         active ? 'border-[color:var(--m-act)] bg-[color:var(--m-ic)]' : 'border-[color:var(--m-rowbr)] bg-m-card'
       }`}

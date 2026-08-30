@@ -63,5 +63,11 @@ const files: TranslationStrings = {
     'Supprimer définitivement tous les fichiers de la corbeille ? Cette action est irréversible.',
   'files.noteLabel': 'Note',
   'files.notePlaceholder': 'Ajouter une note…',
+  'files.sourceExpense': 'Depuis la dépense',
+  'files.assignExpense': 'Dépense',
+  'files.confirm.deleteWithExpense': 'Ce fichier est lié à 1 dépense active. Le déplacer vers la corbeille ?',
+  'files.confirm.deleteWithExpenses': 'Ce fichier est lié à {count} dépenses actives. Le déplacer vers la corbeille ?',
+  'files.confirm.permanentDeleteWithExpense': 'Ce fichier est lié à 1 dépense active. Le supprimer définitivement ?',
+  'files.confirm.permanentDeleteWithExpenses': 'Ce fichier est lié à {count} dépenses actives. Le supprimer définitivement ?',
 };
 export default files;

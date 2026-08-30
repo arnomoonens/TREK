@@ -63,5 +63,11 @@ const files: TranslationStrings = {
     'Czy na pewno chcesz trwale usunąć wszystkie pliki z kosza? Tej operacji nie można cofnąć.',
   'files.noteLabel': 'Notatka',
   'files.notePlaceholder': 'Dodaj notatkę...',
+  'files.sourceExpense': 'Z wydatku',
+  'files.assignExpense': 'Wydatek',
+  'files.confirm.deleteWithExpense': 'Ten plik jest powiązany z 1 aktywnym wydatkiem. Przenieść go do kosza?',
+  'files.confirm.deleteWithExpenses': 'Ten plik jest powiązany z {count} aktywnymi wydatkami. Przenieść go do kosza?',
+  'files.confirm.permanentDeleteWithExpense': 'Ten plik jest powiązany z 1 aktywnym wydatkiem. Usunąć go trwale?',
+  'files.confirm.permanentDeleteWithExpenses': 'Ten plik jest powiązany z {count} aktywnymi wydatkami. Usunąć go trwale?',
 };
 export default files;

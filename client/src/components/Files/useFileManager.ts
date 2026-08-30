@@ -1,24 +1,28 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { useToast } from '../shared/Toast'
 import { useTranslation, translateApiError } from '../../i18n'
 import { filesApi } from '../../api/client'
-import type { Place, Reservation, TripFile, Day, AssignmentsMap } from '../../types'
+import type { BudgetItem, Place, Reservation, Trip, TripFile, Day, AssignmentsMap } from '../../types'
 import { useCanDo } from '../../store/permissionsStore'
 import { useTripStore } from '../../store/tripStore'
 import { getAuthUrl } from '../../api/authUrl'
 import { isImage, isMedia, isWalletPass } from './FileManager.helpers'
 import { openFile as openFileInTab } from '../../utils/fileDownload'
+import { linkedExpenseCount } from '../Budget/expenseAttachmentUtils'
 
 export interface FileManagerProps {
   files?: TripFile[]
   onUpload: (fd: FormData) => Promise<any>
   onDelete: (fileId: number) => Promise<void>
-  onUpdate?: (fileId: number, data: Partial<TripFile>) => Promise<void>
+  onUpdate?: () => Promise<void> | void
   places: Place[]
   days?: Day[]
   assignments?: AssignmentsMap
   reservations?: Reservation[]
+  expenses: BudgetItem[]
+  /** Explicit trip context is required by the standalone Files route. */
+  trip: Trip | null
   tripId: number
   allowedFileTypes?: string | null
 }
@@ -28,7 +32,7 @@ export interface FileManagerProps {
  * filter tabs, lightbox + PDF preview and the assign-to-place/reservation
  * modal. Kept in one hook so FileManager renders as thin layout sections.
  */
-export function useFileManager({ files = [], onUpload, onDelete, onUpdate, places, days = [], assignments = {}, reservations = [], tripId, allowedFileTypes }: FileManagerProps) {
+export function useFileManager({ files = [], onUpload, onDelete, onUpdate, places, days = [], assignments = {}, reservations = [], expenses, trip, tripId, allowedFileTypes }: FileManagerProps) {
   const [uploading, setUploading] = useState(false)
   const [filterType, setFilterType] = useState('all')
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
@@ -36,8 +40,11 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
   const [trashFiles, setTrashFiles] = useState<TripFile[]>([])
   const [loadingTrash, setLoadingTrash] = useState(false)
   const toast = useToast()
+  const toastRef = useRef(toast)
+  toastRef.current = toast
   const can = useCanDo()
-  const trip = useTripStore((s) => s.trip)
+  const attachExpenseFile = useTripStore((s) => s.attachExpenseFile)
+  const detachExpenseFile = useTripStore((s) => s.detachExpenseFile)
   const { t, locale } = useTranslation()
 
   const loadTrash = useCallback(async () => {
@@ -45,32 +52,36 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
     try {
       const data = await filesApi.list(tripId, true)
       setTrashFiles(data.files || [])
-    } catch { /* */ }
+    } catch {
+      toast.error(t('files.toast.deleteError'))
+    }
     setLoadingTrash(false)
-  }, [tripId])
+  }, [tripId, t, toast])
 
   const toggleTrash = useCallback(() => {
-    if (!showTrash) loadTrash()
+    if (!showTrash) void loadTrash()
     setShowTrash(v => !v)
   }, [showTrash, loadTrash])
 
-  // onUpdate doubles as the "files changed" signal towards the parent; the arguments carry no payload.
+  // onUpdate is the refresh signal towards the legacy file-link controls.
   const refreshFiles = useCallback(async () => {
-    if (onUpdate) onUpdate(0, {} as any)
+    await onUpdate?.()
   }, [onUpdate])
 
   const handleStar = async (fileId: number) => {
     try {
       await filesApi.toggleStar(tripId, fileId)
-      refreshFiles()
-    } catch { /* */ }
+      await refreshFiles()
+    } catch {
+      toast.error(t('files.toast.assignError'))
+    }
   }
 
   const handleRestore = async (fileId: number) => {
     try {
       await filesApi.restore(tripId, fileId)
       setTrashFiles(prev => prev.filter(f => f.id !== fileId))
-      refreshFiles()
+      await refreshFiles()
       toast.success(t('files.toast.restored'))
     } catch {
       toast.error(t('files.toast.restoreError'))
@@ -78,7 +89,12 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
   }
 
   const handlePermanentDelete = async (fileId: number) => {
-    if (!confirm(t('files.confirm.permanentDelete'))) return
+    const file = trashFiles.find(candidate => candidate.id === fileId)
+    const linkedExpenses = file ? linkedExpenseCount(file, expenses) : 0
+    const message = linkedExpenses === 0
+      ? t('files.confirm.permanentDelete')
+      : t(linkedExpenses === 1 ? 'files.confirm.permanentDeleteWithExpense' : 'files.confirm.permanentDeleteWithExpenses', { count: linkedExpenses })
+    if (!confirm(message)) return
     try {
       await filesApi.permanentDelete(tripId, fileId)
       setTrashFiles(prev => prev.filter(f => f.id !== fileId))
@@ -99,7 +115,7 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
     }
   }
 
-  const [previewFile, setPreviewFile] = useState(null)
+  const [previewFile, setPreviewFile] = useState<TripFile | null>(null)
   const [previewFileUrl, setPreviewFileUrl] = useState('')
   const [assignFileId, setAssignFileId] = useState<number | null>(null)
 
@@ -118,7 +134,7 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
       toast.success(t('files.uploaded', { count: acceptedFiles.length }))
       // Open assign modal for the last uploaded file
       const lastId = uploadedIds[uploadedIds.length - 1]
-      if (lastId && (places.length > 0 || reservations.length > 0)) {
+      if (lastId && (places.length > 0 || reservations.length > 0 || expenses.length > 0)) {
         setAssignFileId(lastId)
       }
     } catch (err) {
@@ -126,7 +142,7 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
     } finally {
       setUploading(false)
     }
-  }, [onUpload, toast, t, places, reservations])
+  }, [onUpload, toast, t, places, reservations, expenses])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -147,9 +163,9 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
     }
     if (pastedFiles.length > 0) {
       e.preventDefault()
-      onDrop(pastedFiles)
+      void onDrop(pastedFiles)
     }
-  }, [onDrop])
+  }, [onDrop, can, trip])
 
   const filteredFiles = files.filter(f => {
     if (filterType === 'starred') return !!f.starred
@@ -161,6 +177,12 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
   })
 
   const handleDelete = async (id) => {
+    const file = files.find(candidate => candidate.id === id)
+    const linkedExpenses = file ? linkedExpenseCount(file, expenses) : 0
+    const message = linkedExpenses === 0
+      ? t('files.confirm.delete')
+      : t(linkedExpenses === 1 ? 'files.confirm.deleteWithExpense' : 'files.confirm.deleteWithExpenses', { count: linkedExpenses })
+    if (!confirm(message)) return
     try {
       await onDelete(id)
       toast.success(t('files.toast.trashed') || 'Moved to trash')
@@ -169,18 +191,23 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
     }
   }
 
+  const previewUrl = previewFile?.url
   useEffect(() => {
-    if (previewFile) {
-      getAuthUrl(previewFile.url, 'download').then(setPreviewFileUrl)
+    if (previewUrl) {
+      let current = true
+      getAuthUrl(previewUrl, 'download')
+        .then(url => { if (current) setPreviewFileUrl(url) })
+        .catch(() => { if (current) toastRef.current.error(t('files.openError')) })
+      return () => { current = false }
     } else {
       setPreviewFileUrl('')
     }
-  }, [previewFile?.url])
+  }, [previewUrl, t])
 
   const handleAssign = async (fileId: number, data: { place_id?: number | null; reservation_id?: number | null }) => {
     try {
       await filesApi.update(tripId, fileId, data)
-      refreshFiles()
+      await refreshFiles()
     } catch {
       toast.error(t('files.toast.assignError'))
     }
@@ -196,16 +223,17 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
     } else if (isWalletPass(file.mime_type, file.original_name)) {
       // Download so the OS hands the pass to Apple Wallet (#1447) rather than
       // forcing it into the in-app PDF preview.
-      openFileInTab(file.url, file.original_name).catch(() => {})
+      openFileInTab(file.url, file.original_name).catch(() => toast.error(t('files.openError')))
     } else {
       setPreviewFile(file)
     }
   }
 
   return {
-    files, places, days, assignments, reservations, tripId, allowedFileTypes,
+    files, places, days, assignments, reservations, expenses, tripId, allowedFileTypes,
     uploading, filterType, setFilterType, lightboxIndex, setLightboxIndex,
     showTrash, trashFiles, loadingTrash, toast, can, trip, t, locale,
+    attachExpenseFile, detachExpenseFile,
     toggleTrash, refreshFiles, handleStar, handleRestore, handlePermanentDelete, handleEmptyTrash,
     previewFile, setPreviewFile, previewFileUrl, assignFileId, setAssignFileId,
     getRootProps, getInputProps, isDragActive, handlePaste, filteredFiles, handleDelete,

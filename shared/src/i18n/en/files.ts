@@ -62,5 +62,11 @@ const files: TranslationStrings = {
   'files.confirm.emptyTrash': 'Permanently delete all trashed files? This cannot be undone.',
   'files.noteLabel': 'Note',
   'files.notePlaceholder': 'Add a note...',
+  'files.sourceExpense': 'From Expense',
+  'files.assignExpense': 'Expense',
+  'files.confirm.deleteWithExpense': 'This file is linked to 1 live Expense. Move it to trash?',
+  'files.confirm.deleteWithExpenses': 'This file is linked to {count} live Expenses. Move it to trash?',
+  'files.confirm.permanentDeleteWithExpense': 'This file is linked to 1 live Expense. Permanently delete it?',
+  'files.confirm.permanentDeleteWithExpenses': 'This file is linked to {count} live Expenses. Permanently delete it?',
 };
 export default files;

@@ -552,6 +552,22 @@ describe('MCostSheet', () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
   })
 
+  it('FE-MOB-COSTSH-025a: warns that attached Files remain before deleting an Expense', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    useTripStore.setState({
+      files: [buildTripFile({ id: 8, linked_expense_ids: [5], deleted_at: '2026-08-29T00:00:00.000Z' })],
+    })
+    const editing = buildBudgetItem({ id: 5, name: 'Dinner', category: 'food', currency: 'EUR', total_price: 60, members: [] })
+    renderSheet({ editing })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.stringContaining('1 attached File')))
+    await waitFor(() => expect(deleteBudgetItem).toHaveBeenCalledWith(1, 5))
+    confirm.mockRestore()
+  })
+
   it('FE-MOB-COSTSH-026: a failing delete disarms the button and reports the error', async () => {
     deleteBudgetItem.mockRejectedValueOnce(new Error('locked'))
     const editing = buildBudgetItem({ id: 5, name: 'Dinner', category: 'food', currency: 'EUR', total_price: 60, members: [] })

@@ -58,11 +58,25 @@ export const createBudgetSlice = (set: SetState, get: GetState): BudgetSlice => 
 
   deleteBudgetItem: async (tripId, id) => {
     const prev = get().budgetItems
-    set(state => ({ budgetItems: state.budgetItems.filter(item => item.id !== id) }))
+    const prevFiles = get().files
+    set(state => ({
+      budgetItems: state.budgetItems.filter(item => item.id !== id),
+      files: state.files.map(file => {
+        if (!file.linked_expense_ids?.includes(id)) return file
+        const linkedExpenseIds = file.linked_expense_ids.filter(expenseId => expenseId !== id)
+        const attachmentCreatedAt = { ...(file.expense_attachment_created_at || {}) }
+        delete attachmentCreatedAt[String(id)]
+        return {
+          ...file,
+          linked_expense_ids: linkedExpenseIds,
+          expense_attachment_created_at: attachmentCreatedAt,
+        }
+      }),
+    }))
     try {
       await budgetApi.delete(tripId, id)
     } catch (err: unknown) {
-      set({ budgetItems: prev })
+      set({ budgetItems: prev, files: prevFiles })
       throw new Error(getApiErrorMessage(err, 'Error deleting budget item'))
     }
   },

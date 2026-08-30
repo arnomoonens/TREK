@@ -153,5 +153,7 @@ const budget: TranslationStrings = {
   'costs.attachmentsCount': '{count} 个附件',
   'costs.attachmentsTitle': '“{name}”的附件',
   'costs.noAttachments': '此支出没有附加文件。',
+  'costs.confirm.deleteBodyWithFile': '“{name}”将被永久删除。将保留 1 个附件。',
+  'costs.confirm.deleteBodyWithFiles': '“{name}”将被永久删除。将保留 {count} 个附件。',
 };
 export default budget;

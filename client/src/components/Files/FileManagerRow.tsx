@@ -1,15 +1,16 @@
-import { Trash2, ExternalLink, Download, MapPin, Ticket, StickyNote, Star, RotateCcw, Pencil } from 'lucide-react'
-import type { TripFile } from '../../types'
+import { Trash2, ExternalLink, Download, MapPin, Receipt, Ticket, StickyNote, Star, RotateCcw, Pencil } from 'lucide-react'
+import type { BudgetItem, TripFile } from '../../types'
 import type { FileManagerState } from './useFileManager'
 import { TRANSPORT_TYPES } from './FileManager.constants'
 import { getFileIcon, isImage, formatSize, formatDateWithLocale, transportIcon, triggerDownload } from './FileManager.helpers'
 import { AuthedImg } from './FileManagerAuthedImg'
 import { AvatarChip } from './FileManagerAvatarChip'
 import { SourceBadge } from './FileManagerSourceBadge'
+import { linkedExpenseIds } from '../Budget/expenseAttachmentUtils'
 
 export function FileRow(p: FileManagerState & { file: TripFile; isTrash?: boolean }) {
   const {
-    file, isTrash = false, places, reservations, t, locale, can, trip,
+    file, isTrash = false, places, reservations, expenses, t, locale, can, trip,
     handleStar, handleRestore, handlePermanentDelete, handleDelete, openFile, setAssignFileId,
   } = p
   const FileIcon = getFileIcon(file.mime_type)
@@ -22,6 +23,9 @@ export function FileRow(p: FileManagerState & { file: TripFile; isTrash?: boolea
   if (file.reservation_id) allLinkedResIds.add(file.reservation_id)
   for (const rid of (file.linked_reservation_ids || [])) allLinkedResIds.add(rid)
   const linkedReservations = [...allLinkedResIds].map(rid => reservations?.find(r => r.id === rid)).filter(Boolean)
+  const linkedExpenses = linkedExpenseIds(file)
+    .map(expenseId => expenses.find(expense => expense.id === expenseId))
+    .filter((expense): expense is BudgetItem => expense != null)
   return (
     <div key={file.id} style={{
       background: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: 12,
@@ -91,6 +95,9 @@ export function FileRow(p: FileManagerState & { file: TripFile; isTrash?: boolea
             TRANSPORT_TYPES.has(r.type)
               ? <SourceBadge key={r.id} icon={transportIcon(r.type)} label={`${t('files.sourceTransport')} · ${r.title || t('files.sourceTransport')}`} />
               : <SourceBadge key={r.id} icon={Ticket} label={`${t('files.sourceBooking')} · ${r.title || t('files.sourceBooking')}`} />
+          ))}
+          {linkedExpenses.map(expense => (
+            <SourceBadge key={`expense-${expense.id}`} icon={Receipt} label={`${t('files.sourceExpense')} · ${expense.name}`} />
           ))}
           {!!file.note_id && (
             <SourceBadge icon={StickyNote} label={t('files.sourceCollab') || 'Collab Notes'} />

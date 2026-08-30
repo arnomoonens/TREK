@@ -2,7 +2,7 @@
 import { http, HttpResponse } from 'msw';
 import { server } from '../../../tests/helpers/msw/server';
 import { resetAllStores, seedStore } from '../../../tests/helpers/store';
-import { buildBudgetItem } from '../../../tests/helpers/factories';
+import { buildBudgetItem, buildTripFile } from '../../../tests/helpers/factories';
 import { useTripStore } from '../tripStore';
 
 let addToast: ReturnType<typeof vi.fn>;
@@ -110,6 +110,23 @@ describe('budgetSlice', () => {
     await expect(deletePromise).rejects.toThrow();
     // After rollback, item is back
     expect(useTripStore.getState().budgetItems).toContainEqual(item);
+  });
+
+  it('FE-STORE-BUDGET-007a: deleting an Expense removes its local File links', async () => {
+    const item = buildBudgetItem({ id: 5, trip_id: 1 });
+    const file = buildTripFile({ id: 8, trip_id: 1, linked_expense_ids: [5, 6], expense_attachment_created_at: { '5': '2026-08-30', '6': '2026-08-31' } });
+    seedStore(useTripStore, { budgetItems: [item], files: [file] });
+
+    server.use(
+      http.delete('/api/trips/1/budget/5', () => HttpResponse.json({ success: true })),
+    );
+
+    await useTripStore.getState().deleteBudgetItem(1, 5);
+
+    expect(useTripStore.getState().files[0]).toMatchObject({
+      linked_expense_ids: [6],
+      expense_attachment_created_at: { '6': '2026-08-31' },
+    });
   });
 
   it('FE-STORE-BUDGET-008: setBudgetItemMembers updates members on matching item', async () => {

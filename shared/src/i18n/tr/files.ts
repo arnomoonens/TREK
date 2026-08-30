@@ -62,5 +62,11 @@ const files: TranslationStrings = {
   'files.confirm.emptyTrash': 'Çöp kutusundaki tüm dosyalar kalıcı olarak silinsin mi? Bu işlem geri alınamaz.',
   'files.noteLabel': 'Not',
   'files.notePlaceholder': 'Not ekleyin...',
+  'files.sourceExpense': 'Harcamadan',
+  'files.assignExpense': 'Harcama',
+  'files.confirm.deleteWithExpense': 'Bu dosya 1 etkin harcamaya bağlı. Çöp kutusuna taşınsın mı?',
+  'files.confirm.deleteWithExpenses': 'Bu dosya {count} etkin harcamaya bağlı. Çöp kutusuna taşınsın mı?',
+  'files.confirm.permanentDeleteWithExpense': 'Bu dosya 1 etkin harcamaya bağlı. Kalıcı olarak silinsin mi?',
+  'files.confirm.permanentDeleteWithExpenses': 'Bu dosya {count} etkin harcamaya bağlı. Kalıcı olarak silinsin mi?',
 };
 export default files;
