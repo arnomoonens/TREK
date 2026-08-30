@@ -146,5 +146,9 @@ const budget: TranslationStrings = {
   'costs.splitBalanced': 'Разделение совпадает с итогом',
   'costs.splitSumUnder': 'Сумма долей: {sum} из {total} (не хватает {diff})',
   'costs.splitSumOver': 'Сумма долей: {sum} из {total} (больше на {diff})',
+  'costs.tripFiles': 'Файлы поездки',
+  'costs.tripFilesHint': 'Выберите существующие файлы для прикрепления. Данные файлов управляются в разделе «Файлы».',
+  'costs.noTripFiles': 'Файлов поездки пока нет.',
+  'costs.attachmentsSaveError': 'Расход сохранён, но некоторые вложения не удалось обновить.',
 };
 export default budget;

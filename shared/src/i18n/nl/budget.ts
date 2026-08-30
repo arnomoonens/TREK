@@ -146,5 +146,9 @@ const budget: TranslationStrings = {
   'costs.splitBalanced': 'Verdeling klopt met het totaal',
   'costs.splitSumUnder': 'Som van de delen: {sum} van {total} ({diff} te weinig)',
   'costs.splitSumOver': 'Som van de delen: {sum} van {total} ({diff} te veel)',
+  'costs.tripFiles': 'Reisbestanden',
+  'costs.tripFilesHint': 'Selecteer bestaande bestanden om toe te voegen. Bestandsdetails beheer je bij Bestanden.',
+  'costs.noTripFiles': 'Er zijn nog geen reisbestanden.',
+  'costs.attachmentsSaveError': 'De uitgave is opgeslagen, maar sommige bestandsbijlagen konden niet worden bijgewerkt.',
 };
 export default budget;

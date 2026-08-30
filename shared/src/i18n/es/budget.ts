@@ -146,5 +146,9 @@ const budget: TranslationStrings = {
   'costs.splitBalanced': 'El reparto cuadra con el total',
   'costs.splitSumUnder': 'Suma de las partes: {sum} de {total} (faltan {diff})',
   'costs.splitSumOver': 'Suma de las partes: {sum} de {total} (sobran {diff})',
+  'costs.tripFiles': 'Archivos del viaje',
+  'costs.tripFilesHint': 'Selecciona archivos existentes para adjuntarlos. Los detalles se gestionan en Archivos.',
+  'costs.noTripFiles': 'Aún no hay archivos del viaje.',
+  'costs.attachmentsSaveError': 'El gasto se guardó, pero no se pudieron actualizar algunos archivos adjuntos.',
 };
 export default budget;

@@ -63,6 +63,11 @@ const { db } = vi.hoisted(() => {
   tmp.exec(`CREATE TABLE file_links (id INTEGER PRIMARY KEY AUTOINCREMENT, file_id INTEGER NOT NULL,
     reservation_id INTEGER, assignment_id INTEGER, place_id INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP);`);
+  tmp.exec(`CREATE TABLE budget_items (id INTEGER PRIMARY KEY AUTOINCREMENT, trip_id INTEGER NOT NULL,
+    name TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'Other', total_price REAL NOT NULL DEFAULT 0);`);
+  tmp.exec(`CREATE TABLE expense_attachments (id INTEGER PRIMARY KEY AUTOINCREMENT, expense_id INTEGER NOT NULL,
+    file_id INTEGER NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(expense_id, file_id));`);
   // bundle()'s reservations now runs ReservationsService's real SQL
   // (DI-injected, no mock) — the joined list query needs the full reservation
   // table set (trimmed from src/db/schema.ts; accommodation_id is TEXT there).

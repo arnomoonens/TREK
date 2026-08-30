@@ -28,6 +28,7 @@ import type {
   Tag,
   Category,
   AppearanceConfig,
+  TripFileResponse,
 } from '@trek/shared'
 
 export type {
@@ -80,29 +81,7 @@ export interface TodoItem {
   priority: number
 }
 
-export interface TripFile {
-  id: number
-  trip_id: number
-  place_id?: number | null
-  reservation_id?: number | null
-  note_id?: number | null
-  uploaded_by?: number | null
-  uploaded_by_name?: string | null
-  uploaded_by_avatar?: string | null
-  filename: string
-  original_name: string
-  file_size?: number | null
-  mime_type: string
-  description?: string | null
-  starred?: number
-  deleted_at?: string | null
-  created_at: string
-  reservation_title?: string
-  linked_reservation_ids?: (number | null)[]
-  linked_place_ids?: (number | null)[]
-  /** Served download path — always present on list/create/update responses (formatFile). */
-  url: string
-}
+export type TripFile = TripFileResponse
 
 export type DistanceUnit = 'metric' | 'imperial'
 

@@ -146,5 +146,9 @@ const budget: TranslationStrings = {
   'costs.splitBalanced': 'A felosztás megegyezik a végösszeggel',
   'costs.splitSumUnder': 'A részek összege: {sum} / {total} (hiányzik {diff})',
   'costs.splitSumOver': 'A részek összege: {sum} / {total} ({diff} a többlet)',
+  'costs.tripFiles': 'Utazási fájlok',
+  'costs.tripFilesHint': 'Válassz ki csatolandó meglévő fájlokat. A fájlok adatait a Fájlokban kezelheted.',
+  'costs.noTripFiles': 'Még nincsenek utazási fájlok.',
+  'costs.attachmentsSaveError': 'A kiadás mentése sikerült, de néhány fájlcsatolást nem lehetett frissíteni.',
 };
 export default budget;

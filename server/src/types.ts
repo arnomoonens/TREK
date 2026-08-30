@@ -224,6 +224,8 @@ export interface TripFile {
   deleted_at?: string | null;
   created_at?: string;
   reservation_title?: string;
+  linked_expense_ids?: number[];
+  expense_attachment_created_at?: Record<string, string>;
   url?: string;
 }
 

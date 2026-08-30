@@ -62,6 +62,7 @@ export default function MCostsTab({ planner, shell }: MTabScreenProps) {
   // an unrelated re-render doesn't refetch the settlement.
   useEffect(() => {
     planner.tripActions.loadBudgetItems(tripId)
+    planner.tripActions.loadFiles(tripId)
   }, [tripId, planner.tripActions])
   useEffect(() => {
     loadSettlement()
@@ -476,6 +477,7 @@ export default function MCostsTab({ planner, shell }: MTabScreenProps) {
           people={tripMembers}
           me={me}
           editing={editingExpense}
+          canAttachFiles={canEdit && planner.can('file_edit', trip)}
           onClose={() => setExpenseModalOpen(false)}
           onSaved={() => {
             setExpenseModalOpen(false)

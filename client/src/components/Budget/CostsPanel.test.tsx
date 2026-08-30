@@ -10,7 +10,7 @@ import { useSettingsStore } from '../../store/settingsStore'
 import { usePermissionsStore } from '../../store/permissionsStore'
 import { clearExchangeRateCache } from '../../hooks/useExchangeRates'
 import { resetAllStores, seedStore } from '../../../tests/helpers/store'
-import { buildUser, buildTrip, buildBudgetItem, buildSettings } from '../../../tests/helpers/factories'
+import { buildUser, buildTrip, buildBudgetItem, buildSettings, buildTripFile } from '../../../tests/helpers/factories'
 import type { BudgetItem } from '../../types'
 import CostsPanel, { ExpenseModal } from './CostsPanel'
 import { splitEqualShares, calculateTicketShares, type TicketItem } from './CostsPanel.helpers'
@@ -1938,5 +1938,77 @@ describe('CostsPanel — expense modal in another language', () => {
     await user.click(screen.getByRole('button', { name: /bob/i }))
     expect(screen.getByText('Nicht dabei')).toBeInTheDocument()
     expect(screen.queryByText('Excluded')).not.toBeInTheDocument()
+  })
+})
+
+describe('CostsPanel — expense file attachment staging', () => {
+  it('keeps multiple existing file selections local until Save', async () => {
+    const user = userEvent.setup()
+    const first = buildTripFile({ id: 501, trip_id: 1, original_name: 'receipt.pdf', file_size: 1200 })
+    const second = buildTripFile({ id: 502, trip_id: 1, original_name: 'ticket.pdf', file_size: 800 })
+    const attachmentCalls: number[] = []
+    let expensePosted = false
+    server.use(
+      http.get('/api/trips/1/budget', () => HttpResponse.json({ items: [] })),
+      http.get('/api/trips/1/budget/settlement', () => HttpResponse.json({ balances: [], flows: [], settlements: [] })),
+      http.get('/api/trips/1/files', () => HttpResponse.json({ files: [first, second] })),
+      http.post('/api/trips/1/budget', async () => {
+        expensePosted = true
+        return HttpResponse.json({ item: buildBudgetItem({ id: 77, trip_id: 1, name: 'Dinner', total_price: 30, members: [], payers: [] }) })
+      }),
+      http.post('/api/trips/1/budget/77/files/:fileId', ({ params }) => {
+        attachmentCalls.push(Number(params.fileId))
+        const file = Number(params.fileId) === first.id ? first : second
+        return HttpResponse.json({ file: { ...file, linked_expense_ids: [77] } })
+      }),
+    )
+    render(<CostsPanel tripId={1} tripMembers={tripMembers} />)
+
+    await user.click(screen.getByRole('button', { name: 'Add expense' }))
+    await user.click(await screen.findByLabelText('receipt.pdf'))
+    await user.click(screen.getByLabelText('ticket.pdf'))
+    expect(expensePosted).toBe(false)
+    expect(attachmentCalls).toEqual([])
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('button', { name: 'Add expense' }))
+    expect(await screen.findByLabelText('receipt.pdf')).not.toBeChecked()
+    expect(screen.getByLabelText('ticket.pdf')).not.toBeChecked()
+
+    await user.type(screen.getByPlaceholderText('e.g. Dinner, souvenirs, gas…'), 'Dinner')
+    await user.type(screen.getAllByPlaceholderText('0,00')[0], '30')
+    await user.click(screen.getByLabelText('receipt.pdf'))
+    await user.click(screen.getByLabelText('ticket.pdf'))
+    const addButtons = screen.getAllByRole('button', { name: 'Add expense' })
+    const submit = addButtons[addButtons.length - 1]
+    await user.click(submit)
+
+    await waitFor(() => expect(attachmentCalls).toHaveLength(2))
+    expect(attachmentCalls).toEqual([first.id, second.id])
+  })
+
+  it('restores the saved attachment selection after Cancel while editing', async () => {
+    const user = userEvent.setup()
+    const attached = buildTripFile({ id: 601, trip_id: 1, original_name: 'saved.pdf', linked_expense_ids: [88] })
+    const available = buildTripFile({ id: 602, trip_id: 1, original_name: 'available.pdf', linked_expense_ids: [] })
+    let detachCalls = 0
+    server.use(
+      http.get('/api/trips/1/budget', () => HttpResponse.json({ items: [buildBudgetItem({ id: 88, trip_id: 1, name: 'Hotel', total_price: 20, members: [], payers: [] })] })),
+      http.get('/api/trips/1/budget/settlement', () => HttpResponse.json({ balances: [], flows: [], settlements: [] })),
+      http.get('/api/trips/1/files', () => HttpResponse.json({ files: [attached, available] })),
+      http.put('/api/trips/1/budget/88', () => HttpResponse.json({ item: buildBudgetItem({ id: 88, trip_id: 1, name: 'Hotel', total_price: 20, members: [], payers: [] }) })),
+      http.delete('/api/trips/1/budget/88/files/601', () => { detachCalls += 1; return HttpResponse.json({ success: true, file: { ...attached, linked_expense_ids: [] } }) }),
+    )
+    render(<CostsPanel tripId={1} tripMembers={tripMembers} />)
+
+    await screen.findByText('Hotel')
+    await user.click(screen.getAllByTitle('Edit')[0])
+    expect(await screen.findByLabelText('saved.pdf')).toBeChecked()
+    await user.click(screen.getByLabelText('saved.pdf'))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(detachCalls).toBe(0)
+
+    await user.click(screen.getByTitle('Edit'))
+    expect(await screen.findByLabelText('saved.pdf')).toBeChecked()
   })
 })

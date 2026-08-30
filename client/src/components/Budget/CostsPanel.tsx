@@ -24,6 +24,8 @@ import type { TripMember } from './BudgetPanelMemberChips'
 import GuestBadge from '../shared/GuestBadge'
 import { NumericInput } from '../shared/NumericInput'
 import EmptyState from '../shared/EmptyState'
+import ExpenseFilePicker from './ExpenseFilePicker'
+import { filesForExpense } from './expenseAttachments'
 
 interface CostsPanelProps {
   tripId: number
@@ -58,7 +60,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100
 const FIELD_H = 40 // shared height for the amount / currency / day row in the modal
 
 export default function CostsPanel({ tripId, tripMembers = [] }: CostsPanelProps) {
-  const { trip, budgetItems, deleteBudgetItem, loadBudgetItems } = useTripStore()
+  const { trip, budgetItems, deleteBudgetItem, loadBudgetItems, loadFiles } = useTripStore()
   const me = useAuthStore(s => s.user?.id ?? -1)
   const can = useCanDo()
   const canEdit = can('budget_edit', trip)
@@ -108,7 +110,7 @@ export default function CostsPanel({ tripId, tripMembers = [] }: CostsPanelProps
       .catch(() => setSettlementError(true))
   }, [tripId, base])
 
-  useEffect(() => { loadBudgetItems(tripId); loadSettlement() }, [tripId])
+  useEffect(() => { loadBudgetItems(tripId); loadFiles(tripId); loadSettlement() }, [tripId])
   useEffect(() => { loadSettlement() }, [budgetItems.length, base])
 
   // The bottom-nav "+" on the Costs tab opens the add-expense modal via ?create=expense.
@@ -478,6 +480,7 @@ export default function CostsPanel({ tripId, tripMembers = [] }: CostsPanelProps
 
       {modalOpen && (
         <ExpenseModal tripId={tripId} base={base} people={people} me={me} editing={editing}
+          canAttachFiles={canEdit && can('file_edit', trip)}
           onClose={() => setModalOpen(false)}
           onSaved={() => { setModalOpen(false); loadBudgetItems(tripId); loadSettlement() }} />
       )}
@@ -1036,13 +1039,13 @@ export interface ExpensePrefill {
   placeId?: number
 }
 
-export function ExpenseModal({ tripId, base, people, me, editing, prefill, onClose, onSaved }: {
-  tripId: number; base: string; people: TripMember[]; me: number; editing: BudgetItem | null; prefill?: ExpensePrefill; onClose: () => void; onSaved: () => void
+export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAttachFiles = true, onClose, onSaved }: {
+  tripId: number; base: string; people: TripMember[]; me: number; editing: BudgetItem | null; prefill?: ExpensePrefill; canAttachFiles?: boolean; onClose: () => void; onSaved: () => void
 }) {
   const { t, locale } = useTranslation()
   const toast = useToast()
   const isMobile = useIsMobile()
-  const { addBudgetItem, updateBudgetItem } = useTripStore()
+  const { addBudgetItem, updateBudgetItem, files, attachExpenseFile, detachExpenseFile } = useTripStore()
   const { convert } = useExchangeRates(base)
   const sym = (c: string) => SYMBOLS[c] || (c + ' ')
 
@@ -1109,8 +1112,19 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, onClo
   })
 
   const [saving, setSaving] = useState(false)
+  const [savedExpenseId, setSavedExpenseId] = useState<number | null>(null)
+  const [attachmentSelectionTouched, setAttachmentSelectionTouched] = useState(false)
+  const [selectedFileIds, setSelectedFileIds] = useState<Set<number>>(() =>
+    editing ? new Set(filesForExpense(files, editing.id).map(file => file.id)) : new Set()
+  )
 
   const isTicketMode = splitMode === 'ticket'
+
+  useEffect(() => {
+    if (!attachmentSelectionTouched) {
+      setSelectedFileIds(editing ? new Set(filesForExpense(files, editing.id).map(file => file.id)) : new Set())
+    }
+  }, [editing, files, attachmentSelectionTouched])
 
   const ticketInfo = useMemo(() => {
     return calculateTicketShares(ticketItems)
@@ -1240,6 +1254,16 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, onClo
     }))
   }
 
+  const toggleExpenseFile = (fileId: number) => {
+    setAttachmentSelectionTouched(true)
+    setSelectedFileIds(previous => {
+      const next = new Set(previous)
+      if (next.has(fileId)) next.delete(fileId)
+      else next.add(fileId)
+      return next
+    })
+  }
+
   const toggleParticipant = (id: number) => {
     const nextParts = new Set(participants)
     if (nextParts.has(id)) {
@@ -1295,8 +1319,21 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, onClo
       ...(!editing && prefill?.placeId ? { place_id: prefill.placeId } : {}),
     }
     try {
-      if (editing) await updateBudgetItem(tripId, editing.id, data)
-      else await addBudgetItem(tripId, data)
+      const expenseId = editing?.id ?? savedExpenseId
+      const savedExpense = expenseId
+        ? await updateBudgetItem(tripId, expenseId, data)
+        : await addBudgetItem(tripId, data)
+      if (!expenseId) setSavedExpenseId(savedExpense.id)
+      const savedFileIds = new Set(filesForExpense(files, savedExpense.id).map(file => file.id))
+      const fileIdsToDetach = [...savedFileIds].filter(fileId => !selectedFileIds.has(fileId))
+      const fileIdsToAttach = [...selectedFileIds].filter(fileId => !savedFileIds.has(fileId))
+      try {
+        for (const fileId of fileIdsToDetach) await detachExpenseFile(tripId, savedExpense.id, fileId)
+        for (const fileId of fileIdsToAttach) await attachExpenseFile(tripId, savedExpense.id, fileId)
+      } catch {
+        toast.error(t('costs.attachmentsSaveError'))
+        return
+      }
       onSaved()
     } catch {
       toast.error(t('common.unknownError'))
@@ -1380,6 +1417,8 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, onClo
             })}
           </div>
         </div>
+
+        <ExpenseFilePicker files={files} selectedFileIds={selectedFileIds} onToggleFile={toggleExpenseFile} disabled={!canAttachFiles} />
 
         </div>
 

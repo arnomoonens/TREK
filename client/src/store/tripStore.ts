@@ -20,6 +20,7 @@ import { createTodoSlice } from './slices/todoSlice'
 import { createBudgetSlice } from './slices/budgetSlice'
 import { createReservationsSlice } from './slices/reservationsSlice'
 import { createFilesSlice } from './slices/filesSlice'
+import { createExpenseAttachmentsSlice } from './slices/expenseAttachmentsSlice'
 import { handleRemoteEvent } from './slices/remoteEventHandler'
 import type {
   Trip, Day, Place, Assignment, DayNote, PackingItem, TodoItem,
@@ -36,6 +37,7 @@ import type { TodoSlice } from './slices/todoSlice'
 import type { BudgetSlice } from './slices/budgetSlice'
 import type { ReservationsSlice } from './slices/reservationsSlice'
 import type { FilesSlice } from './slices/filesSlice'
+import type { ExpenseAttachmentsSlice } from './slices/expenseAttachmentsSlice'
 
 export interface TripStoreState
   extends PlacesSlice,
@@ -46,7 +48,8 @@ export interface TripStoreState
     TodoSlice,
     BudgetSlice,
     ReservationsSlice,
-    FilesSlice {
+    FilesSlice,
+    ExpenseAttachmentsSlice {
   trip: Trip | null
   days: Day[]
   places: Place[]
@@ -263,4 +266,5 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
   ...createBudgetSlice(set, get),
   ...createReservationsSlice(set, get),
   ...createFilesSlice(set, get),
+  ...createExpenseAttachmentsSlice(set),
 }))

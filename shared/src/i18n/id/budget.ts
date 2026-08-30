@@ -146,5 +146,9 @@ const budget: TranslationStrings = {
   'costs.splitBalanced': 'Pembagian sudah pas dengan total',
   'costs.splitSumUnder': 'Jumlah bagian: {sum} dari {total} (kurang {diff})',
   'costs.splitSumOver': 'Jumlah bagian: {sum} dari {total} (lebih {diff})',
+  'costs.tripFiles': 'File perjalanan',
+  'costs.tripFilesHint': 'Pilih file yang sudah ada untuk dilampirkan. Detail file dikelola di File.',
+  'costs.noTripFiles': 'Belum ada file perjalanan.',
+  'costs.attachmentsSaveError': 'Pengeluaran tersimpan, tetapi beberapa lampiran file tidak dapat diperbarui.',
 };
 export default budget;

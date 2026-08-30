@@ -145,5 +145,9 @@ const budget: TranslationStrings = {
   'costs.splitBalanced': '分攤金額與總額相符',
   'costs.splitSumUnder': '分攤合計：{total} 中的 {sum}（少 {diff}）',
   'costs.splitSumOver': '分攤合計：{total} 中的 {sum}（多 {diff}）',
+  'costs.tripFiles': '行程檔案',
+  'costs.tripFilesHint': '選取要附加的現有檔案。檔案詳細資料在「檔案」中管理。',
+  'costs.noTripFiles': '尚無行程檔案。',
+  'costs.attachmentsSaveError': '支出已儲存，但部分檔案附件無法更新。',
 };
 export default budget;

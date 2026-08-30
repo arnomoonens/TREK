@@ -16,6 +16,8 @@ import { localToday } from '../../../../components/Planner/today'
 import { calculateTicketShares, hasTicketSplit, NOTE_MAX, readTicketItems, readUserNote, splitEqualShares, writeTicketItems, type TicketItem } from '../../../../components/Budget/CostsPanel.helpers'
 import type { ExpensePrefill } from '../../../../components/Budget/CostsPanel'
 import { payersBalanced, rebalancePayers } from '../../../../components/Budget/CostsPanel.helpers'
+import ExpenseFilePicker from '../../../../components/Budget/ExpenseFilePicker'
+import { filesForExpense } from '../../../../components/Budget/expenseAttachments'
 import GuestBadge from '../../../../components/shared/GuestBadge'
 import type { TripMember } from '../../../../components/Budget/BudgetPanelMemberChips'
 import type { BudgetItem } from '../../../../types'
@@ -27,6 +29,7 @@ export interface MCostSheetProps {
   me: number
   editing: BudgetItem | null
   prefill?: ExpensePrefill
+  canAttachFiles?: boolean
   onClose: () => void
   onSaved: () => void
 }
@@ -51,10 +54,10 @@ const SPLIT_MODES = [
  * multi-currency with live conversion, single/multi payer, and the Equally /
  * Custom / Ticket splits.
  */
-export default function MCostSheet({ tripId, base, people, me, editing, prefill, onClose, onSaved }: MCostSheetProps) {
+export default function MCostSheet({ tripId, base, people, me, editing, prefill, canAttachFiles = true, onClose, onSaved }: MCostSheetProps) {
   const { t, locale } = useTranslation()
   const toast = useToast()
-  const { addBudgetItem, updateBudgetItem, deleteBudgetItem } = useTripStore()
+  const { addBudgetItem, updateBudgetItem, deleteBudgetItem, files, attachExpenseFile, detachExpenseFile } = useTripStore()
   const { convert } = useExchangeRates(base)
   const sym = (c: string) => SYMBOLS[c] || (c + ' ')
 
@@ -120,6 +123,11 @@ export default function MCostSheet({ tripId, base, people, me, editing, prefill,
   })
 
   const [saving, setSaving] = useState(false)
+  const [savedExpenseId, setSavedExpenseId] = useState<number | null>(null)
+  const [attachmentSelectionTouched, setAttachmentSelectionTouched] = useState(false)
+  const [selectedFileIds, setSelectedFileIds] = useState<Set<number>>(() =>
+    editing ? new Set(filesForExpense(files, editing.id).map(file => file.id)) : new Set(),
+  )
   const [deleteArmed, setDeleteArmed] = useState(false)
 
   const isTicketMode = splitMode === 'ticket'
@@ -151,6 +159,12 @@ export default function MCostSheet({ tripId, base, people, me, editing, prefill,
       ? ticketValid
       : totalNum > 0 && (participants.size === 0 || splitMode === 'equally' || customBalanced)
   )
+
+  useEffect(() => {
+    if (!attachmentSelectionTouched) {
+      setSelectedFileIds(editing ? new Set(filesForExpense(files, editing.id).map(file => file.id)) : new Set())
+    }
+  }, [editing, files, attachmentSelectionTouched])
 
   const onTotalChange = (v: string) => setTotal(v.replace(',', '.'))
 
@@ -230,6 +244,17 @@ export default function MCostSheet({ tripId, base, people, me, editing, prefill,
     setParticipants(nextParts)
   }
 
+  const toggleExpenseFile = (fileId: number) => {
+    if (!canAttachFiles) return
+    setAttachmentSelectionTouched(true)
+    setSelectedFileIds(previous => {
+      const next = new Set(previous)
+      if (next.has(fileId)) next.delete(fileId)
+      else next.add(fileId)
+      return next
+    })
+  }
+
   const save = async () => {
     if (!valid || saving) return
     setSaving(true)
@@ -262,11 +287,25 @@ export default function MCostSheet({ tripId, base, people, me, editing, prefill,
       ...(!editing && prefill?.placeId ? { place_id: prefill.placeId } : {}),
     }
     try {
-      if (editing) await updateBudgetItem(tripId, editing.id, data)
-      else await addBudgetItem(tripId, data)
+      const expenseId = editing?.id ?? savedExpenseId
+      const savedExpense = expenseId
+        ? await updateBudgetItem(tripId, expenseId, data)
+        : await addBudgetItem(tripId, data)
+      if (!expenseId) setSavedExpenseId(savedExpense.id)
+      const savedFileIds = new Set(filesForExpense(files, savedExpense.id).map(file => file.id))
+      const fileIdsToDetach = [...savedFileIds].filter(fileId => !selectedFileIds.has(fileId))
+      const fileIdsToAttach = [...selectedFileIds].filter(fileId => !savedFileIds.has(fileId))
+      try {
+        for (const fileId of fileIdsToDetach) await detachExpenseFile(tripId, savedExpense.id, fileId)
+        for (const fileId of fileIdsToAttach) await attachExpenseFile(tripId, savedExpense.id, fileId)
+      } catch {
+        toast.error(t('costs.attachmentsSaveError'))
+        return
+      }
       onSaved()
     } catch {
       toast.error(t('common.unknownError'))
+    } finally {
       setSaving(false)
     }
   }
@@ -414,6 +453,13 @@ export default function MCostSheet({ tripId, base, people, me, editing, prefill,
             })}
           </div>
         )}
+
+        <ExpenseFilePicker
+          files={files}
+          selectedFileIds={selectedFileIds}
+          onToggleFile={toggleExpenseFile}
+          disabled={!canAttachFiles}
+        />
 
         {/* WHO PAID */}
         <div className="mb-[6px] mt-3 flex items-center justify-between">

@@ -146,6 +146,10 @@ const budget: TranslationStrings = {
   'costs.splitBalanced': 'Phần chia khớp với tổng',
   'costs.splitSumUnder': 'Tổng các phần: {sum} trên {total} (thiếu {diff})',
   'costs.splitSumOver': 'Tổng các phần: {sum} trên {total} (thừa {diff})',
+  'costs.tripFiles': 'Tệp chuyến đi',
+  'costs.tripFilesHint': 'Chọn các tệp hiện có để đính kèm. Chi tiết tệp được quản lý trong Tệp.',
+  'costs.noTripFiles': 'Chưa có tệp chuyến đi.',
+  'costs.attachmentsSaveError': 'Đã lưu khoản chi, nhưng không thể cập nhật một số tệp đính kèm.',
 };
 
 export default budget;

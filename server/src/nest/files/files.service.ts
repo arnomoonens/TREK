@@ -39,6 +39,12 @@ export interface FileLink {
   place_id: number | null;
 }
 
+interface ExpenseAttachmentLink {
+  expense_id: number;
+  file_id: number;
+  created_at: string;
+}
+
 /**
  * Decoded bytes one non-HTTP caller may pull out of a file in a single read.
  * The browser download streams instead and is not bound by this.
@@ -163,6 +169,67 @@ export class FilesService {
     return this.db.get<TripFile>('SELECT * FROM trip_files WHERE id = ? AND trip_id = ? AND deleted_at IS NOT NULL', id, tripId);
   }
 
+  /** Return one file in the same response shape as the authoritative trip list. */
+  getFileResponse(id: string | number, tripId: string | number): TripFile | undefined {
+    const file = this.db.get<TripFile>(`${FILE_SELECT} WHERE f.id = ? AND f.trip_id = ?`, id, tripId);
+    if (!file) return undefined;
+    return this.addFileRelationshipMetadata([file])[0];
+  }
+
+  private addFileRelationshipMetadata(files: TripFile[]): TripFile[] {
+    const fileIds = files.map(file => file.id);
+    const linksMap: Record<number, FileLink[]> = {};
+    if (fileIds.length > 0) {
+      const placeholders = fileIds.map(() => '?').join(',');
+      const links = this.db.all<FileLink>(
+        `SELECT file_id, reservation_id, place_id FROM file_links WHERE file_id IN (${placeholders})`,
+        ...fileIds,
+      );
+      for (const link of links) {
+        (linksMap[link.file_id] ||= []).push(link);
+      }
+    }
+
+    const formatted = files.map(file => {
+      const fileLinks = linksMap[file.id] || [];
+      return {
+        ...formatFile(file),
+        linked_reservation_ids: fileLinks.filter(link => link.reservation_id).map(link => link.reservation_id),
+        linked_place_ids: fileLinks.filter(link => link.place_id).map(link => link.place_id),
+      };
+    });
+    return this.addExpenseAttachmentMetadata(formatted);
+  }
+
+  private addExpenseAttachmentMetadata(files: TripFile[]): TripFile[] {
+    const fileIds = files.map(file => file.id);
+    const linksByFileId: Record<number, ExpenseAttachmentLink[]> = {};
+    if (fileIds.length > 0) {
+      const placeholders = fileIds.map(() => '?').join(',');
+      const links = this.db.all<ExpenseAttachmentLink>(
+        `SELECT expense_id, file_id, created_at
+         FROM expense_attachments
+         WHERE file_id IN (${placeholders})
+         ORDER BY created_at ASC, id ASC`,
+        ...fileIds,
+      );
+      for (const link of links) {
+        (linksByFileId[link.file_id] ||= []).push(link);
+      }
+    }
+
+    return files.map(file => {
+      const expenseLinks = linksByFileId[file.id] || [];
+      return {
+        ...file,
+        linked_expense_ids: expenseLinks.map(link => link.expense_id),
+        expense_attachment_created_at: Object.fromEntries(
+          expenseLinks.map(link => [String(link.expense_id), link.created_at]),
+        ),
+      };
+    });
+  }
+
   /**
    * A file's bytes for a caller that is not the browser download.
    *
@@ -224,26 +291,7 @@ export class FilesService {
   listFiles(tripId: string | number, showTrash: boolean) {
     const where = showTrash ? 'f.trip_id = ? AND f.deleted_at IS NOT NULL' : 'f.trip_id = ? AND f.deleted_at IS NULL';
     const files = this.db.all<TripFile>(`${FILE_SELECT} WHERE ${where} ORDER BY f.starred DESC, f.created_at DESC`, tripId);
-
-    const fileIds = files.map(f => f.id);
-    const linksMap: Record<number, FileLink[]> = {};
-    if (fileIds.length > 0) {
-      const placeholders = fileIds.map(() => '?').join(',');
-      const links = this.db.all<FileLink>(`SELECT file_id, reservation_id, place_id FROM file_links WHERE file_id IN (${placeholders})`, ...fileIds);
-      for (const link of links) {
-        if (!linksMap[link.file_id]) linksMap[link.file_id] = [];
-        linksMap[link.file_id].push(link);
-      }
-    }
-
-    return files.map(f => {
-      const fileLinks = linksMap[f.id] || [];
-      return {
-        ...formatFile(f),
-        linked_reservation_ids: fileLinks.filter(l => l.reservation_id).map(l => l.reservation_id),
-        linked_place_ids: fileLinks.filter(l => l.place_id).map(l => l.place_id),
-      };
-    });
+    return this.addFileRelationshipMetadata(files);
   }
 
   createFile(
@@ -267,8 +315,7 @@ export class FilesService {
       uploadedBy
     );
 
-    const created = this.db.get<TripFile>(`${FILE_SELECT} WHERE f.id = ?`, result.lastInsertRowid)!;
-    return formatFile(created);
+    return this.getFileResponse(Number(result.lastInsertRowid), tripId)!;
   }
 
   updateFile(
@@ -290,7 +337,7 @@ export class FilesService {
     );
 
     const updated = this.db.get<TripFile>(`${FILE_SELECT} WHERE f.id = ?`, id)!;
-    return formatFile(updated);
+    return this.getFileResponse(updated.id, updated.trip_id)!;
   }
 
   toggleStarred(id: string | number, currentStarred: number | undefined) {
@@ -298,7 +345,7 @@ export class FilesService {
     this.db.run('UPDATE trip_files SET starred = ? WHERE id = ?', newStarred, id);
 
     const updated = this.db.get<TripFile>(`${FILE_SELECT} WHERE f.id = ?`, id)!;
-    return formatFile(updated);
+    return this.getFileResponse(updated.id, updated.trip_id)!;
   }
 
   softDeleteFile(id: string | number) {
@@ -308,7 +355,7 @@ export class FilesService {
   restoreFile(id: string | number) {
     this.db.run('UPDATE trip_files SET deleted_at = NULL WHERE id = ?', id);
     const restored = this.db.get<TripFile>(`${FILE_SELECT} WHERE f.id = ?`, id)!;
-    return formatFile(restored);
+    return this.getFileResponse(restored.id, restored.trip_id)!;
   }
 
   async permanentDeleteFile(file: TripFile): Promise<void> {

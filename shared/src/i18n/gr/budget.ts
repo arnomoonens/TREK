@@ -147,5 +147,9 @@ const budget: TranslationStrings = {
   'costs.splitBalanced': 'Ο διαμοιρασμός ταιριάζει με το σύνολο',
   'costs.splitSumUnder': 'Άθροισμα μεριδίων: {sum} από {total} (λείπουν {diff})',
   'costs.splitSumOver': 'Άθροισμα μεριδίων: {sum} από {total} ({diff} παραπάνω)',
+  'costs.tripFiles': 'Αρχεία ταξιδιού',
+  'costs.tripFilesHint': 'Επιλέξτε υπάρχοντα αρχεία για επισύναψη. Οι λεπτομέρειες των αρχείων διαχειρίζονται στα Αρχεία.',
+  'costs.noTripFiles': 'Δεν υπάρχουν ακόμη αρχεία ταξιδιού.',
+  'costs.attachmentsSaveError': 'Η δαπάνη αποθηκεύτηκε, αλλά δεν ήταν δυνατή η ενημέρωση ορισμένων συνημμένων.',
 };
 export default budget;

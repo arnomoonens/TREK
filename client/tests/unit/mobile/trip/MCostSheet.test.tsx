@@ -4,7 +4,7 @@ import type { TripMember } from '../../../../src/components/Budget/BudgetPanelMe
 import { clearExchangeRateCache } from '../../../../src/hooks/useExchangeRates'
 import { useTripStore, type TripStoreState } from '../../../../src/store/tripStore'
 import type { BudgetItem, BudgetItemMember } from '../../../../src/types'
-import { buildBudgetItem } from '../../../helpers/factories'
+import { buildBudgetItem, buildTripFile } from '../../../helpers/factories'
 import { localToday } from '../../../../src/components/Planner/today'
 import { resetAllStores } from '../../../helpers/store'
 import { act, fireEvent, render, screen, waitFor } from '../../../helpers/render'
@@ -28,6 +28,8 @@ function member(user_id: number, amount: number | null): BudgetItemMember {
 let addBudgetItem: ReturnType<typeof vi.fn>
 let updateBudgetItem: ReturnType<typeof vi.fn>
 let deleteBudgetItem: ReturnType<typeof vi.fn>
+let attachExpenseFile: ReturnType<typeof vi.fn>
+let detachExpenseFile: ReturnType<typeof vi.fn>
 let addToast: ReturnType<typeof vi.fn>
 
 interface SheetOverrides {
@@ -77,8 +79,10 @@ describe('MCostSheet', () => {
     addBudgetItem = vi.fn(async () => buildBudgetItem({ id: 9 }))
     updateBudgetItem = vi.fn(async () => buildBudgetItem({ id: 9 }))
     deleteBudgetItem = vi.fn(async () => undefined)
+    attachExpenseFile = vi.fn(async (_tripId: number, _expenseId: number, fileId: number) => buildTripFile({ id: fileId, linked_expense_ids: [9] }))
+    detachExpenseFile = vi.fn(async (_tripId: number, _expenseId: number, fileId: number) => buildTripFile({ id: fileId, linked_expense_ids: [] }))
     useTripStore.setState(
-      { addBudgetItem, updateBudgetItem, deleteBudgetItem } as unknown as Partial<TripStoreState>,
+      { addBudgetItem, updateBudgetItem, deleteBudgetItem, attachExpenseFile, detachExpenseFile } as unknown as Partial<TripStoreState>,
     )
     addToast = vi.fn()
     ;(window as unknown as { __addToast: unknown }).__addToast = addToast
@@ -129,6 +133,29 @@ describe('MCostSheet', () => {
       note: null,
       ticket_json: null,
     })
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
+  })
+
+  it('FE-MOB-COSTSH-002b: stages multiple existing files and attaches them after the expense is saved', async () => {
+    useTripStore.setState({
+      files: [
+        buildTripFile({ id: 101, original_name: 'receipt.pdf' }),
+        buildTripFile({ id: 102, original_name: 'ticket.pdf' }),
+      ],
+    })
+    const { onSaved } = renderSheet()
+    fillBasics('Dinner', '85,50')
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'receipt.pdf' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'ticket.pdf' }))
+    expect(screen.getByRole('checkbox', { name: 'receipt.pdf' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'ticket.pdf' })).toBeChecked()
+
+    fireEvent.click(submit())
+    await waitFor(() => expect(attachExpenseFile).toHaveBeenCalledTimes(2))
+    expect(attachExpenseFile).toHaveBeenNthCalledWith(1, 1, 9, 101)
+    expect(attachExpenseFile).toHaveBeenNthCalledWith(2, 1, 9, 102)
+    expect(detachExpenseFile).not.toHaveBeenCalled()
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
   })
 

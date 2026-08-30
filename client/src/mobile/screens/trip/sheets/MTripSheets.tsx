@@ -121,6 +121,7 @@ export default function MTripSheets({ planner, shell }: MTripSheetsProps) {
           me={meId}
           editing={bookingExpense.editing}
           prefill={bookingExpense.prefill}
+          canAttachFiles={planner.can('budget_edit', trip) && planner.can('file_edit', trip)}
           onClose={() => setBookingExpense(null)}
           onSaved={() => { setBookingExpense(null); loadBudgetItems(tripId) }}
         />

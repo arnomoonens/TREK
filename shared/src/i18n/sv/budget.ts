@@ -146,5 +146,9 @@ const budget: TranslationStrings = {
   'costs.splitBalanced': 'Fördelningen stämmer med totalen',
   'costs.splitSumUnder': 'Summan av delarna: {sum} av {total} ({diff} saknas)',
   'costs.splitSumOver': 'Summan av delarna: {sum} av {total} ({diff} för mycket)',
+  'costs.tripFiles': 'Resefiler',
+  'costs.tripFilesHint': 'Välj befintliga filer att bifoga. Filuppgifter hanteras under Filer.',
+  'costs.noTripFiles': 'Det finns inga resefiler ännu.',
+  'costs.attachmentsSaveError': 'Utgiften sparades, men vissa filbilagor kunde inte uppdateras.',
 };
 export default budget;

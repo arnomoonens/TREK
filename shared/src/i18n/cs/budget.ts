@@ -146,5 +146,9 @@ const budget: TranslationStrings = {
   'costs.splitBalanced': 'Rozdělení sedí s celkem',
   'costs.splitSumUnder': 'Součet podílů: {sum} z {total} (chybí {diff})',
   'costs.splitSumOver': 'Součet podílů: {sum} z {total} (o {diff} více)',
+  'costs.tripFiles': 'Soubory cesty',
+  'costs.tripFilesHint': 'Vyberte existující soubory k připojení. Podrobnosti souborů se spravují v Souborech.',
+  'costs.noTripFiles': 'Zatím nejsou žádné soubory cesty.',
+  'costs.attachmentsSaveError': 'Výdaj byl uložen, ale některé přílohy se nepodařilo aktualizovat.',
 };
 export default budget;
