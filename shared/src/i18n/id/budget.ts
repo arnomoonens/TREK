@@ -150,5 +150,9 @@ const budget: TranslationStrings = {
   'costs.tripFilesHint': 'Pilih file yang sudah ada untuk dilampirkan. Detail file dikelola di File.',
   'costs.noTripFiles': 'Belum ada file perjalanan.',
   'costs.attachmentsSaveError': 'Pengeluaran tersimpan, tetapi beberapa lampiran file tidak dapat diperbarui.',
+  'costs.attachmentCount': '{count} lampiran',
+  'costs.attachmentsCount': '{count} lampiran',
+  'costs.attachmentsTitle': 'Lampiran untuk "{name}"',
+  'costs.noAttachments': 'Tidak ada file yang dilampirkan ke pengeluaran ini.',
 };
 export default budget;

@@ -150,5 +150,9 @@ const budget: TranslationStrings = {
   'costs.tripFilesHint': 'Виберіть наявні файли для додавання. Дані файлів керуються в розділі «Файли».',
   'costs.noTripFiles': 'Файлів подорожі ще немає.',
   'costs.attachmentsSaveError': 'Витрати збережено, але деякі вкладення не вдалося оновити.',
+  'costs.attachmentCount': '{count} вкладення',
+  'costs.attachmentsCount': '{count} вкладення',
+  'costs.attachmentsTitle': 'Вкладення для «{name}»',
+  'costs.noAttachments': 'До цієї витрати не прикріплено файлів.',
 };
 export default budget;

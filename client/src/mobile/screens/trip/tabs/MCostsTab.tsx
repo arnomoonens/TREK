@@ -14,6 +14,8 @@ import { budgetApi } from '../../../../api/client'
 import MCostSheet from '../sheets/MCostSheet'
 import { readUserNote } from '../../../../components/Budget/CostsPanel.helpers'
 import { catMeta, COST_CAT_META } from '../../../../components/Budget/costsCategories'
+import { ExpenseAttachmentCount, ExpenseAttachmentsSheet } from '../../../../components/Budget/ExpenseAttachments'
+import { filesForExpense } from '../../../../components/Budget/expenseAttachmentUtils'
 import MConfirmSheet from '../../settings/MConfirmSheet'
 import MSheet from '../../../components/MSheet'
 import MChip from '../../../components/MChip'
@@ -40,7 +42,7 @@ type TFn = (key: string, params?: Record<string, string | number>) => string
  * exported desktop equivalent existed for it).
  */
 export default function MCostsTab({ planner, shell }: MTabScreenProps) {
-  const { t, tripId, trip, tripMembers, budgetItems, days, toast } = planner
+  const { t, tripId, trip, tripMembers, budgetItems, files, days, toast } = planner
   const { locale } = useTranslation()
   const canEdit = planner.can('budget_edit', trip)
   const me = useAuthStore(s => s.user?.id ?? -1)
@@ -79,6 +81,7 @@ export default function MCostsTab({ planner, shell }: MTabScreenProps) {
   const [expenseModalOpen, setExpenseModalOpen] = useState(false)
   const [editingExpense, setEditingExpense] = useState<BudgetItem | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<BudgetItem | null>(null)
+  const [attachmentExpense, setAttachmentExpense] = useState<BudgetItem | null>(null)
 
   const flows = useMemo(() => settlement?.flows || [], [settlement])
   const totals = useMemo(() => computeTotals(budgetItems, flows, ctx), [budgetItems, flows, ctx])
@@ -87,6 +90,10 @@ export default function MCostsTab({ planner, shell }: MTabScreenProps) {
     [budgetItems, search, segment, catFilter, dayFilter, ctx],
   )
   const groups = useMemo(() => groupByDay(filtered), [filtered])
+  const attachmentCounts = useMemo(
+    () => new Map(budgetItems.map(item => [item.id, filesForExpense(files, item.id).length])),
+    [budgetItems, files],
+  )
   const catBreakdown = useMemo(() => categoryBreakdown(budgetItems, ctx), [budgetItems, ctx])
   const catKeys = useMemo(() => categoryFilterKeys(budgetItems), [budgetItems])
   const dayKeys = useMemo(() => dayFilterKeys(budgetItems), [budgetItems])
@@ -452,6 +459,8 @@ export default function MCostsTab({ planner, shell }: MTabScreenProps) {
                 }}
                 onDelete={() => setConfirmDelete(item)}
                 onTogglePaid={(userId, paid) => handleTogglePaid(item.id, userId, paid)}
+                attachmentCount={attachmentCounts.get(item.id) ?? 0}
+                onOpenAttachments={() => setAttachmentExpense(item)}
               />
             ))}
           </div>
@@ -484,6 +493,16 @@ export default function MCostsTab({ planner, shell }: MTabScreenProps) {
             planner.tripActions.loadBudgetItems(tripId)
             loadSettlement()
           }}
+        />
+      )}
+
+      {attachmentExpense && (
+        <ExpenseAttachmentsSheet
+          open
+          expenseId={attachmentExpense.id}
+          expenseName={attachmentExpense.name}
+          files={files}
+          onClose={() => setAttachmentExpense(null)}
         />
       )}
 
@@ -521,7 +540,7 @@ export default function MCostsTab({ planner, shell }: MTabScreenProps) {
 }
 
 /** One expense card (spec 03 §3.7): category ribbon, optional unfinished ribbon, member chips, total pill, edit/delete stack. */
-function ExpenseRow({ item, ctx, base, locale, t, canEdit, onEdit, onDelete, onTogglePaid }: {
+function ExpenseRow({ item, ctx, base, locale, t, canEdit, onEdit, onDelete, onTogglePaid, attachmentCount, onOpenAttachments }: {
   item: BudgetItem
   ctx: CostsCtx
   base: string
@@ -531,6 +550,8 @@ function ExpenseRow({ item, ctx, base, locale, t, canEdit, onEdit, onDelete, onT
   onEdit: () => void
   onDelete: () => void
   onTogglePaid: (userId: number, paid: boolean) => void
+  attachmentCount: number
+  onOpenAttachments: () => void
 }) {
   const meta = catMeta(item.category)
   const Icon = meta.Icon
@@ -565,7 +586,10 @@ function ExpenseRow({ item, ctx, base, locale, t, canEdit, onEdit, onDelete, onT
 
         <div className="flex items-center gap-[10px]">
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[0.8125rem] font-bold text-m-ink">{item.name}</div>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <div className="min-w-0 flex-1 truncate text-[0.8125rem] font-bold text-m-ink">{item.name}</div>
+              <ExpenseAttachmentCount count={attachmentCount} onClick={onOpenAttachments} />
+            </div>
             {cur !== base && (
               <div className="mt-[1px] truncate font-geist text-[0.59375rem] text-m-faint">
                 {formatMoney(item.total_price, cur, locale)} {'→'} {formatMoney(total, base, locale)}

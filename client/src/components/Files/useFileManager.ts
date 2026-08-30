@@ -214,3 +214,6 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
 }
 
 export type FileManagerState = ReturnType<typeof useFileManager>
+
+/** The small state surface shared by the Files previews and read-only viewers. */
+export type FilePreviewState = Pick<FileManagerState, 'previewFile' | 'setPreviewFile' | 'previewFileUrl' | 'toast' | 't'>

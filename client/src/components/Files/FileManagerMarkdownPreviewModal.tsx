@@ -6,7 +6,7 @@ import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
 import rehypeSanitize from 'rehype-sanitize'
 import { openFile as openFileUrl } from '../../utils/fileDownload'
-import type { FileManagerState } from './useFileManager'
+import type { FilePreviewState } from './useFileManager'
 import { triggerDownload } from './FileManager.helpers'
 
 /**
@@ -15,7 +15,7 @@ import { triggerDownload } from './FileManager.helpers'
  * with rehype-sanitize — these are UNTRUSTED uploads, unlike collab notes — and
  * react-markdown v10 already drops raw HTML, so no script can execute.
  */
-export function MarkdownPreviewModal(S: FileManagerState) {
+export function MarkdownPreviewModal(S: FilePreviewState) {
   const { previewFile, setPreviewFile, previewFileUrl, toast, t } = S
   const [text, setText] = useState('')
   const [err, setErr] = useState(false)
@@ -31,6 +31,8 @@ export function MarkdownPreviewModal(S: FileManagerState) {
       .catch(() => { if (!cancelled) setErr(true) })
     return () => { cancelled = true }
   }, [previewFileUrl])
+
+  if (!previewFile) return null
 
   return createPortal(
     <div

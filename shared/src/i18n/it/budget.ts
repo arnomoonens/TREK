@@ -150,5 +150,9 @@ const budget: TranslationStrings = {
   'costs.tripFilesHint': 'Seleziona i file esistenti da allegare. I dettagli dei file si gestiscono in File.',
   'costs.noTripFiles': 'Non ci sono ancora file del viaggio.',
   'costs.attachmentsSaveError': 'La spesa è stata salvata, ma non è stato possibile aggiornare alcuni allegati.',
+  'costs.attachmentCount': '{count} allegato',
+  'costs.attachmentsCount': '{count} allegati',
+  'costs.attachmentsTitle': 'Allegati per "{name}"',
+  'costs.noAttachments': 'Nessun file allegato a questa spesa.',
 };
 export default budget;

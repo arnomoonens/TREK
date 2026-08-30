@@ -17,7 +17,7 @@ import { calculateTicketShares, hasTicketSplit, NOTE_MAX, readTicketItems, readU
 import type { ExpensePrefill } from '../../../../components/Budget/CostsPanel'
 import { payersBalanced, rebalancePayers } from '../../../../components/Budget/CostsPanel.helpers'
 import ExpenseFilePicker from '../../../../components/Budget/ExpenseFilePicker'
-import { filesForExpense } from '../../../../components/Budget/expenseAttachments'
+import { filesForExpense } from '../../../../components/Budget/expenseAttachmentUtils'
 import GuestBadge from '../../../../components/shared/GuestBadge'
 import type { TripMember } from '../../../../components/Budget/BudgetPanelMemberChips'
 import type { BudgetItem } from '../../../../types'

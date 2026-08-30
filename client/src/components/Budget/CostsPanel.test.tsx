@@ -1112,6 +1112,37 @@ describe('CostsPanel — expense rows', () => {
     expect(screen.queryByTitle('Delete')).not.toBeInTheDocument()
     expect(screen.queryByTitle('Undo')).not.toBeInTheDocument()
   })
+
+  it('lets a read-only viewer inspect live expense attachments from the ledger', async () => {
+    seedStore(usePermissionsStore, { permissions: { budget_edit: 'admin', file_edit: 'admin' } })
+    const attached = buildTripFile({
+      id: 701,
+      trip_id: 1,
+      original_name: 'dinner-receipt.pdf',
+      file_size: 2048,
+      description: 'Restaurant receipt',
+      linked_expense_ids: [101],
+    })
+    const trashed = buildTripFile({ id: 702, trip_id: 1, original_name: 'old-receipt.pdf', linked_expense_ids: [101], deleted_at: '2025-06-16' })
+    server.use(
+      http.get('/api/trips/1/budget', () => HttpResponse.json({ items: [dinner()] })),
+      http.get('/api/trips/1/budget/settlement', () => HttpResponse.json({ balances: [], flows: [], settlements: [] })),
+      http.get('/api/trips/1/files', () => HttpResponse.json({ files: [attached, trashed] })),
+    )
+    const user = userEvent.setup()
+    render(<CostsPanel tripId={1} tripMembers={tripMembers} />)
+
+    await screen.findByText('Dinner')
+    expect(screen.queryByTitle('Delete')).not.toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: '1 attachment' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Attachments for "Dinner"' })
+    expect(dialog).toBeInTheDocument()
+    expect(screen.getByText('dinner-receipt.pdf')).toBeInTheDocument()
+    expect(screen.getByText('Restaurant receipt')).toBeInTheDocument()
+    expect(screen.queryByText('old-receipt.pdf')).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('textbox')).not.toBeInTheDocument()
+  })
 })
 
 describe('CostsPanel — mobile layout', () => {
@@ -1172,6 +1203,23 @@ describe('CostsPanel — mobile layout', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add expense' }))
 
     expect(await screen.findByPlaceholderText('e.g. Dinner, souvenirs, gas…')).toBeInTheDocument()
+  })
+
+  it('opens the attachment bottom sheet from a mobile ledger count', async () => {
+    const attached = buildTripFile({ id: 703, trip_id: 1, original_name: 'mobile-receipt.pdf', linked_expense_ids: [101] })
+    server.use(
+      http.get('/api/trips/1/budget', () => HttpResponse.json({ items: [dinner()] })),
+      http.get('/api/trips/1/budget/settlement', () => HttpResponse.json({ balances: [], flows: [], settlements: [] })),
+      http.get('/api/trips/1/files', () => HttpResponse.json({ files: [attached] })),
+    )
+    const user = userEvent.setup()
+    mount([dinner()])
+
+    await screen.findByText('Dinner')
+    await user.click(await screen.findByRole('button', { name: '1 attachment' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Attachments for "Dinner"' })).toBeInTheDocument()
+    expect(screen.getByText('mobile-receipt.pdf')).toBeInTheDocument()
   })
 })
 

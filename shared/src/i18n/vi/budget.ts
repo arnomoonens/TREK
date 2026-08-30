@@ -150,6 +150,10 @@ const budget: TranslationStrings = {
   'costs.tripFilesHint': 'Chọn các tệp hiện có để đính kèm. Chi tiết tệp được quản lý trong Tệp.',
   'costs.noTripFiles': 'Chưa có tệp chuyến đi.',
   'costs.attachmentsSaveError': 'Đã lưu khoản chi, nhưng không thể cập nhật một số tệp đính kèm.',
+  'costs.attachmentCount': '{count} tệp đính kèm',
+  'costs.attachmentsCount': '{count} tệp đính kèm',
+  'costs.attachmentsTitle': 'Tệp đính kèm cho "{name}"',
+  'costs.noAttachments': 'Khoản chi này chưa có tệp đính kèm.',
 };
 
 export default budget;

@@ -150,5 +150,9 @@ const budget: TranslationStrings = {
   'costs.tripFilesHint': 'Selecciona archivos existentes para adjuntarlos. Los detalles se gestionan en Archivos.',
   'costs.noTripFiles': 'Aún no hay archivos del viaje.',
   'costs.attachmentsSaveError': 'El gasto se guardó, pero no se pudieron actualizar algunos archivos adjuntos.',
+  'costs.attachmentCount': '{count} archivo adjunto',
+  'costs.attachmentsCount': '{count} archivos adjuntos',
+  'costs.attachmentsTitle': 'Archivos adjuntos de "{name}"',
+  'costs.noAttachments': 'No hay archivos adjuntos a este gasto.',
 };
 export default budget;

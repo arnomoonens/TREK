@@ -149,5 +149,9 @@ const budget: TranslationStrings = {
   'costs.tripFilesHint': '選取要附加的現有檔案。檔案詳細資料在「檔案」中管理。',
   'costs.noTripFiles': '尚無行程檔案。',
   'costs.attachmentsSaveError': '支出已儲存，但部分檔案附件無法更新。',
+  'costs.attachmentCount': '{count} 個附件',
+  'costs.attachmentsCount': '{count} 個附件',
+  'costs.attachmentsTitle': '「{name}」的附件',
+  'costs.noAttachments': '此支出沒有附加檔案。',
 };
 export default budget;

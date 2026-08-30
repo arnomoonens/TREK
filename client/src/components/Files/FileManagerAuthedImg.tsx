@@ -1,11 +1,21 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { getAuthUrl } from '../../api/authUrl'
 
 // Authenticated image — fetches a short-lived download token and renders the image
-export function AuthedImg({ src, style }: { src: string; style?: React.CSSProperties }) {
+export function AuthedImg({ src, style, fallback }: { src: string; style?: React.CSSProperties; fallback?: ReactNode }) {
   const [authSrc, setAuthSrc] = useState('')
+  const [failed, setFailed] = useState(false)
+
   useEffect(() => {
-    getAuthUrl(src, 'download').then(setAuthSrc)
+    let current = true
+    setAuthSrc('')
+    setFailed(false)
+    getAuthUrl(src, 'download').then(url => {
+      if (current) setAuthSrc(url)
+    })
+    return () => { current = false }
   }, [src])
-  return authSrc ? <img src={authSrc} alt="" style={style} /> : null
+
+  if (failed || !authSrc) return fallback ?? null
+  return <img src={authSrc} alt="" style={style} onError={() => setFailed(true)} />
 }

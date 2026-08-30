@@ -150,5 +150,9 @@ const budget: TranslationStrings = {
   'costs.tripFilesHint': 'Válassz ki csatolandó meglévő fájlokat. A fájlok adatait a Fájlokban kezelheted.',
   'costs.noTripFiles': 'Még nincsenek utazási fájlok.',
   'costs.attachmentsSaveError': 'A kiadás mentése sikerült, de néhány fájlcsatolást nem lehetett frissíteni.',
+  'costs.attachmentCount': '{count} melléklet',
+  'costs.attachmentsCount': '{count} melléklet',
+  'costs.attachmentsTitle': 'Mellékletek ehhez: „{name}”',
+  'costs.noAttachments': 'Ehhez a kiadáshoz nincs csatolt fájl.',
 };
 export default budget;

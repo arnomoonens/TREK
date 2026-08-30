@@ -150,5 +150,9 @@ const budget: TranslationStrings = {
   'costs.tripFilesHint': 'Sélectionnez des fichiers existants à joindre. Les détails se gèrent dans Fichiers.',
   'costs.noTripFiles': "Aucun fichier de voyage pour l'instant.",
   'costs.attachmentsSaveError': "La dépense a été enregistrée, mais certaines pièces jointes n'ont pas pu être mises à jour.",
+  'costs.attachmentCount': '{count} pièce jointe',
+  'costs.attachmentsCount': '{count} pièces jointes',
+  'costs.attachmentsTitle': 'Pièces jointes de "{name}"',
+  'costs.noAttachments': "Aucun fichier n'est joint à cette dépense.",
 };
 export default budget;

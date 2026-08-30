@@ -31,8 +31,14 @@ export default defineConfig({
     {
       name: 'app',
       testMatch: /\.spec\.ts/,
-      testIgnore: /(\.public\.spec\.ts|auth\.setup\.ts)/,
+      testIgnore: /(\.public\.spec\.ts|\.mobile\.spec\.ts|auth\.setup\.ts)/,
       use: { ...devices['Desktop Chrome'], storageState: 'e2e/.tmp/state.json' },
+      dependencies: ['setup'],
+    },
+    {
+      name: 'app-mobile',
+      testMatch: /\.mobile\.spec\.ts/,
+      use: { ...devices['Pixel 5'], storageState: 'e2e/.tmp/state.json' },
       dependencies: ['setup'],
     },
     // Documentation screenshots (`npm run shots`). Excluded from the normal e2e

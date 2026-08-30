@@ -150,5 +150,9 @@ const budget: TranslationStrings = {
   'costs.tripFilesHint': 'اختر الملفات الموجودة لإرفاقها. تُدار تفاصيل الملفات في قسم الملفات.',
   'costs.noTripFiles': 'لا توجد ملفات للرحلة بعد.',
   'costs.attachmentsSaveError': 'تم حفظ المصروف، لكن تعذّر تحديث بعض المرفقات.',
+  'costs.attachmentCount': '{count} مرفق',
+  'costs.attachmentsCount': '{count} مرفقات',
+  'costs.attachmentsTitle': 'المرفقات لـ "{name}"',
+  'costs.noAttachments': 'لا توجد ملفات مرفقة بهذا المصروف.',
 };
 export default budget;

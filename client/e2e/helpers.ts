@@ -30,7 +30,7 @@ export async function dismissSystemNotices(page: Page, appearTimeoutMs = 3_000):
       if (!(await next.isEnabled().catch(() => false))) break
       await next.click()
     }
-    const dismiss = dialog.getByRole('button', { name: 'Dismiss', exact: true })
+    const dismiss = dialog.getByRole('button', { name: /^(Dismiss|Close)$/ }).first()
     const ok = dialog.getByRole('button', { name: 'OK', exact: true })
     if (await dismiss.isVisible().catch(() => false)) await dismiss.click()
     else if (await ok.isVisible().catch(() => false)) await ok.click()

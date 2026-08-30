@@ -72,7 +72,9 @@ export default function Modal({
       }}
     >
       <div
-        role="presentation"
+        role="dialog"
+        aria-modal="true"
+        aria-label={typeof title === 'string' ? title : undefined}
         className={`
           trek-modal-enter
           rounded-2xl overflow-hidden shadow-2xl w-full ${sizeClasses[size] || sizeClasses.md}

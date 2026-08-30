@@ -1,11 +1,13 @@
 import { createPortal } from 'react-dom'
 import { ExternalLink, Download, X } from 'lucide-react'
 import { openFile as openFileUrl } from '../../utils/fileDownload'
-import type { FileManagerState } from './useFileManager'
+import type { FilePreviewState } from './useFileManager'
 import { triggerDownload } from './FileManager.helpers'
 
-export function PdfPreviewModal(S: FileManagerState) {
+export function PdfPreviewModal(S: FilePreviewState) {
   const { previewFile, setPreviewFile, previewFileUrl, toast, t } = S
+  if (!previewFile) return null
+
   return createPortal(
     <div
       role="presentation"

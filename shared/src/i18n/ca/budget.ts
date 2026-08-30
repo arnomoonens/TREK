@@ -150,6 +150,10 @@ const budget: TranslationStrings = {
   'costs.tripFilesHint': 'Selecciona fitxers existents per adjuntar-los. Els detalls es gestionen a Fitxers.',
   'costs.noTripFiles': 'Encara no hi ha fitxers del viatge.',
   'costs.attachmentsSaveError': 'La despesa s’ha desat, però no s’han pogut actualitzar alguns fitxers adjunts.',
+  'costs.attachmentCount': '{count} fitxer adjunt',
+  'costs.attachmentsCount': '{count} fitxers adjunts',
+  'costs.attachmentsTitle': 'Fitxers adjunts a "{name}"',
+  'costs.noAttachments': 'No hi ha fitxers adjunts a aquesta despesa.',
 };
 
 export default budget;

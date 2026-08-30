@@ -150,5 +150,9 @@ const budget: TranslationStrings = {
   'costs.tripFilesHint': '添付する既存ファイルを選択してください。ファイルの詳細は「ファイル」で管理します。',
   'costs.noTripFiles': '旅行ファイルはまだありません。',
   'costs.attachmentsSaveError': '支出は保存されましたが、一部のファイル添付を更新できませんでした。',
+  'costs.attachmentCount': '{count} 件の添付ファイル',
+  'costs.attachmentsCount': '{count} 件の添付ファイル',
+  'costs.attachmentsTitle': '「{name}」の添付ファイル',
+  'costs.noAttachments': 'この支出には添付ファイルがありません。',
 };
 export default budget;

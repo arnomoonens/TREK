@@ -150,5 +150,9 @@ const budget: TranslationStrings = {
   'costs.tripFilesHint': 'Selecione arquivos existentes para anexar. Os detalhes são gerenciados em Arquivos.',
   'costs.noTripFiles': 'Ainda não há arquivos da viagem.',
   'costs.attachmentsSaveError': 'A despesa foi salva, mas não foi possível atualizar alguns anexos.',
+  'costs.attachmentCount': '{count} anexo',
+  'costs.attachmentsCount': '{count} anexos',
+  'costs.attachmentsTitle': 'Anexos de "{name}"',
+  'costs.noAttachments': 'Nenhum arquivo anexado a esta despesa.',
 };
 export default budget;

@@ -150,5 +150,9 @@ const budget: TranslationStrings = {
   'costs.tripFilesHint': 'Выберите существующие файлы для прикрепления. Данные файлов управляются в разделе «Файлы».',
   'costs.noTripFiles': 'Файлов поездки пока нет.',
   'costs.attachmentsSaveError': 'Расход сохранён, но некоторые вложения не удалось обновить.',
+  'costs.attachmentCount': '{count} вложение',
+  'costs.attachmentsCount': '{count} вложения',
+  'costs.attachmentsTitle': 'Вложения для «{name}»',
+  'costs.noAttachments': 'К этому расходу не прикреплены файлы.',
 };
 export default budget;

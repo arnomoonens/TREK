@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildTripFile } from '../../../tests/helpers/factories'
-import { filesForExpense } from './expenseAttachments'
+import { filesForExpense } from './expenseAttachmentUtils'
 
 describe('expense attachment selection', () => {
   it('returns only live files linked to the requested expense in relationship order', () => {

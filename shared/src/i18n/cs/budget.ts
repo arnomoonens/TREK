@@ -150,5 +150,9 @@ const budget: TranslationStrings = {
   'costs.tripFilesHint': 'Vyberte existující soubory k připojení. Podrobnosti souborů se spravují v Souborech.',
   'costs.noTripFiles': 'Zatím nejsou žádné soubory cesty.',
   'costs.attachmentsSaveError': 'Výdaj byl uložen, ale některé přílohy se nepodařilo aktualizovat.',
+  'costs.attachmentCount': '{count} příloha',
+  'costs.attachmentsCount': '{count} příloh',
+  'costs.attachmentsTitle': 'Přílohy k položce „{name}“',
+  'costs.noAttachments': 'K tomuto výdaji nejsou připojeny žádné soubory.',
 };
 export default budget;

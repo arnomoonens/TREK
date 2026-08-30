@@ -150,5 +150,9 @@ const budget: TranslationStrings = {
   'costs.tripFilesHint': 'Wybierz istniejące pliki do dołączenia. Szczegóły plików są zarządzane w Plikach.',
   'costs.noTripFiles': 'Nie ma jeszcze plików podróży.',
   'costs.attachmentsSaveError': 'Wydatek został zapisany, ale nie udało się zaktualizować niektórych załączników.',
+  'costs.attachmentCount': '{count} załącznik',
+  'costs.attachmentsCount': '{count} załączniki',
+  'costs.attachmentsTitle': 'Załączniki dla „{name}”',
+  'costs.noAttachments': 'Do tego wydatku nie ma dołączonych plików.',
 };
 export default budget;

@@ -25,7 +25,8 @@ import GuestBadge from '../shared/GuestBadge'
 import { NumericInput } from '../shared/NumericInput'
 import EmptyState from '../shared/EmptyState'
 import ExpenseFilePicker from './ExpenseFilePicker'
-import { filesForExpense } from './expenseAttachments'
+import { filesForExpense } from './expenseAttachmentUtils'
+import { ExpenseAttachmentCount, ExpenseAttachmentsDialog, ExpenseAttachmentsSheet } from './ExpenseAttachments'
 
 interface CostsPanelProps {
   tripId: number
@@ -60,7 +61,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100
 const FIELD_H = 40 // shared height for the amount / currency / day row in the modal
 
 export default function CostsPanel({ tripId, tripMembers = [] }: CostsPanelProps) {
-  const { trip, budgetItems, deleteBudgetItem, loadBudgetItems, loadFiles } = useTripStore()
+  const { trip, budgetItems, files, deleteBudgetItem, loadBudgetItems, loadFiles } = useTripStore()
   const me = useAuthStore(s => s.user?.id ?? -1)
   const can = useCanDo()
   const canEdit = can('budget_edit', trip)
@@ -91,6 +92,7 @@ export default function CostsPanel({ tripId, tripMembers = [] }: CostsPanelProps
   const [expandedNoteId, setExpandedNoteId] = useState<number | null>(null)
   const [editingSettlement, setEditingSettlement] = useState<Settlement | null>(null)
   const [addingPayment, setAddingPayment] = useState(false)
+  const [attachmentExpense, setAttachmentExpense] = useState<BudgetItem | null>(null)
 
   const people = tripMembers
   const personById = useCallback((id: number) => people.find(p => p.id === id), [people])
@@ -491,6 +493,24 @@ export default function CostsPanel({ tripId, tripMembers = [] }: CostsPanelProps
           onSaved={() => { setEditingSettlement(null); setAddingPayment(false); loadSettlement() }} />
       )}
 
+      {attachmentExpense && (isMobile ? (
+        <ExpenseAttachmentsSheet
+          open
+          expenseId={attachmentExpense.id}
+          expenseName={attachmentExpense.name}
+          files={files}
+          onClose={() => setAttachmentExpense(null)}
+        />
+      ) : (
+        <ExpenseAttachmentsDialog
+          isOpen
+          expenseId={attachmentExpense.id}
+          expenseName={attachmentExpense.name}
+          files={files}
+          onClose={() => setAttachmentExpense(null)}
+        />
+      ))}
+
       <style>{`
         .costs-root {
           --c-bg: #f8fafc; --c-bg2: oklch(0.965 0.01 70);
@@ -755,6 +775,7 @@ export default function CostsPanel({ tripId, tripMembers = [] }: CostsPanelProps
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
             <span className="text-content" style={{ fontSize: 'calc(15px * var(--fs-scale-subtitle, 1))', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</span>
+            <ExpenseAttachmentCount count={filesForExpense(files, e.id).length} onClick={() => setAttachmentExpense(e)} />
             {unfinished && !isMobile && (
               <span title={t('costs.unfinishedHint')} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px 2px 6px', borderRadius: 999, background: 'rgba(217,119,6,0.14)', color: '#d97706', fontSize: 'calc(11px * var(--fs-scale-caption, 1))', fontWeight: 700, flexShrink: 0 }}>
                 <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#d97706', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 'calc(10px * var(--fs-scale-caption, 1))', fontWeight: 800 }}>!</span>

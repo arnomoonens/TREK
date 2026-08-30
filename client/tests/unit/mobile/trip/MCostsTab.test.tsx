@@ -7,7 +7,7 @@ import { clearExchangeRateCache } from '../../../../src/hooks/useExchangeRates'
 import { useAuthStore } from '../../../../src/store/authStore'
 import { useSettingsStore } from '../../../../src/store/settingsStore'
 import type { BudgetItem, Day, Trip } from '../../../../src/types'
-import { buildTrip, buildUser } from '../../../helpers/factories'
+import { buildTrip, buildTripFile, buildUser } from '../../../helpers/factories'
 import { buildPlanner, buildShell } from '../../../helpers/mobileTrip'
 import { resetAllStores, seedStore } from '../../../helpers/store'
 import { server } from '../../../helpers/msw/server'
@@ -284,11 +284,32 @@ describe('MCostsTab', () => {
   it('FE-MOB-COSTT-016: renders the member chips with their share and paid state', async () => {
     await renderTab()
     const card = cardOf('Ramen')
-    const chips = within(card).getAllByRole('button')
+    const chips = within(card).getAllByRole('button').filter(button => button.hasAttribute('aria-pressed'))
     expect(chips).toHaveLength(2)
     expect(chips[0]).toHaveAttribute('aria-pressed', 'true')
     expect(chips[1]).toHaveAttribute('aria-pressed', 'false')
     expect(chips.map(c => c.textContent)).toEqual(['costs.youShort$40.00', '$40.00'])
+  })
+
+  it('opens the read-only attachment sheet from the expense count', async () => {
+    const p = planner({
+      budgetItems: [RAMEN],
+      files: [
+        buildTripFile({ id: 801, trip_id: 7, original_name: 'ramen-receipt.pdf', file_size: 1024, description: 'Dinner receipt', linked_expense_ids: [11] }),
+        buildTripFile({ id: 802, trip_id: 7, original_name: 'deleted-receipt.pdf', linked_expense_ids: [11], deleted_at: '2026-05-03' }),
+      ],
+      can: vi.fn(() => false) as unknown as TripPlanner['can'],
+    })
+    await renderTab(p)
+
+    const card = cardOf('Ramen')
+    await fireEvent.click(within(card).getByRole('button', { name: '1 attachment' }))
+
+    const sheet = await screen.findByRole('dialog', { name: 'Attachments for "Ramen"' })
+    expect(within(sheet).getByText('ramen-receipt.pdf')).toBeInTheDocument()
+    expect(within(sheet).getByText('Dinner receipt')).toBeInTheDocument()
+    expect(within(sheet).queryByText('deleted-receipt.pdf')).not.toBeInTheDocument()
+    expect(within(sheet).queryByRole('textbox')).not.toBeInTheDocument()
   })
 
   it('FE-MOB-COSTT-017: toggles a member chip to paid', async () => {

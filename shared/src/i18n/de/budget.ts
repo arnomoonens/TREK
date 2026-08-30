@@ -150,5 +150,9 @@ const budget: TranslationStrings = {
   'costs.tripFilesHint': 'Wähle vorhandene Dateien zum Anhängen aus. Dateidetails werden unter Dateien verwaltet.',
   'costs.noTripFiles': 'Noch keine Reisedateien.',
   'costs.attachmentsSaveError': 'Die Ausgabe wurde gespeichert, aber einige Dateianhänge konnten nicht aktualisiert werden.',
+  'costs.attachmentCount': '{count} Anhang',
+  'costs.attachmentsCount': '{count} Anhänge',
+  'costs.attachmentsTitle': 'Anhänge für „{name}“',
+  'costs.noAttachments': 'An diese Ausgabe sind keine Dateien angehängt.',
 };
 export default budget;

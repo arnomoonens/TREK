@@ -150,5 +150,9 @@ const budget: TranslationStrings = {
   'costs.tripFilesHint': 'Eklemek için mevcut dosyaları seçin. Dosya ayrıntıları Dosyalar bölümünden yönetilir.',
   'costs.noTripFiles': 'Henüz gezi dosyası yok.',
   'costs.attachmentsSaveError': 'Harcama kaydedildi ancak bazı dosya ekleri güncellenemedi.',
+  'costs.attachmentCount': '{count} ek',
+  'costs.attachmentsCount': '{count} ek',
+  'costs.attachmentsTitle': '"{name}" için ekler',
+  'costs.noAttachments': 'Bu harcamaya eklenmiş dosya yok.',
 };
 export default budget;

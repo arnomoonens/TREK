@@ -150,5 +150,9 @@ const budget: TranslationStrings = {
   'costs.tripFilesHint': 'Välj befintliga filer att bifoga. Filuppgifter hanteras under Filer.',
   'costs.noTripFiles': 'Det finns inga resefiler ännu.',
   'costs.attachmentsSaveError': 'Utgiften sparades, men vissa filbilagor kunde inte uppdateras.',
+  'costs.attachmentCount': '{count} bilaga',
+  'costs.attachmentsCount': '{count} bilagor',
+  'costs.attachmentsTitle': 'Bilagor för "{name}"',
+  'costs.noAttachments': 'Inga filer är bifogade till denna utgift.',
 };
 export default budget;

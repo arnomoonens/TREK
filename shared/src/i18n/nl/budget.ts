@@ -150,5 +150,9 @@ const budget: TranslationStrings = {
   'costs.tripFilesHint': 'Selecteer bestaande bestanden om toe te voegen. Bestandsdetails beheer je bij Bestanden.',
   'costs.noTripFiles': 'Er zijn nog geen reisbestanden.',
   'costs.attachmentsSaveError': 'De uitgave is opgeslagen, maar sommige bestandsbijlagen konden niet worden bijgewerkt.',
+  'costs.attachmentCount': '{count} bijlage',
+  'costs.attachmentsCount': '{count} bijlagen',
+  'costs.attachmentsTitle': 'Bijlagen voor "{name}"',
+  'costs.noAttachments': 'Aan deze uitgave zijn geen bestanden gekoppeld.',
 };
 export default budget;

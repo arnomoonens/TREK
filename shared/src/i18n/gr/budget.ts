@@ -151,5 +151,9 @@ const budget: TranslationStrings = {
   'costs.tripFilesHint': 'Επιλέξτε υπάρχοντα αρχεία για επισύναψη. Οι λεπτομέρειες των αρχείων διαχειρίζονται στα Αρχεία.',
   'costs.noTripFiles': 'Δεν υπάρχουν ακόμη αρχεία ταξιδιού.',
   'costs.attachmentsSaveError': 'Η δαπάνη αποθηκεύτηκε, αλλά δεν ήταν δυνατή η ενημέρωση ορισμένων συνημμένων.',
+  'costs.attachmentCount': '{count} συνημμένο',
+  'costs.attachmentsCount': '{count} συνημμένα',
+  'costs.attachmentsTitle': 'Συνημμένα για «{name}»',
+  'costs.noAttachments': 'Δεν υπάρχουν αρχεία συνημμένα σε αυτή τη δαπάνη.',
 };
 export default budget;
