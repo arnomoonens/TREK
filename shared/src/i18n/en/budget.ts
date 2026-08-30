@@ -147,6 +147,7 @@ const budget: TranslationStrings = {
   'costs.splitSumUnder': 'Sum of splits: {sum} of {total} (under by {diff})',
   'costs.splitSumOver': 'Sum of splits: {sum} of {total} (over by {diff})',
   'costs.tripFiles': 'Trip files',
+  'costs.uploadFiles': 'Upload',
   'costs.tripFilesHint': 'Select existing files to attach. File details are managed in Files.',
   'costs.noTripFiles': 'No trip files yet.',
   'costs.attachmentsSaveError': 'The expense was saved, but some file attachments could not be updated.',

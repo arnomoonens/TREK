@@ -147,6 +147,7 @@ const budget: TranslationStrings = {
   'costs.splitSumUnder': '분할 합계: {total} 중 {sum} ({diff} 부족)',
   'costs.splitSumOver': '분할 합계: {total} 중 {sum} ({diff} 초과)',
   'costs.tripFiles': '여행 파일',
+  'costs.uploadFiles': '업로드',
   'costs.tripFilesHint': '첨부할 기존 파일을 선택하세요. 파일 세부 정보는 파일에서 관리합니다.',
   'costs.noTripFiles': '아직 여행 파일이 없습니다.',
   'costs.attachmentsSaveError': '지출은 저장되었지만 일부 파일 첨부를 업데이트할 수 없습니다.',

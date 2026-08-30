@@ -25,6 +25,7 @@ import GuestBadge from '../shared/GuestBadge'
 import { NumericInput } from '../shared/NumericInput'
 import EmptyState from '../shared/EmptyState'
 import ExpenseFilePicker from './ExpenseFilePicker'
+import { saveExpenseFileAttachments, useExpenseFileStaging } from './expenseAttachmentStaging'
 import { filesForExpense, getExpenseDeleteWarning } from './expenseAttachmentUtils'
 import { ExpenseAttachmentCount, ExpenseAttachmentsDialog, ExpenseAttachmentsSheet } from './ExpenseAttachments'
 
@@ -488,6 +489,7 @@ export default function CostsPanel({ tripId, tripMembers = [] }: CostsPanelProps
       {modalOpen && (
         <ExpenseModal tripId={tripId} base={base} people={people} me={me} editing={editing}
           canAttachFiles={canEdit && can('file_edit', trip)}
+          canUploadFiles={canEdit && can('file_edit', trip) && can('file_upload', trip)}
           onClose={() => setModalOpen(false)}
           onSaved={() => { setModalOpen(false); loadBudgetItems(tripId); loadSettlement() }} />
       )}
@@ -1065,13 +1067,13 @@ export interface ExpensePrefill {
   placeId?: number
 }
 
-export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAttachFiles = true, onClose, onSaved }: {
-  tripId: number; base: string; people: TripMember[]; me: number; editing: BudgetItem | null; prefill?: ExpensePrefill; canAttachFiles?: boolean; onClose: () => void; onSaved: () => void
+export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAttachFiles = true, canUploadFiles = false, onClose, onSaved }: {
+  tripId: number; base: string; people: TripMember[]; me: number; editing: BudgetItem | null; prefill?: ExpensePrefill; canAttachFiles?: boolean; canUploadFiles?: boolean; onClose: () => void; onSaved: () => void
 }) {
   const { t, locale } = useTranslation()
   const toast = useToast()
   const isMobile = useIsMobile()
-  const { addBudgetItem, updateBudgetItem, files, attachExpenseFile, detachExpenseFile } = useTripStore()
+  const { addBudgetItem, updateBudgetItem, addFile, files, attachExpenseFile, detachExpenseFile } = useTripStore()
   const { convert } = useExchangeRates(base)
   const sym = (c: string) => SYMBOLS[c] || (c + ' ')
 
@@ -1143,6 +1145,7 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAt
   const [selectedFileIds, setSelectedFileIds] = useState<Set<number>>(() =>
     editing ? new Set(filesForExpense(files, editing.id).map(file => file.id)) : new Set()
   )
+  const { stagedUploads, addStagedUploads, removeStagedUpload, markStagedUpload, removeStagedUploadFile } = useExpenseFileStaging(canAttachFiles, canUploadFiles)
 
   const isTicketMode = splitMode === 'ticket'
 
@@ -1281,6 +1284,7 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAt
   }
 
   const toggleExpenseFile = (fileId: number) => {
+    if (!canAttachFiles) return
     setAttachmentSelectionTouched(true)
     setSelectedFileIds(previous => {
       const next = new Set(previous)
@@ -1350,12 +1354,21 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAt
         ? await updateBudgetItem(tripId, expenseId, data)
         : await addBudgetItem(tripId, data)
       if (!expenseId) setSavedExpenseId(savedExpense.id)
-      const savedFileIds = new Set(filesForExpense(files, savedExpense.id).map(file => file.id))
-      const fileIdsToDetach = [...savedFileIds].filter(fileId => !selectedFileIds.has(fileId))
-      const fileIdsToAttach = [...selectedFileIds].filter(fileId => !savedFileIds.has(fileId))
       try {
-        for (const fileId of fileIdsToDetach) await detachExpenseFile(tripId, savedExpense.id, fileId)
-        for (const fileId of fileIdsToAttach) await attachExpenseFile(tripId, savedExpense.id, fileId)
+        await saveExpenseFileAttachments({
+          tripId,
+          expenseId: savedExpense.id,
+          files,
+          selectedFileIds,
+          stagedUploads,
+          canAttachFiles,
+          canUploadFiles,
+          addFile,
+          attachExpenseFile,
+          detachExpenseFile,
+          onUploaded: markStagedUpload,
+          onAttached: removeStagedUploadFile,
+        })
       } catch {
         toast.error(t('costs.attachmentsSaveError'))
         return
@@ -1444,7 +1457,16 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAt
           </div>
         </div>
 
-        <ExpenseFilePicker files={files} selectedFileIds={selectedFileIds} onToggleFile={toggleExpenseFile} disabled={!canAttachFiles} />
+        <ExpenseFilePicker
+          files={files}
+          selectedFileIds={selectedFileIds}
+          onToggleFile={toggleExpenseFile}
+          stagedUploads={stagedUploads}
+          onAddUploads={addStagedUploads}
+          onRemoveUpload={removeStagedUpload}
+          canAttachFiles={canAttachFiles}
+          canUploadFiles={canUploadFiles}
+        />
 
         </div>
 

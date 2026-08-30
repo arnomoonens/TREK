@@ -8,6 +8,7 @@ import { buildBudgetItem, buildTripFile } from '../../../helpers/factories'
 import { localToday } from '../../../../src/components/Planner/today'
 import { resetAllStores } from '../../../helpers/store'
 import { act, fireEvent, render, screen, waitFor } from '../../../helpers/render'
+import userEvent from '@testing-library/user-event'
 
 // FE-MOB-COSTSH-001 to FE-MOB-COSTSH-030
 // The sheet reads its copy from useTranslation(), so assertions are English.
@@ -28,6 +29,7 @@ function member(user_id: number, amount: number | null): BudgetItemMember {
 let addBudgetItem: ReturnType<typeof vi.fn>
 let updateBudgetItem: ReturnType<typeof vi.fn>
 let deleteBudgetItem: ReturnType<typeof vi.fn>
+let addFile: ReturnType<typeof vi.fn>
 let attachExpenseFile: ReturnType<typeof vi.fn>
 let detachExpenseFile: ReturnType<typeof vi.fn>
 let addToast: ReturnType<typeof vi.fn>
@@ -37,6 +39,7 @@ interface SheetOverrides {
   me?: number
   base?: string
   editing?: BudgetItem | null
+  canUploadFiles?: boolean
   prefill?: { name?: string; category?: string; amount?: number; reservationId?: number; placeId?: number }
 }
 
@@ -50,6 +53,7 @@ function renderSheet(overrides: SheetOverrides = {}) {
       people={overrides.people ?? PEOPLE}
       me={overrides.me ?? 1}
       editing={overrides.editing ?? null}
+      canUploadFiles={overrides.canUploadFiles}
       prefill={overrides.prefill}
       onClose={onClose}
       onSaved={onSaved}
@@ -79,10 +83,14 @@ describe('MCostSheet', () => {
     addBudgetItem = vi.fn(async () => buildBudgetItem({ id: 9 }))
     updateBudgetItem = vi.fn(async () => buildBudgetItem({ id: 9 }))
     deleteBudgetItem = vi.fn(async () => undefined)
+    addFile = vi.fn(async (_tripId: number, formData: FormData) => {
+      const file = formData.get('file') as File
+      return buildTripFile({ original_name: file.name, filename: file.name })
+    })
     attachExpenseFile = vi.fn(async (_tripId: number, _expenseId: number, fileId: number) => buildTripFile({ id: fileId, linked_expense_ids: [9] }))
     detachExpenseFile = vi.fn(async (_tripId: number, _expenseId: number, fileId: number) => buildTripFile({ id: fileId, linked_expense_ids: [] }))
     useTripStore.setState(
-      { addBudgetItem, updateBudgetItem, deleteBudgetItem, attachExpenseFile, detachExpenseFile } as unknown as Partial<TripStoreState>,
+      { addBudgetItem, updateBudgetItem, deleteBudgetItem, addFile, attachExpenseFile, detachExpenseFile } as unknown as Partial<TripStoreState>,
     )
     addToast = vi.fn()
     ;(window as unknown as { __addToast: unknown }).__addToast = addToast
@@ -157,6 +165,44 @@ describe('MCostSheet', () => {
     expect(attachExpenseFile).toHaveBeenNthCalledWith(2, 1, 9, 102)
     expect(detachExpenseFile).not.toHaveBeenCalled()
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
+  })
+
+  it('FE-MOB-COSTSH-002c: stages multiple uploads and uploads them after the expense is saved', async () => {
+    const user = userEvent.setup()
+    const events: string[] = []
+    let nextFileId = 201
+    addBudgetItem.mockImplementation(async () => {
+      events.push('expense')
+      return buildBudgetItem({ id: 9 })
+    })
+    addFile.mockImplementation(async (_tripId: number, formData: FormData) => {
+      const file = formData.get('file') as File
+      const id = nextFileId++
+      events.push(`upload:${file.name}`)
+      return buildTripFile({ id, original_name: file.name, filename: file.name })
+    })
+    attachExpenseFile.mockImplementation(async (_tripId: number, _expenseId: number, fileId: number) => {
+      events.push(`attach:${fileId}`)
+      return buildTripFile({ id: fileId, linked_expense_ids: [9] })
+    })
+
+    renderSheet({ canUploadFiles: true })
+    await user.click(screen.getByRole('tab', { name: 'Upload' }))
+    await user.upload(screen.getByTestId('expense-upload-input'), [
+      new File(['receipt'], 'receipt.pdf', { type: 'application/pdf' }),
+      new File(['ticket'], 'ticket.pdf', { type: 'application/pdf' }),
+    ])
+    expect(screen.getAllByTestId('expense-staged-upload')).toHaveLength(2)
+    expect(events).toEqual([])
+
+    fillBasics('Dinner', '85,50')
+    fireEvent.click(submit())
+
+    await waitFor(() => expect(events).toHaveLength(5))
+    expect(events[0]).toBe('expense')
+    expect(events).toEqual(expect.arrayContaining(['upload:receipt.pdf', 'attach:201', 'upload:ticket.pdf', 'attach:202']))
+    expect(events.indexOf('upload:receipt.pdf')).toBeLessThan(events.indexOf('attach:201'))
+    expect(events.indexOf('upload:ticket.pdf')).toBeLessThan(events.indexOf('attach:202'))
   })
 
   it('FE-MOB-COSTSH-020: the category dropdown opens, marks the current pick and closes on choose (#1658)', () => {

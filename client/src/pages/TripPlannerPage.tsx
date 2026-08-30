@@ -874,6 +874,7 @@ function TripPlannerPageDesktop(): React.ReactElement | null {
               editing={bookingExpense.editing}
               prefill={bookingExpense.prefill}
               canAttachFiles={can('budget_edit', trip) && can('file_edit', trip)}
+              canUploadFiles={can('budget_edit', trip) && can('file_edit', trip) && can('file_upload', trip)}
               onClose={() => setBookingExpense(null)}
               onSaved={() => { setBookingExpense(null); loadBudgetItems(tripId) }}
             />

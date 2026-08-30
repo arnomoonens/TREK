@@ -147,6 +147,7 @@ const budget: TranslationStrings = {
   'costs.splitSumUnder': 'Сума часток: {sum} з {total} (бракує {diff})',
   'costs.splitSumOver': 'Сума часток: {sum} з {total} (більше на {diff})',
   'costs.tripFiles': 'Файли подорожі',
+  'costs.uploadFiles': 'Завантажити',
   'costs.tripFilesHint': 'Виберіть наявні файли для додавання. Дані файлів керуються в розділі «Файли».',
   'costs.noTripFiles': 'Файлів подорожі ще немає.',
   'costs.attachmentsSaveError': 'Витрати збережено, але деякі вкладення не вдалося оновити.',

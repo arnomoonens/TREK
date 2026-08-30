@@ -147,6 +147,7 @@ const budget: TranslationStrings = {
   'costs.splitSumUnder': 'Soma das partes: {sum} de {total} (faltam {diff})',
   'costs.splitSumOver': 'Soma das partes: {sum} de {total} (sobram {diff})',
   'costs.tripFiles': 'Arquivos da viagem',
+  'costs.uploadFiles': 'Carregar',
   'costs.tripFilesHint': 'Selecione arquivos existentes para anexar. Os detalhes são gerenciados em Arquivos.',
   'costs.noTripFiles': 'Ainda não há arquivos da viagem.',
   'costs.attachmentsSaveError': 'A despesa foi salva, mas não foi possível atualizar alguns anexos.',

@@ -147,6 +147,7 @@ const budget: TranslationStrings = {
   'costs.splitSumUnder': 'Сумма долей: {sum} из {total} (не хватает {diff})',
   'costs.splitSumOver': 'Сумма долей: {sum} из {total} (больше на {diff})',
   'costs.tripFiles': 'Файлы поездки',
+  'costs.uploadFiles': 'Загрузить',
   'costs.tripFilesHint': 'Выберите существующие файлы для прикрепления. Данные файлов управляются в разделе «Файлы».',
   'costs.noTripFiles': 'Файлов поездки пока нет.',
   'costs.attachmentsSaveError': 'Расход сохранён, но некоторые вложения не удалось обновить.',

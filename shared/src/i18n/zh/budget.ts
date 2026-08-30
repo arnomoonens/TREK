@@ -146,6 +146,7 @@ const budget: TranslationStrings = {
   'costs.splitSumUnder': '分摊合计：{total} 中的 {sum}（少 {diff}）',
   'costs.splitSumOver': '分摊合计：{total} 中的 {sum}（多 {diff}）',
   'costs.tripFiles': '行程文件',
+  'costs.uploadFiles': '上传',
   'costs.tripFilesHint': '选择要附加的现有文件。文件详情在“文件”中管理。',
   'costs.noTripFiles': '还没有行程文件。',
   'costs.attachmentsSaveError': '支出已保存，但部分文件附件无法更新。',

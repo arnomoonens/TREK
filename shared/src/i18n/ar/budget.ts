@@ -147,6 +147,7 @@ const budget: TranslationStrings = {
   'costs.splitSumUnder': 'مجموع الحصص: {sum} من {total} (ناقص {diff})',
   'costs.splitSumOver': 'مجموع الحصص: {sum} من {total} (زائد {diff})',
   'costs.tripFiles': 'ملفات الرحلة',
+  'costs.uploadFiles': 'رفع',
   'costs.tripFilesHint': 'اختر الملفات الموجودة لإرفاقها. تُدار تفاصيل الملفات في قسم الملفات.',
   'costs.noTripFiles': 'لا توجد ملفات للرحلة بعد.',
   'costs.attachmentsSaveError': 'تم حفظ المصروف، لكن تعذّر تحديث بعض المرفقات.',

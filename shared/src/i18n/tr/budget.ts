@@ -147,6 +147,7 @@ const budget: TranslationStrings = {
   'costs.splitSumUnder': 'Payların toplamı: {total} tutarın {sum} kadarı ({diff} eksik)',
   'costs.splitSumOver': 'Payların toplamı: {total} tutarın {sum} kadarı ({diff} fazla)',
   'costs.tripFiles': 'Gezi dosyaları',
+  'costs.uploadFiles': 'Yükle',
   'costs.tripFilesHint': 'Eklemek için mevcut dosyaları seçin. Dosya ayrıntıları Dosyalar bölümünden yönetilir.',
   'costs.noTripFiles': 'Henüz gezi dosyası yok.',
   'costs.attachmentsSaveError': 'Harcama kaydedildi ancak bazı dosya ekleri güncellenemedi.',

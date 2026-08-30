@@ -5,13 +5,14 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '../../../tests/helpers/msw/server'
 import { useAuthStore } from '../../store/authStore'
-import { useTripStore } from '../../store/tripStore'
+import { useTripStore, type TripStoreState } from '../../store/tripStore'
 import { useSettingsStore } from '../../store/settingsStore'
 import { usePermissionsStore } from '../../store/permissionsStore'
 import { clearExchangeRateCache } from '../../hooks/useExchangeRates'
 import { resetAllStores, seedStore } from '../../../tests/helpers/store'
 import { buildUser, buildTrip, buildBudgetItem, buildSettings, buildTripFile } from '../../../tests/helpers/factories'
 import type { BudgetItem } from '../../types'
+import { filesApi } from '../../api/client'
 import CostsPanel, { ExpenseModal } from './CostsPanel'
 import { splitEqualShares, calculateTicketShares, type TicketItem } from './CostsPanel.helpers'
 
@@ -1990,6 +1991,167 @@ describe('CostsPanel — expense modal in another language', () => {
 })
 
 describe('CostsPanel — expense file attachment staging', () => {
+  it('stages multiple uploads and saves them after the Expense', async () => {
+    const user = userEvent.setup()
+    const events: string[] = []
+    let nextFileId = 801
+    server.use(
+      http.post('/api/trips/1/budget', () => {
+        events.push('expense')
+        return HttpResponse.json({ item: buildBudgetItem({ id: 77, trip_id: 1, name: 'Dinner', total_price: 30, members: [], payers: [] }) })
+      }),
+      http.post('/api/trips/1/budget/77/files/:fileId', ({ params }) => {
+        events.push(`attach:${params.fileId}`)
+        return HttpResponse.json({ file: buildTripFile({ id: Number(params.fileId), trip_id: 1, linked_expense_ids: [77] }) })
+      }),
+    )
+    const uploadSpy = vi.spyOn(filesApi, 'upload').mockImplementation(async (_tripId, formData) => {
+      const file = formData.get('file') as File
+      const id = nextFileId++
+      events.push(`upload:${file.name}`)
+      return { file: buildTripFile({ id, trip_id: 1, original_name: file.name, filename: file.name }) }
+    })
+    render(
+      <ExpenseModal
+        tripId={1}
+        base="EUR"
+        people={tripMembers}
+        me={1}
+        editing={null}
+        canAttachFiles
+        canUploadFiles
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByRole('tab', { name: 'Upload' }))
+    await user.upload(screen.getByTestId('expense-upload-input'), [
+      new File(['receipt'], 'receipt.pdf', { type: 'application/pdf' }),
+      new File(['ticket'], 'ticket.pdf', { type: 'application/pdf' }),
+    ])
+    expect(screen.getAllByTestId('expense-staged-upload')).toHaveLength(2)
+    expect(events).toEqual([])
+
+    await user.type(screen.getByPlaceholderText('e.g. Dinner, souvenirs, gas…'), 'Dinner')
+    await user.type(screen.getAllByPlaceholderText('0,00')[0], '30')
+    expect(screen.getAllByTestId('expense-staged-upload')).toHaveLength(2)
+    await user.click(screen.getByRole('button', { name: 'Add expense' }))
+
+    await waitFor(() => expect(events).toHaveLength(5))
+    expect(events[0]).toBe('expense')
+    expect(events).toEqual(expect.arrayContaining(['upload:receipt.pdf', 'attach:801', 'upload:ticket.pdf', 'attach:802']))
+    expect(events.indexOf('upload:receipt.pdf')).toBeLessThan(events.indexOf('attach:801'))
+    expect(events.indexOf('upload:ticket.pdf')).toBeLessThan(events.indexOf('attach:802'))
+    uploadSpy.mockRestore()
+  })
+
+  it('stages a new upload while editing and saves the Expense before attaching it', async () => {
+    const user = userEvent.setup()
+    const events: string[] = []
+    const expense = buildBudgetItem({ id: 88, trip_id: 1, name: 'Hotel', total_price: 30, members: [] })
+    const uploadSpy = vi.spyOn(filesApi, 'upload').mockImplementation(async (_tripId, formData) => {
+      const file = formData.get('file') as File
+      events.push(`upload:${file.name}`)
+      return { file: buildTripFile({ id: 803, trip_id: 1, original_name: file.name, filename: file.name }) }
+    })
+    server.use(
+      http.put('/api/trips/1/budget/88', () => {
+        events.push('expense:update')
+        return HttpResponse.json({ item: expense })
+      }),
+      http.post('/api/trips/1/budget/88/files/803', () => {
+        events.push('attach:803')
+        return HttpResponse.json({ file: buildTripFile({ id: 803, trip_id: 1, linked_expense_ids: [88] }) })
+      }),
+    )
+
+    try {
+      render(
+        <ExpenseModal
+          tripId={1}
+          base="EUR"
+          people={tripMembers}
+          me={1}
+          editing={expense}
+          canAttachFiles
+          canUploadFiles
+          onClose={vi.fn()}
+          onSaved={vi.fn()}
+        />,
+      )
+
+      await user.click(screen.getByRole('tab', { name: 'Upload' }))
+      await user.upload(screen.getByTestId('expense-upload-input'), new File(['receipt'], 'hotel.pdf', { type: 'application/pdf' }))
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+
+      await waitFor(() => expect(events).toEqual(['expense:update', 'upload:hotel.pdf', 'attach:803']))
+    } finally {
+      uploadSpy.mockRestore()
+    }
+  })
+
+  it('does not upload or mutate attachments when the Expense save fails', async () => {
+    const user = userEvent.setup()
+    const addBudgetItem = vi.fn().mockRejectedValue(new Error('expense failed'))
+    const addFile = vi.fn()
+    const attachExpenseFile = vi.fn()
+    useTripStore.setState({ addBudgetItem, addFile, attachExpenseFile } as Partial<TripStoreState>)
+    render(
+      <ExpenseModal
+        tripId={1}
+        base="EUR"
+        people={tripMembers}
+        me={1}
+        editing={null}
+        canAttachFiles
+        canUploadFiles
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByRole('tab', { name: 'Upload' }))
+    await user.upload(screen.getByTestId('expense-upload-input'), new File(['receipt'], 'receipt.pdf', { type: 'application/pdf' }))
+    await user.type(screen.getByPlaceholderText('e.g. Dinner, souvenirs, gas…'), 'Dinner')
+    await user.type(screen.getAllByPlaceholderText('0,00')[0], '30')
+    await user.click(screen.getByRole('button', { name: 'Add expense' }))
+
+    await waitFor(() => expect(addBudgetItem).toHaveBeenCalledTimes(1))
+    expect(addFile).not.toHaveBeenCalled()
+    expect(attachExpenseFile).not.toHaveBeenCalled()
+  })
+
+  it('discards staged uploads without network mutations when the modal is canceled', async () => {
+    const user = userEvent.setup()
+    const addFile = vi.fn()
+    const attachExpenseFile = vi.fn()
+    const onClose = vi.fn()
+    useTripStore.setState({ addFile, attachExpenseFile } as Partial<TripStoreState>)
+    render(
+      <ExpenseModal
+        tripId={1}
+        base="EUR"
+        people={tripMembers}
+        me={1}
+        editing={null}
+        canAttachFiles
+        canUploadFiles
+        onClose={onClose}
+        onSaved={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByRole('tab', { name: 'Upload' }))
+    await user.upload(screen.getByTestId('expense-upload-input'), new File(['receipt'], 'receipt.pdf', { type: 'application/pdf' }))
+    expect(screen.getByTestId('expense-staged-upload')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(addFile).not.toHaveBeenCalled()
+    expect(attachExpenseFile).not.toHaveBeenCalled()
+  })
+
   it('keeps multiple existing file selections local until Save', async () => {
     const user = userEvent.setup()
     const first = buildTripFile({ id: 501, trip_id: 1, original_name: 'receipt.pdf', file_size: 1200 })

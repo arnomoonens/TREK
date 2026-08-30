@@ -147,6 +147,7 @@ const budget: TranslationStrings = {
   'costs.splitSumUnder': 'A részek összege: {sum} / {total} (hiányzik {diff})',
   'costs.splitSumOver': 'A részek összege: {sum} / {total} ({diff} a többlet)',
   'costs.tripFiles': 'Utazási fájlok',
+  'costs.uploadFiles': 'Feltöltés',
   'costs.tripFilesHint': 'Válassz ki csatolandó meglévő fájlokat. A fájlok adatait a Fájlokban kezelheted.',
   'costs.noTripFiles': 'Még nincsenek utazási fájlok.',
   'costs.attachmentsSaveError': 'A kiadás mentése sikerült, de néhány fájlcsatolást nem lehetett frissíteni.',

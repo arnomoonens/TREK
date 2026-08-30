@@ -17,6 +17,7 @@ import { calculateTicketShares, hasTicketSplit, NOTE_MAX, readTicketItems, readU
 import type { ExpensePrefill } from '../../../../components/Budget/CostsPanel'
 import { payersBalanced, rebalancePayers } from '../../../../components/Budget/CostsPanel.helpers'
 import ExpenseFilePicker from '../../../../components/Budget/ExpenseFilePicker'
+import { saveExpenseFileAttachments, useExpenseFileStaging } from '../../../../components/Budget/expenseAttachmentStaging'
 import { filesForExpense, getExpenseDeleteWarning } from '../../../../components/Budget/expenseAttachmentUtils'
 import GuestBadge from '../../../../components/shared/GuestBadge'
 import type { TripMember } from '../../../../components/Budget/BudgetPanelMemberChips'
@@ -30,6 +31,7 @@ export interface MCostSheetProps {
   editing: BudgetItem | null
   prefill?: ExpensePrefill
   canAttachFiles?: boolean
+  canUploadFiles?: boolean
   onClose: () => void
   onSaved: () => void
 }
@@ -54,10 +56,10 @@ const SPLIT_MODES = [
  * multi-currency with live conversion, single/multi payer, and the Equally /
  * Custom / Ticket splits.
  */
-export default function MCostSheet({ tripId, base, people, me, editing, prefill, canAttachFiles = true, onClose, onSaved }: MCostSheetProps) {
+export default function MCostSheet({ tripId, base, people, me, editing, prefill, canAttachFiles = true, canUploadFiles = false, onClose, onSaved }: MCostSheetProps) {
   const { t, locale } = useTranslation()
   const toast = useToast()
-  const { addBudgetItem, updateBudgetItem, deleteBudgetItem, files, attachExpenseFile, detachExpenseFile } = useTripStore()
+  const { addBudgetItem, updateBudgetItem, deleteBudgetItem, addFile, files, attachExpenseFile, detachExpenseFile } = useTripStore()
   const { convert } = useExchangeRates(base)
   const sym = (c: string) => SYMBOLS[c] || (c + ' ')
 
@@ -128,6 +130,7 @@ export default function MCostSheet({ tripId, base, people, me, editing, prefill,
   const [selectedFileIds, setSelectedFileIds] = useState<Set<number>>(() =>
     editing ? new Set(filesForExpense(files, editing.id).map(file => file.id)) : new Set(),
   )
+  const { stagedUploads, addStagedUploads, removeStagedUpload, markStagedUpload, removeStagedUploadFile } = useExpenseFileStaging(canAttachFiles, canUploadFiles)
   const [deleteArmed, setDeleteArmed] = useState(false)
 
   const isTicketMode = splitMode === 'ticket'
@@ -292,12 +295,21 @@ export default function MCostSheet({ tripId, base, people, me, editing, prefill,
         ? await updateBudgetItem(tripId, expenseId, data)
         : await addBudgetItem(tripId, data)
       if (!expenseId) setSavedExpenseId(savedExpense.id)
-      const savedFileIds = new Set(filesForExpense(files, savedExpense.id).map(file => file.id))
-      const fileIdsToDetach = [...savedFileIds].filter(fileId => !selectedFileIds.has(fileId))
-      const fileIdsToAttach = [...selectedFileIds].filter(fileId => !savedFileIds.has(fileId))
       try {
-        for (const fileId of fileIdsToDetach) await detachExpenseFile(tripId, savedExpense.id, fileId)
-        for (const fileId of fileIdsToAttach) await attachExpenseFile(tripId, savedExpense.id, fileId)
+        await saveExpenseFileAttachments({
+          tripId,
+          expenseId: savedExpense.id,
+          files,
+          selectedFileIds,
+          stagedUploads,
+          canAttachFiles,
+          canUploadFiles,
+          addFile,
+          attachExpenseFile,
+          detachExpenseFile,
+          onUploaded: markStagedUpload,
+          onAttached: removeStagedUploadFile,
+        })
       } catch {
         toast.error(t('costs.attachmentsSaveError'))
         return
@@ -465,7 +477,11 @@ export default function MCostSheet({ tripId, base, people, me, editing, prefill,
           files={files}
           selectedFileIds={selectedFileIds}
           onToggleFile={toggleExpenseFile}
-          disabled={!canAttachFiles}
+          stagedUploads={stagedUploads}
+          onAddUploads={addStagedUploads}
+          onRemoveUpload={removeStagedUpload}
+          canAttachFiles={canAttachFiles}
+          canUploadFiles={canUploadFiles}
         />
 
         {/* WHO PAID */}

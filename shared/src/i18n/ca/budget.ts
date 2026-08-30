@@ -147,6 +147,7 @@ const budget: TranslationStrings = {
   'costs.splitSumUnder': 'Suma de les parts: {sum} de {total} (en falten {diff})',
   'costs.splitSumOver': 'Suma de les parts: {sum} de {total} ({diff} de més)',
   'costs.tripFiles': 'Fitxers del viatge',
+  'costs.uploadFiles': 'Puja',
   'costs.tripFilesHint': 'Selecciona fitxers existents per adjuntar-los. Els detalls es gestionen a Fitxers.',
   'costs.noTripFiles': 'Encara no hi ha fitxers del viatge.',
   'costs.attachmentsSaveError': 'La despesa s’ha desat, però no s’han pogut actualitzar alguns fitxers adjunts.',

@@ -492,6 +492,7 @@ export default function MCostsTab({ planner, shell }: MTabScreenProps) {
           me={me}
           editing={editingExpense}
           canAttachFiles={canEdit && planner.can('file_edit', trip)}
+          canUploadFiles={canEdit && planner.can('file_edit', trip) && planner.can('file_upload', trip)}
           onClose={() => setExpenseModalOpen(false)}
           onSaved={() => {
             setExpenseModalOpen(false)
