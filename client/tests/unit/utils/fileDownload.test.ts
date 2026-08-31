@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { downloadFile, openFile } from '../../../src/utils/fileDownload'
 import { getCachedBlob } from '../../../src/db/offlineDb'
+import { OfflineFileUnavailableError } from '../../../src/utils/offlineFile'
 
 // Mock the offline DB so these tests never touch Dexie/IndexedDB.
 vi.mock('../../../src/db/offlineDb', () => ({ getCachedBlob: vi.fn() }))
@@ -213,7 +214,7 @@ describe('offline fallback (#1046)', () => {
   it('throws when offline and the file was never cached', async () => {
     setOnline(false)
     vi.mocked(getCachedBlob).mockResolvedValue(null)
-    await expect(downloadFile('/uploads/files/missing.pdf')).rejects.toThrow(/offline/i)
+    await expect(downloadFile('/uploads/files/missing.pdf')).rejects.toBeInstanceOf(OfflineFileUnavailableError)
   })
 
   it('does not consult the cache on an HTTP error — a 401 still surfaces', async () => {

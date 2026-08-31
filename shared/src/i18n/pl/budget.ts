@@ -162,5 +162,7 @@ const budget: TranslationStrings = {
   'costs.noAttachments': 'Do tego wydatku nie ma dołączonych plików.',
   'costs.confirm.deleteBodyWithFile': '„{name}” zostanie trwale usunięte. 1 załączony plik pozostanie.',
   'costs.confirm.deleteBodyWithFiles': '„{name}” zostanie trwale usunięte. Pozostaną {count} załączone pliki.',
+  'costs.attachmentsUnavailable': 'Szczegóły załączników nie są jeszcze dostępne offline. Połącz się, aby je wczytać.',
+  'costs.expensesUnavailable': 'Wydatki nie są jeszcze dostępne offline. Połącz się, aby je wczytać.',
 };
 export default budget;

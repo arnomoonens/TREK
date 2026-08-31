@@ -162,5 +162,7 @@ const budget: TranslationStrings = {
   'costs.noAttachments': 'Bu harcamaya eklenmiş dosya yok.',
   'costs.confirm.deleteBodyWithFile': '"{name}" kalıcı olarak silinecek. 1 ekli dosya kalacak.',
   'costs.confirm.deleteBodyWithFiles': '"{name}" kalıcı olarak silinecek. {count} ekli dosya kalacak.',
+  'costs.attachmentsUnavailable': 'Ek ayrıntıları henüz çevrimdışı kullanılamıyor. Yüklemek için bağlanın.',
+  'costs.expensesUnavailable': 'Harcamalar henüz çevrimdışı kullanılamıyor. Yüklemek için bağlanın.',
 };
 export default budget;

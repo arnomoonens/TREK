@@ -2,6 +2,7 @@ import type { StoreApi } from 'zustand'
 import type { TripFile } from '../../types'
 import { getApiErrorMessage } from '../../types'
 import { expenseAttachmentsRepo } from '../../repo/expenseAttachmentsRepo'
+import { isEffectivelyOffline } from '../../sync/networkMode'
 import type { TripStoreState } from '../tripStore'
 
 type SetState = StoreApi<TripStoreState>['setState']
@@ -16,6 +17,7 @@ const replaceFile = (files: TripFile[], updated: TripFile): TripFile[] =>
 
 export const createExpenseAttachmentsSlice = (set: SetState): ExpenseAttachmentsSlice => ({
   attachExpenseFile: async (tripId, expenseId, fileId) => {
+    if (isEffectivelyOffline()) throw new Error('Attachment changes are unavailable offline')
     try {
       const result = await expenseAttachmentsRepo.attach(tripId, expenseId, fileId)
       set(state => ({ files: replaceFile(state.files, result.file) }))
@@ -26,6 +28,7 @@ export const createExpenseAttachmentsSlice = (set: SetState): ExpenseAttachments
   },
 
   detachExpenseFile: async (tripId, expenseId, fileId) => {
+    if (isEffectivelyOffline()) throw new Error('Attachment changes are unavailable offline')
     try {
       const result = await expenseAttachmentsRepo.detach(tripId, expenseId, fileId)
       set(state => ({ files: replaceFile(state.files, result.file) }))

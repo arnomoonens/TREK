@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { ExternalLink, Download, X, ChevronLeft, ChevronRight, Play } from 'lucide-react'
 import { useTranslation } from '../../i18n'
+import { useToast } from '../shared/Toast'
+import { useNetworkMode } from '../../hooks/useNetworkMode'
 import type { TripFile } from '../../types'
 import { getAuthUrl } from '../../api/authUrl'
 import { openFile as openFileUrl } from '../../utils/fileDownload'
-import { triggerDownload, isVideo } from './FileManager.helpers'
+import { getCachedFileObjectUrl } from '../../utils/offlineFile'
+import { fileErrorMessage, triggerDownload, isVideo } from './FileManager.helpers'
 import VideoPlayer from '../Journey/VideoPlayerLazy'
 
 // Image lightbox with gallery navigation
@@ -16,24 +19,43 @@ interface ImageLightboxProps {
 
 export function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
   const { t } = useTranslation()
+  const toast = useToast()
+  const { offline } = useNetworkMode()
   const [index, setIndex] = useState(initialIndex)
   const [imgSrc, setImgSrc] = useState('')
+  const [mediaError, setMediaError] = useState(false)
   const [touchStart, setTouchStart] = useState<number | null>(null)
   const file = files[index]
 
   const fileIsVideo = isVideo(file?.mime_type)
 
   useEffect(() => {
+    let current = true
+    let objectUrl = ''
     setImgSrc('')
+    setMediaError(false)
     // Images use a one-shot signed URL; a video must use the plain same-origin
     // URL (cookie auth) so its many Range requests all authenticate (#823).
-    if (!file || isVideo(file.mime_type)) return
-    // Arrowing through the gallery leaves several mints in flight; only the one for
-    // the file still on screen may paint.
-    let current = true
-    getAuthUrl(file.url, 'download').then(u => { if (current) setImgSrc(u) }).catch(() => {})
-    return () => { current = false }
-  }, [file?.url, file?.mime_type])
+    if (!file) return
+    const resolve = offline || !isVideo(file.mime_type)
+      ? (offline ? getCachedFileObjectUrl(file.url) : getAuthUrl(file.url, 'download'))
+      : null
+    resolve?.then(u => {
+      if (current) {
+        objectUrl = offline ? u : ''
+        setImgSrc(u)
+      } else if (offline) {
+        URL.revokeObjectURL(u)
+      }
+    }).catch(error => {
+      if (current && offline) setMediaError(true)
+      else if (current) console.error('Failed to resolve image preview:', error)
+    })
+    return () => {
+      current = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [file?.url, file?.mime_type, offline])
 
   const goPrev = () => setIndex(i => Math.max(0, i - 1))
   const goNext = () => setIndex(i => Math.min(files.length - 1, i + 1))
@@ -91,13 +113,13 @@ export function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxPro
         </span>
         <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
           <button type="button"
-            onClick={() => openFileUrl(file.url, file.original_name).catch(() => {})}
+            onClick={() => openFileUrl(file.url, file.original_name).catch(error => toast.error(fileErrorMessage(t, error)))}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', display: 'flex', padding: 4 }}
             title={t('files.openTab')}>
             <ExternalLink size={16} />
           </button>
           <button type="button"
-            onClick={() => triggerDownload(file.url, file.original_name)}
+            onClick={() => triggerDownload(file.url, file.original_name, error => toast.error(fileErrorMessage(t, error)))}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', display: 'flex', padding: 4 }}
             title={t('files.download') || 'Download'}>
             <Download size={16} />
@@ -112,9 +134,11 @@ export function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxPro
       <div role="presentation" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: 0 }}
         onClick={e => { if (e.target === e.currentTarget) onClose() }}>
         {navBtn('left', goPrev, hasPrev)}
-        {fileIsVideo ? (
+        {mediaError ? (
+          <p role="alert" style={{ color: 'rgba(255,255,255,0.75)', fontSize: 'calc(13px * var(--fs-scale-body, 1))', textAlign: 'center', padding: 24 }}>{t('files.offlineUnavailable')}</p>
+        ) : fileIsVideo ? (
           <div>
-            <VideoPlayer src={file.url} style={{ maxWidth: '85vw', maxHeight: '80vh', borderRadius: 8 }} />
+            <VideoPlayer src={offline ? imgSrc : file.url} style={{ maxWidth: '85vw', maxHeight: '80vh', borderRadius: 8 }} />
           </div>
         ) : (
           imgSrc && <img src={imgSrc} alt={file.original_name} style={{ maxWidth: '85vw', maxHeight: '80vh', objectFit: 'contain', borderRadius: 8, display: 'block' }} />
@@ -137,6 +161,7 @@ export function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxPro
 function ThumbImg({ file, active, onClick }: { file: TripFile & { url: string }; active: boolean; onClick: () => void }) {
   const fileIsVideo = isVideo(file.mime_type)
   const [src, setSrc] = useState('')
+  const { offline } = useNetworkMode()
   const [visible, setVisible] = useState(false)
   const ref = useRef<HTMLButtonElement>(null)
 
@@ -155,9 +180,26 @@ function ThumbImg({ file, active, onClick }: { file: TripFile & { url: string };
   useEffect(() => {
     if (!visible || fileIsVideo) return
     let current = true
-    getAuthUrl(file.url, 'download').then(u => { if (current) setSrc(u) })
-    return () => { current = false }
-  }, [file.url, fileIsVideo, visible])
+    let objectUrl = ''
+    const resolve = offline ? getCachedFileObjectUrl(file.url) : getAuthUrl(file.url, 'download')
+    resolve.then(u => {
+      if (current) {
+        objectUrl = offline ? u : ''
+        setSrc(u)
+      } else if (offline) {
+        URL.revokeObjectURL(u)
+      }
+    }).catch(error => {
+      if (current) {
+        setSrc('')
+        if (!offline) console.error('Failed to resolve thumbnail:', error)
+      }
+    })
+    return () => {
+      current = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [file.url, fileIsVideo, visible, offline])
 
   return (
     <button type="button" ref={ref} onClick={onClick} style={{

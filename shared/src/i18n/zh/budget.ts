@@ -161,5 +161,7 @@ const budget: TranslationStrings = {
   'costs.noAttachments': '此支出没有附加文件。',
   'costs.confirm.deleteBodyWithFile': '“{name}”将被永久删除。将保留 1 个附件。',
   'costs.confirm.deleteBodyWithFiles': '“{name}”将被永久删除。将保留 {count} 个附件。',
+  'costs.attachmentsUnavailable': '附件详情暂时无法离线使用。请连接网络后加载。',
+  'costs.expensesUnavailable': '支出暂时无法离线使用。请连接网络后加载。',
 };
 export default budget;

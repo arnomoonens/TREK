@@ -162,5 +162,7 @@ const budget: TranslationStrings = {
   'costs.noAttachments': 'Inga filer är bifogade till denna utgift.',
   'costs.confirm.deleteBodyWithFile': '"{name}" tas bort permanent. 1 bifogad fil finns kvar.',
   'costs.confirm.deleteBodyWithFiles': '"{name}" tas bort permanent. {count} bifogade filer finns kvar.',
+  'costs.attachmentsUnavailable': 'Bilagedetaljer är ännu inte tillgängliga offline. Anslut för att läsa in dem.',
+  'costs.expensesUnavailable': 'Utgifter är ännu inte tillgängliga offline. Anslut för att läsa in dem.',
 };
 export default budget;

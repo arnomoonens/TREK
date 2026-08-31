@@ -1,16 +1,22 @@
-// FE-W4LBX-001 to FE-W4LBX-020
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+// FE-W4LBX-001 to FE-W4LBX-022
+import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest'
 import type { TripFile } from '../../types'
 import { render, screen, fireEvent, waitFor, act } from '../../../tests/helpers/render'
+import { setForcedOffline } from '../../sync/networkMode'
 
 const getAuthUrl = vi.fn(async (url: string, _kind: string) => `${url}?token=abc`)
 const openFile = vi.fn(async (_url: string, _name: string) => {})
 const downloadFile = vi.fn(async (_url: string, _name: string) => {})
+const getCachedFileObjectUrl = vi.fn(async (url: string) => `blob:${url}`)
 
 vi.mock('../../api/authUrl', () => ({ getAuthUrl: (url: string, kind: string) => getAuthUrl(url, kind) }))
 vi.mock('../../utils/fileDownload', () => ({
   openFile: (url: string, name: string) => openFile(url, name),
   downloadFile: (url: string, name: string) => downloadFile(url, name),
+}))
+vi.mock('../../utils/offlineFile', () => ({
+  getCachedFileObjectUrl: (url: string) => getCachedFileObjectUrl(url),
+  isOfflineFileUnavailableError: () => false,
 }))
 vi.mock('../Journey/VideoPlayer', () => ({
   default: ({ src }: { src: string }) => <div data-testid="video" data-src={src} />,
@@ -37,6 +43,13 @@ beforeEach(() => {
   openFile.mockResolvedValue(undefined)
   downloadFile.mockReset()
   downloadFile.mockResolvedValue(undefined)
+  getCachedFileObjectUrl.mockReset()
+  getCachedFileObjectUrl.mockImplementation(async (url: string) => `blob:${url}`)
+  setForcedOffline(false)
+})
+
+afterEach(() => {
+  setForcedOffline(false)
 })
 
 describe('ImageLightbox', () => {
@@ -262,5 +275,27 @@ describe('ImageLightbox', () => {
     } finally {
       globalThis.IntersectionObserver = original
     }
+  })
+
+  it('FE-W4LBX-021: uses cached bytes for an image while offline', async () => {
+    setForcedOffline(true)
+    getCachedFileObjectUrl.mockResolvedValue('blob:cached-image')
+
+    const { container } = render(<ImageLightbox files={[IMAGES[0]]} initialIndex={0} onClose={() => {}} />)
+
+    await waitFor(() => expect(container.querySelector('img[alt="a.jpg"]')).toHaveAttribute('src', 'blob:cached-image'))
+    expect(getCachedFileObjectUrl).toHaveBeenCalledWith('/f/a.jpg')
+    expect(getAuthUrl).not.toHaveBeenCalled()
+  })
+
+  it('FE-W4LBX-022: clearly reports an uncached image while offline', async () => {
+    setForcedOffline(true)
+    getCachedFileObjectUrl.mockRejectedValue(new Error('missing from cache'))
+
+    const { container } = render(<ImageLightbox files={[IMAGES[0]]} initialIndex={0} onClose={() => {}} />)
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/offline/i))
+    expect(container.querySelector('img[alt="a.jpg"]')).toBeNull()
+    expect(getAuthUrl).not.toHaveBeenCalled()
   })
 })

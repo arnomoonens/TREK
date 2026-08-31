@@ -162,5 +162,7 @@ const budget: TranslationStrings = {
   'costs.noAttachments': '이 지출에 첨부된 파일이 없습니다.',
   'costs.confirm.deleteBodyWithFile': '"{name}"이(가) 영구적으로 삭제됩니다. 첨부 파일 1개는 유지됩니다.',
   'costs.confirm.deleteBodyWithFiles': '"{name}"이(가) 영구적으로 삭제됩니다. 첨부 파일 {count}개는 유지됩니다.',
+  'costs.attachmentsUnavailable': '첨부 파일 세부 정보는 아직 오프라인에서 사용할 수 없습니다. 연결하여 불러오세요.',
+  'costs.expensesUnavailable': '지출은 아직 오프라인에서 사용할 수 없습니다. 연결하여 불러오세요.',
 };
 export default budget;

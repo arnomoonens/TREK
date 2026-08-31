@@ -7,7 +7,7 @@ import remarkBreaks from 'remark-breaks'
 import rehypeSanitize from 'rehype-sanitize'
 import { openFile as openFileUrl } from '../../utils/fileDownload'
 import type { FilePreviewState } from './useFileManager'
-import { triggerDownload } from './FileManager.helpers'
+import { fileErrorMessage, triggerDownload } from './FileManager.helpers'
 
 /**
  * Inline preview for uploaded Markdown files (#1345). Fetches the file's text via
@@ -16,12 +16,12 @@ import { triggerDownload } from './FileManager.helpers'
  * react-markdown v10 already drops raw HTML, so no script can execute.
  */
 export function MarkdownPreviewModal(S: FilePreviewState) {
-  const { previewFile, setPreviewFile, previewFileUrl, toast, t } = S
+  const { previewFile, setPreviewFile, previewFileUrl, previewUnavailable, toast, t } = S
   const [text, setText] = useState('')
   const [err, setErr] = useState(false)
 
   useEffect(() => {
-    if (!previewFileUrl) return
+    if (!previewFileUrl || previewUnavailable) return
     let cancelled = false
     setErr(false)
     setText('')
@@ -30,7 +30,7 @@ export function MarkdownPreviewModal(S: FilePreviewState) {
       .then(body => { if (!cancelled) setText(body) })
       .catch(() => { if (!cancelled) setErr(true) })
     return () => { cancelled = true }
-  }, [previewFileUrl])
+  }, [previewFileUrl, previewUnavailable])
 
   if (!previewFile) return null
 
@@ -49,12 +49,12 @@ export function MarkdownPreviewModal(S: FilePreviewState) {
           <span style={{ fontSize: 'calc(13px * var(--fs-scale-body, 1))', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{previewFile.original_name}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <button type="button"
-              onClick={() => openFileUrl(previewFile.url, previewFile.original_name).catch(() => toast.error(t('files.openError')))}
+              onClick={() => openFileUrl(previewFile.url, previewFile.original_name).catch(error => toast.error(fileErrorMessage(t, error)))}
               style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 'calc(12px * var(--fs-scale-body, 1))', color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 6 }}>
               <ExternalLink size={13} /> {t('files.openTab')}
             </button>
             <button type="button"
-              onClick={() => triggerDownload(previewFile.url, previewFile.original_name)}
+              onClick={() => triggerDownload(previewFile.url, previewFile.original_name, error => toast.error(fileErrorMessage(t, error)))}
               style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 'calc(12px * var(--fs-scale-body, 1))', color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 6 }}>
               <Download size={13} /> {t('files.download') || 'Download'}
             </button>
@@ -65,7 +65,9 @@ export function MarkdownPreviewModal(S: FilePreviewState) {
           </div>
         </div>
         <div className="collab-note-md" style={{ flex: 1, overflowY: 'auto', padding: '20px 28px', color: 'var(--text-primary)', lineHeight: 1.6, wordBreak: 'break-word' }}>
-          {err
+          {previewUnavailable
+            ? <p role="alert" style={{ color: 'var(--text-muted)' }}>{t('files.offlineUnavailable')}</p>
+            : err
             ? <p style={{ color: 'var(--text-muted)' }}>{t('files.openError')}</p>
             : <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} rehypePlugins={[rehypeSanitize]}>{text}</Markdown>}
         </div>

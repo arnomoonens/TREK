@@ -68,5 +68,8 @@ const files: TranslationStrings = {
   'files.confirm.deleteWithExpenses': '此檔案連結至 {count} 筆有效支出。要移至回收站嗎？',
   'files.confirm.permanentDeleteWithExpense': '此檔案連結至 1 筆有效支出。要永久刪除嗎？',
   'files.confirm.permanentDeleteWithExpenses': '此檔案連結至 {count} 筆有效支出。要永久刪除嗎？',
+  'files.offlineUnavailable': '此檔案離線時無法使用。請連線後開啟或下載。',
+  'files.offlineListUnavailable': '檔案尚未提供離線使用。請連線後載入。',
+  'files.offlineReadOnly': '離線時無法變更檔案關聯。',
 };
 export default files;

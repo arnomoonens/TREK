@@ -69,5 +69,8 @@ const files: TranslationStrings = {
   'files.confirm.deleteWithExpenses': "Aquest fitxer està vinculat a {count} despeses actives. Vols moure'l a la paperera?",
   'files.confirm.permanentDeleteWithExpense': "Aquest fitxer està vinculat a 1 despesa activa. Vols eliminar-lo definitivament?",
   'files.confirm.permanentDeleteWithExpenses': "Aquest fitxer està vinculat a {count} despeses actives. Vols eliminar-lo definitivament?",
+  'files.offlineUnavailable': "Aquest fitxer no està disponible sense connexió. Connecta't per obrir-lo o baixar-lo.",
+  'files.offlineListUnavailable': "Els fitxers encara no estan disponibles sense connexió. Connecta't per carregar-los.",
+  'files.offlineReadOnly': 'Les relacions dels fitxers no es poden canviar sense connexió.',
 };
 export default files;

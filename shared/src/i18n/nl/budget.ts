@@ -162,5 +162,7 @@ const budget: TranslationStrings = {
   'costs.noAttachments': 'Aan deze uitgave zijn geen bestanden gekoppeld.',
   'costs.confirm.deleteBodyWithFile': '"{name}" wordt permanent verwijderd. 1 bijgevoegd bestand blijft behouden.',
   'costs.confirm.deleteBodyWithFiles': '"{name}" wordt permanent verwijderd. {count} bijgevoegde bestanden blijven behouden.',
+  'costs.attachmentsUnavailable': 'Bijlagendetails zijn nog niet offline beschikbaar. Maak verbinding om ze te laden.',
+  'costs.expensesUnavailable': 'Uitgaven zijn nog niet offline beschikbaar. Maak verbinding om ze te laden.',
 };
 export default budget;

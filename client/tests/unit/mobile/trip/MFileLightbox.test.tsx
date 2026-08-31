@@ -4,6 +4,7 @@ import { getAuthUrl } from '../../../../src/api/authUrl'
 import { downloadFile, openFile } from '../../../../src/utils/fileDownload'
 import type { TranslationFn, TripFile } from '../../../../src/types'
 import { fireEvent, render, screen, waitFor } from '../../../helpers/render'
+import { setForcedOffline } from '../../../../src/sync/networkMode'
 
 // FE-MOB-FLBOX-001 to FE-MOB-FLBOX-017
 
@@ -13,6 +14,11 @@ vi.mock('../../../../src/api/authUrl', () => ({
 vi.mock('../../../../src/utils/fileDownload', () => ({
   downloadFile: vi.fn(async () => undefined),
   openFile: vi.fn(async () => undefined),
+}))
+const getCachedFileObjectUrl = vi.fn(async (url: string) => `blob:${url}`)
+vi.mock('../../../../src/utils/offlineFile', () => ({
+  getCachedFileObjectUrl: (url: string) => getCachedFileObjectUrl(url),
+  isOfflineFileUnavailableError: () => false,
 }))
 vi.mock('../../../../src/components/Journey/VideoPlayer', () => ({
   default: ({ src }: { src: string }) => <div data-testid="video-player" data-src={src} />,
@@ -47,9 +53,12 @@ function renderBox(index: number, overrides: { files?: TripFile[] } = {}) {
 describe('MFileLightbox', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    getCachedFileObjectUrl.mockImplementation(async (url: string) => `blob:${url}`)
+    setForcedOffline(false)
   })
 
   afterEach(() => {
+    setForcedOffline(false)
     document.body.style.overflow = ''
     document.getElementById('m-sheet-root')?.remove()
   })
@@ -229,5 +238,27 @@ describe('MFileLightbox', () => {
     await waitFor(() =>
       expect(screen.getByAltText('castle.png')).toHaveAttribute('src', '/api/trips/1/files/2/download?token=t1'),
     )
+  })
+
+  it('FE-MOB-FLBOX-019: uses cached bytes for an image while offline', async () => {
+    setForcedOffline(true)
+    getCachedFileObjectUrl.mockResolvedValue('blob:cached-image')
+
+    renderBox(0)
+
+    await waitFor(() => expect(screen.getByAltText('beach.jpg')).toHaveAttribute('src', 'blob:cached-image'))
+    expect(getCachedFileObjectUrl).toHaveBeenCalledWith('/api/trips/1/files/1/download')
+    expect(getAuthUrl).not.toHaveBeenCalled()
+  })
+
+  it('FE-MOB-FLBOX-020: clearly reports an uncached image while offline', async () => {
+    setForcedOffline(true)
+    getCachedFileObjectUrl.mockRejectedValue(new Error('missing from cache'))
+
+    renderBox(0)
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('files.offlineUnavailable'))
+    expect(screen.queryByAltText('beach.jpg')).not.toBeInTheDocument()
+    expect(getAuthUrl).not.toHaveBeenCalled()
   })
 })

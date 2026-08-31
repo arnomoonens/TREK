@@ -68,5 +68,8 @@ const files: TranslationStrings = {
   'files.confirm.deleteWithExpenses': '이 파일은 활성 지출 {count}개에 연결되어 있습니다. 휴지통으로 이동할까요?',
   'files.confirm.permanentDeleteWithExpense': '이 파일은 활성 지출 1개에 연결되어 있습니다. 영구적으로 삭제할까요?',
   'files.confirm.permanentDeleteWithExpenses': '이 파일은 활성 지출 {count}개에 연결되어 있습니다. 영구적으로 삭제할까요?',
+  'files.offlineUnavailable': '이 파일은 오프라인에서 사용할 수 없습니다. 열거나 다운로드하려면 연결하세요.',
+  'files.offlineListUnavailable': '파일을 아직 오프라인에서 사용할 수 없습니다. 연결하여 불러오세요.',
+  'files.offlineReadOnly': '오프라인에서는 파일 관계를 변경할 수 없습니다.',
 };
 export default files;

@@ -232,6 +232,43 @@ describe('tripSyncManager.syncAll — bundle upsert', () => {
     expect(meta!.lastSyncedAt).toBeGreaterThanOrEqual(before);
     expect(meta!.lastSyncedAt).toBeLessThanOrEqual(after);
   });
+
+  it('refreshes authoritative file relationship metadata on a later sync', async () => {
+    const tripId = 302;
+    const firstFile = buildTripFile({
+      id: 3021,
+      trip_id: tripId,
+      linked_expense_ids: [11],
+      expense_attachment_created_at: { '11': '2026-08-30 10:00:00' },
+    });
+    const secondFile = {
+      ...firstFile,
+      linked_expense_ids: [11, 12],
+      expense_attachment_created_at: {
+        '11': '2026-08-30 10:00:00',
+        '12': '2026-08-31 10:00:00',
+      },
+    };
+    let bundle = { ...makeBundle(tripId), files: [firstFile] };
+    const trip = buildTrip({ id: tripId, end_date: dateOffset(5) });
+
+    server.use(
+      http.get('/api/trips', () => HttpResponse.json({ trips: [trip] })),
+      http.get(`/api/trips/${tripId}/bundle`, () => HttpResponse.json({ ...bundle, trip })),
+    );
+
+    await tripSyncManager.syncAll();
+    bundle = { ...bundle, files: [secondFile] };
+    await tripSyncManager.syncAll();
+
+    await expect(offlineDb.tripFiles.get(firstFile.id)).resolves.toMatchObject({
+      linked_expense_ids: [11, 12],
+      expense_attachment_created_at: {
+        '11': '2026-08-30 10:00:00',
+        '12': '2026-08-31 10:00:00',
+      },
+    });
+  });
 });
 
 // ── file blob caching ──────────────────────────────────────────────────────────

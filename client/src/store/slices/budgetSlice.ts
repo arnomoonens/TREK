@@ -25,7 +25,11 @@ export const createBudgetSlice = (set: SetState, get: GetState): BudgetSlice => 
   loadBudgetItems: async (tripId) => {
     try {
       const data = await budgetRepo.list(tripId)
-      set({ budgetItems: data.items })
+      if (data.cacheStatus === 'unavailable') {
+        set({ budgetAvailability: data.cacheStatus })
+        return
+      }
+      set({ budgetItems: data.items, budgetAvailability: data.cacheStatus })
     } catch (err: unknown) {
       console.error('Failed to load budget items:', err)
     }

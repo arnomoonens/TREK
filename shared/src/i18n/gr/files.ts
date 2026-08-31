@@ -68,5 +68,8 @@ const files: TranslationStrings = {
   'files.confirm.deleteWithExpenses': 'Αυτό το αρχείο συνδέεται με {count} ενεργές δαπάνες. Μετακίνηση στον κάδο;',
   'files.confirm.permanentDeleteWithExpense': 'Αυτό το αρχείο συνδέεται με 1 ενεργή δαπάνη. Οριστική διαγραφή;',
   'files.confirm.permanentDeleteWithExpenses': 'Αυτό το αρχείο συνδέεται με {count} ενεργές δαπάνες. Οριστική διαγραφή;',
+  'files.offlineUnavailable': 'Αυτό το αρχείο δεν είναι διαθέσιμο εκτός σύνδεσης. Συνδεθείτε για να το ανοίξετε ή να το κατεβάσετε.',
+  'files.offlineListUnavailable': 'Τα αρχεία δεν είναι ακόμη διαθέσιμα εκτός σύνδεσης. Συνδεθείτε για να τα φορτώσετε.',
+  'files.offlineReadOnly': 'Οι συσχετίσεις αρχείων δεν μπορούν να αλλάξουν εκτός σύνδεσης.',
 };
 export default files;

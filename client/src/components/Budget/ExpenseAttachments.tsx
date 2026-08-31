@@ -7,6 +7,8 @@ import MSheet from '../../mobile/components/MSheet'
 import type { TripFile } from '../../types'
 import { getAuthUrl } from '../../api/authUrl'
 import { openFile as openFileInTab } from '../../utils/fileDownload'
+import { getCachedFileObjectUrl } from '../../utils/offlineFile'
+import { useNetworkMode } from '../../hooks/useNetworkMode'
 import {
   formatSize,
   getFileIcon,
@@ -15,6 +17,7 @@ import {
   isMedia,
   isWalletPass,
   triggerDownload,
+  fileErrorMessage,
 } from '../Files/FileManager.helpers'
 import { AuthedImg } from '../Files/FileManagerAuthedImg'
 import { ImageLightbox } from '../Files/FileManagerImageLightbox'
@@ -27,6 +30,7 @@ export interface ExpenseAttachmentViewerProps {
   expenseId: number
   expenseName: string
   files: TripFile[]
+  attachmentsUnavailable?: boolean
 }
 
 interface ExpenseAttachmentContainerProps extends ExpenseAttachmentViewerProps {
@@ -34,9 +38,11 @@ interface ExpenseAttachmentContainerProps extends ExpenseAttachmentViewerProps {
 }
 
 /** Compact read-only count used by both Costs presentations. */
-export function ExpenseAttachmentCount({ count, onClick }: { count: number; onClick: () => void }) {
+export function ExpenseAttachmentCount({ count, onClick, unavailable = false }: { count: number; onClick: () => void; unavailable?: boolean }) {
   const { t } = useTranslation()
-  const label = t(count === 1 ? 'costs.attachmentCount' : 'costs.attachmentsCount', { count })
+  const label = unavailable
+    ? t('costs.attachmentsUnavailable')
+    : t(count === 1 ? 'costs.attachmentCount' : 'costs.attachmentsCount', { count })
 
   return (
     <button
@@ -45,11 +51,12 @@ export function ExpenseAttachmentCount({ count, onClick }: { count: number; onCl
       aria-label={label}
       title={label}
       onClick={onClick}
+      disabled={unavailable}
       className="text-content-muted hover:text-content"
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 7px', borderRadius: 999, border: '1px solid var(--border-primary)', background: 'var(--bg-secondary)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'calc(11px * var(--fs-scale-caption, 1))', fontWeight: 650, lineHeight: 1 }}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 7px', borderRadius: 999, border: '1px solid var(--border-primary)', background: 'var(--bg-secondary)', cursor: unavailable ? 'default' : 'pointer', opacity: unavailable ? 0.65 : 1, fontFamily: 'inherit', fontSize: 'calc(11px * var(--fs-scale-caption, 1))', fontWeight: 650, lineHeight: 1 }}
     >
       <Paperclip size={12} strokeWidth={2.2} />
-      <span>{count}</span>
+      <span>{unavailable ? '—' : count}</span>
     </button>
   )
 }
@@ -88,34 +95,56 @@ export function ExpenseAttachmentsSheet({ open, onClose, ...props }: ExpenseAtta
 }
 
 /** Shared read-only attachment rows and preview delegation. */
-export function ExpenseAttachmentList({ expenseId, files }: ExpenseAttachmentViewerProps) {
+export function ExpenseAttachmentList({ expenseId, files, attachmentsUnavailable = false }: ExpenseAttachmentViewerProps) {
   const { t } = useTranslation()
   const toast = useToast()
+  const { offline } = useNetworkMode()
   const [previewFile, setPreviewFile] = useState<TripFile | null>(null)
   const [previewFileUrl, setPreviewFileUrl] = useState('')
   const [previewError, setPreviewError] = useState(false)
+  const [previewUnavailable, setPreviewUnavailable] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+  const previewUrl = previewFile?.url
   const attachments = useMemo(() => filesForExpense(files, expenseId), [files, expenseId])
   const mediaFiles = useMemo(() => attachments.filter(file => isMedia(file.mime_type)), [attachments])
 
   useEffect(() => {
-    if (!previewFile) {
+    let objectUrl = ''
+    if (!previewUrl) {
       setPreviewFileUrl('')
+      setPreviewUnavailable(false)
       return
     }
     let current = true
     setPreviewFileUrl('')
     setPreviewError(false)
-    getAuthUrl(previewFile.url, 'download')
-      .then(url => { if (current) setPreviewFileUrl(url) })
-      .catch(() => {
+    setPreviewUnavailable(false)
+    const resolve = offline
+      ? getCachedFileObjectUrl(previewUrl)
+      : getAuthUrl(previewUrl, 'download')
+    resolve
+      .then(url => {
         if (current) {
-          setPreviewError(true)
-          toast.error(t('files.openError'))
+          objectUrl = offline ? url : ''
+          setPreviewFileUrl(url)
+        } else if (offline) {
+          URL.revokeObjectURL(url)
         }
       })
-    return () => { current = false }
-  }, [previewFile?.url])
+      .catch(() => {
+        if (current) {
+          if (offline) setPreviewUnavailable(true)
+          else {
+            setPreviewError(true)
+            toast.error(t('files.openError'))
+          }
+        }
+      })
+    return () => {
+      current = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [previewUrl, t, toast, offline])
 
   const openAttachment = (file: TripFile) => {
     if (isMedia(file.mime_type)) {
@@ -124,24 +153,28 @@ export function ExpenseAttachmentList({ expenseId, files }: ExpenseAttachmentVie
       return
     }
     if (isWalletPass(file.mime_type, file.original_name)) {
-      openFileInTab(file.url, file.original_name).catch(() => toast.error(t('files.openError')))
+      openFileInTab(file.url, file.original_name).catch(error => toast.error(fileErrorMessage(t, error)))
       return
     }
     setPreviewFile(file)
   }
 
-  const previewState: FilePreviewState = { previewFile, setPreviewFile, previewFileUrl: previewError ? '' : previewFileUrl, toast, t }
+  const previewState: FilePreviewState = { previewFile, setPreviewFile, previewFileUrl: previewError ? '' : previewFileUrl, previewUnavailable, toast, t }
 
   return (
     <>
       <div data-testid="expense-attachment-list" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {attachments.length === 0 ? (
+        {attachmentsUnavailable ? (
+          <p role="alert" className="text-content-muted" style={{ margin: 0, padding: '18px 4px', textAlign: 'center', fontSize: 'calc(13px * var(--fs-scale-body, 1))' }}>
+            {t('costs.attachmentsUnavailable')}
+          </p>
+        ) : attachments.length === 0 ? (
           <p className="text-content-faint" style={{ margin: 0, padding: '18px 4px', textAlign: 'center', fontSize: 'calc(13px * var(--fs-scale-body, 1))' }}>
             {t('costs.noAttachments')}
           </p>
         ) : (
           attachments.map(file => (
-            <ExpenseAttachmentRow key={file.id} file={file} onOpen={() => openAttachment(file)} />
+            <ExpenseAttachmentRow key={file.id} file={file} onOpen={() => openAttachment(file)} toast={toast} t={t} />
           ))
         )}
       </div>
@@ -156,8 +189,7 @@ export function ExpenseAttachmentList({ expenseId, files }: ExpenseAttachmentVie
   )
 }
 
-function ExpenseAttachmentRow({ file, onOpen }: { file: TripFile; onOpen: () => void }) {
-  const { t } = useTranslation()
+function ExpenseAttachmentRow({ file, onOpen, toast, t }: { file: TripFile; onOpen: () => void; toast: ReturnType<typeof useToast>; t: ReturnType<typeof useTranslation>['t'] }) {
   const FileIcon = getFileIcon(file.mime_type)
 
   return (
@@ -201,7 +233,7 @@ function ExpenseAttachmentRow({ file, onOpen }: { file: TripFile; onOpen: () => 
         <button type="button" onClick={onOpen} aria-label={t('common.open')} title={t('common.open')} className="text-content-muted hover:text-content" style={{ display: 'flex', padding: 6, border: 0, background: 'none', cursor: 'pointer' }}>
           <ExternalLink size={15} />
         </button>
-        <button type="button" onClick={() => triggerDownload(file.url, file.original_name)} aria-label={t('files.download')} title={t('files.download')} className="text-content-muted hover:text-content" style={{ display: 'flex', padding: 6, border: 0, background: 'none', cursor: 'pointer' }}>
+        <button type="button" onClick={() => triggerDownload(file.url, file.original_name, error => toast.error(fileErrorMessage(t, error)))} aria-label={t('files.download')} title={t('files.download')} className="text-content-muted hover:text-content" style={{ display: 'flex', padding: 6, border: 0, background: 'none', cursor: 'pointer' }}>
           <Download size={15} />
         </button>
       </div>

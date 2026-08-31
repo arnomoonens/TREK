@@ -6,6 +6,7 @@ import { filesApi } from '../../../../api/client'
 import type { TripFile } from '../../../../types'
 import type { TripPlanner } from '../MTripShell'
 import { Eyebrow, TileHeader } from '../sheets/MTripSheetUi'
+import { useNetworkMode } from '../../../../hooks/useNetworkMode'
 
 interface MFileLinkSheetProps {
   planner: TripPlanner
@@ -29,6 +30,7 @@ interface FileLinkRecord {
  */
 export default function MFileLinkSheet({ planner, file, onClose }: MFileLinkSheetProps) {
   const { t, tripId, places, reservations, budgetItems, TRANSPORT_TYPES, tripActions, toast, trip, can } = planner
+  const { offline } = useNetworkMode()
   const open = file != null
 
   const heldRef = useRef<TripFile | null>(file)
@@ -50,7 +52,7 @@ export default function MFileLinkSheet({ planner, file, onClose }: MFileLinkShee
   const refresh = () => tripActions.loadFiles(tripId)
 
   const togglePlace = async (placeId: number) => {
-    if (busyKey) return
+    if (busyKey || offline) return
     const key = `p${placeId}`
     setBusyKey(key)
     try {
@@ -76,7 +78,7 @@ export default function MFileLinkSheet({ planner, file, onClose }: MFileLinkShee
   }
 
   const toggleReservation = async (resId: number) => {
-    if (busyKey) return
+    if (busyKey || offline) return
     const key = `r${resId}`
     setBusyKey(key)
     try {
@@ -104,7 +106,7 @@ export default function MFileLinkSheet({ planner, file, onClose }: MFileLinkShee
   const bookingReservations = reservations.filter(r => !TRANSPORT_TYPES.has(r.type))
   const transportReservations = reservations.filter(r => TRANSPORT_TYPES.has(r.type))
   const expenseIds = new Set(shown.linked_expense_ids || [])
-  const canAttachExpenses = can('budget_edit', trip) && can('file_edit', trip)
+  const canAttachExpenses = !offline && can('budget_edit', trip) && can('file_edit', trip)
   const toggleExpense = async (expenseId: number) => {
     if (busyKey || !canAttachExpenses) return
     const key = `e${expenseId}`
@@ -138,12 +140,14 @@ export default function MFileLinkSheet({ planner, file, onClose }: MFileLinkShee
           <div className="py-8 text-center font-geist text-[0.78125rem] text-m-faint">{t('files.linkEmpty')}</div>
         )}
 
+        {offline && <div role="alert" className="mt-3 rounded-xl border border-[color:var(--m-rowbr)] bg-[color:var(--m-ic)] px-3 py-[9px] font-geist text-[0.6875rem] text-m-muted">{t('files.offlineReadOnly')}</div>}
+
         {places.length > 0 && (
           <>
             <Eyebrow className="mb-[6px] mt-3">{t('files.assignPlace')}</Eyebrow>
             <div className="flex flex-col gap-1">
               {places.map(p => (
-                <LinkRow key={`p${p.id}`} icon={MapPin} label={p.name} active={placeIds.has(p.id)} busy={busyKey === `p${p.id}`} onClick={() => togglePlace(p.id)} />
+                <LinkRow key={`p${p.id}`} icon={MapPin} label={p.name} active={placeIds.has(p.id)} busy={busyKey === `p${p.id}`} disabled={offline} onClick={() => togglePlace(p.id)} />
               ))}
             </div>
           </>
@@ -154,7 +158,7 @@ export default function MFileLinkSheet({ planner, file, onClose }: MFileLinkShee
             <Eyebrow className="mb-[6px] mt-3">{t('files.assignBooking')}</Eyebrow>
             <div className="flex flex-col gap-1">
               {bookingReservations.map(r => (
-                <LinkRow key={`r${r.id}`} icon={Ticket} label={r.title} active={resIds.has(r.id)} busy={busyKey === `r${r.id}`} onClick={() => toggleReservation(r.id)} />
+                <LinkRow key={`r${r.id}`} icon={Ticket} label={r.title} active={resIds.has(r.id)} busy={busyKey === `r${r.id}`} disabled={offline} onClick={() => toggleReservation(r.id)} />
               ))}
             </div>
           </>
@@ -165,7 +169,7 @@ export default function MFileLinkSheet({ planner, file, onClose }: MFileLinkShee
             <Eyebrow className="mb-[6px] mt-3">{t('files.assignTransport')}</Eyebrow>
             <div className="flex flex-col gap-1">
               {transportReservations.map(r => (
-                <LinkRow key={`r${r.id}`} icon={TrainFront} label={r.title} active={resIds.has(r.id)} busy={busyKey === `r${r.id}`} onClick={() => toggleReservation(r.id)} />
+                <LinkRow key={`r${r.id}`} icon={TrainFront} label={r.title} active={resIds.has(r.id)} busy={busyKey === `r${r.id}`} disabled={offline} onClick={() => toggleReservation(r.id)} />
               ))}
             </div>
           </>

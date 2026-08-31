@@ -163,5 +163,7 @@ const budget: TranslationStrings = {
 
   'costs.confirm.deleteBodyWithFile': '"{name}" will be permanently deleted. 1 attached File will remain.',
   'costs.confirm.deleteBodyWithFiles': '"{name}" will be permanently deleted. {count} attached Files will remain.',
+  'costs.attachmentsUnavailable': 'Attachment details are not available offline yet. Connect to load them.',
+  'costs.expensesUnavailable': 'Expenses are not available offline yet. Connect to load them.',
 };
 export default budget;

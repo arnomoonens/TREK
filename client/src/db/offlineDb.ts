@@ -68,6 +68,10 @@ export interface SyncMeta {
   tilesBbox: [number, number, number, number] | null;
   /** Non-photo files available offline for this trip after the last sync. */
   filesCachedCount: number;
+  /** Set when the complete budget metadata response was written to the cache. */
+  budgetMetadataCachedAt?: number;
+  /** Set when the complete file metadata response was written to the cache. */
+  filesMetadataCachedAt?: number;
 }
 
 export interface BlobCacheEntry {
@@ -268,6 +272,43 @@ export async function upsertReservations(items: Reservation[]): Promise<void> {
 
 export async function upsertTripFiles(files: TripFile[]): Promise<void> {
   await offlineDb.tripFiles.bulkPut(files);
+}
+
+/** Replace a trip's cached file metadata with one authoritative response. */
+export async function replaceTripFiles(tripId: number, files: TripFile[]): Promise<void> {
+  await offlineDb.tripFiles.where('trip_id').equals(tripId).delete();
+  if (files.length > 0) await offlineDb.tripFiles.bulkPut(files);
+}
+
+/** Replace a trip's cached budget metadata with one authoritative response. */
+export async function replaceBudgetItems(tripId: number, items: BudgetItem[]): Promise<void> {
+  await offlineDb.budgetItems.where('trip_id').equals(tripId).delete();
+  if (items.length > 0) await offlineDb.budgetItems.bulkPut(items);
+}
+
+async function markMetadataCached(
+  tripId: number,
+  field: 'budgetMetadataCachedAt' | 'filesMetadataCachedAt',
+): Promise<void> {
+  const existing = await offlineDb.syncMeta.get(tripId)
+  const updated: SyncMeta = {
+    tripId,
+    lastSyncedAt: existing?.lastSyncedAt ?? null,
+    status: existing?.status ?? 'idle',
+    tilesBbox: existing?.tilesBbox ?? null,
+    filesCachedCount: existing?.filesCachedCount ?? 0,
+    ...existing,
+  }
+  updated[field] = Date.now()
+  await offlineDb.syncMeta.put(updated)
+}
+
+export async function markBudgetMetadataCached(tripId: number): Promise<void> {
+  await markMetadataCached(tripId, 'budgetMetadataCachedAt')
+}
+
+export async function markFileMetadataCached(tripId: number): Promise<void> {
+  await markMetadataCached(tripId, 'filesMetadataCachedAt')
 }
 
 export async function upsertAccommodations(items: Accommodation[]): Promise<void> {

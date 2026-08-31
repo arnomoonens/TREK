@@ -2,7 +2,7 @@ import { Trash2, ExternalLink, Download, MapPin, Receipt, Ticket, StickyNote, St
 import type { BudgetItem, TripFile } from '../../types'
 import type { FileManagerState } from './useFileManager'
 import { TRANSPORT_TYPES } from './FileManager.constants'
-import { getFileIcon, isImage, formatSize, formatDateWithLocale, transportIcon, triggerDownload } from './FileManager.helpers'
+import { fileErrorMessage, getFileIcon, isImage, formatSize, formatDateWithLocale, transportIcon, triggerDownload } from './FileManager.helpers'
 import { AuthedImg } from './FileManagerAuthedImg'
 import { AvatarChip } from './FileManagerAvatarChip'
 import { SourceBadge } from './FileManagerSourceBadge'
@@ -11,7 +11,7 @@ import { linkedExpenseIds } from '../Budget/expenseAttachmentUtils'
 export function FileRow(p: FileManagerState & { file: TripFile; isTrash?: boolean }) {
   const {
     file, isTrash = false, places, reservations, expenses, t, locale, can, trip,
-    handleStar, handleRestore, handlePermanentDelete, handleDelete, openFile, setAssignFileId,
+    handleStar, handleRestore, handlePermanentDelete, handleDelete, openFile, setAssignFileId, toast, offline,
   } = p
   const FileIcon = getFileIcon(file.mime_type)
   const allLinkedPlaceIds = new Set<number>()
@@ -124,7 +124,7 @@ export function FileRow(p: FileManagerState & { file: TripFile; isTrash?: boolea
               onMouseEnter={e => { if (!file.starred) e.currentTarget.style.color = '#facc15' }} onMouseLeave={e => { if (!file.starred) e.currentTarget.style.color = 'var(--text-faint)' }}>
               <Star size={14} fill={file.starred ? '#facc15' : 'none'} />
             </button>
-            {can('file_edit', trip) && <button type="button" onClick={() => setAssignFileId(file.id)} title={t('files.assign') || 'Assign'} style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-faint)', borderRadius: 6, display: 'flex' }}
+            {can('file_edit', trip) && <button type="button" disabled={offline} onClick={() => setAssignFileId(file.id)} title={t('files.assign') || 'Assign'} style={{ padding: 6, background: 'none', border: 'none', cursor: offline ? 'default' : 'pointer', color: 'var(--text-faint)', borderRadius: 6, display: 'flex', opacity: offline ? 0.55 : 1 }}
               onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-faint)'}>
               <Pencil size={14} />
             </button>}
@@ -132,7 +132,7 @@ export function FileRow(p: FileManagerState & { file: TripFile; isTrash?: boolea
               onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-faint)'}>
               <ExternalLink size={14} />
             </button>
-            <button type="button" onClick={() => triggerDownload(file.url, file.original_name)} title={t('files.download') || 'Download'} style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-faint)', borderRadius: 6, display: 'flex' }}
+            <button type="button" onClick={() => triggerDownload(file.url, file.original_name, error => toast.error(fileErrorMessage(t, error)))} title={t('files.download') || 'Download'} style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-faint)', borderRadius: 6, display: 'flex' }}
               onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-faint)'}>
               <Download size={14} />
             </button>

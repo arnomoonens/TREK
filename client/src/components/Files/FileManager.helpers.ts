@@ -1,5 +1,6 @@
 import { FileText, FileImage, File, FileVideo, Plane, Train, Car, Ship, Bus, Sailboat, Bike, CarTaxiFront, Route } from 'lucide-react'
 import { downloadFile } from '../../utils/fileDownload'
+import { isOfflineFileUnavailableError } from '../../utils/offlineFile'
 
 export function isImage(mimeType?: string | null) {
   if (!mimeType) return false
@@ -53,8 +54,12 @@ export function formatSize(bytes?: number | null) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-export function triggerDownload(url: string, filename: string) {
-  downloadFile(url, filename).catch(() => {})
+export function triggerDownload(url: string, filename: string, onError?: (error: unknown) => void) {
+  downloadFile(url, filename).catch(error => onError?.(error))
+}
+
+export function fileErrorMessage(t: (key: string) => string, error: unknown): string {
+  return isOfflineFileUnavailableError(error) ? t('files.offlineUnavailable') : t('files.openError')
 }
 
 export function formatDateWithLocale(dateStr?: string | null, locale?: string) {

@@ -162,5 +162,7 @@ const budget: TranslationStrings = {
   'costs.noAttachments': 'An diese Ausgabe sind keine Dateien angehängt.',
   'costs.confirm.deleteBodyWithFile': '„{name}“ wird unwiderruflich gelöscht. Eine angehängte Datei bleibt erhalten.',
   'costs.confirm.deleteBodyWithFiles': '„{name}“ wird unwiderruflich gelöscht. {count} angehängte Dateien bleiben erhalten.',
+  'costs.attachmentsUnavailable': 'Anhangdetails sind offline noch nicht verfügbar. Verbinde dich, um sie zu laden.',
+  'costs.expensesUnavailable': 'Ausgaben sind offline noch nicht verfügbar. Verbinde dich, um sie zu laden.',
 };
 export default budget;

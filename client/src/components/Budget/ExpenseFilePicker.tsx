@@ -24,6 +24,7 @@ interface ExpenseFilePickerProps {
   onRetryAttachment?: (failure: ExpenseAttachmentFailure) => void
   retryingAttachmentKey?: string | null
   disabled?: boolean
+  offline?: boolean
 }
 
 type PickerTab = 'upload' | 'trip-files'
@@ -42,12 +43,13 @@ export default function ExpenseFilePicker({
   onRetryAttachment,
   retryingAttachmentKey = null,
   disabled = false,
+  offline = false,
 }: ExpenseFilePickerProps) {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<PickerTab>('trip-files')
   const liveFiles = files.filter(file => !file.deleted_at)
-  const attachEnabled = canAttachFiles && !disabled
-  const uploadEnabled = attachEnabled && canUploadFiles
+  const attachEnabled = canAttachFiles && !disabled && !offline
+  const uploadEnabled = attachEnabled && canUploadFiles && !offline
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: onAddUploads,
     multiple: true,
@@ -74,6 +76,8 @@ export default function ExpenseFilePicker({
           </div>
         </div>
       </div>
+
+      {offline && <div role="alert" className="text-content-muted" style={{ marginBottom: 10, fontSize: 'calc(12px * var(--fs-scale-body, 1))' }}>{t('files.offlineReadOnly')}</div>}
 
       {attachmentFailures.length > 0 && (
         <div
@@ -160,9 +164,9 @@ export default function ExpenseFilePicker({
                         type="button"
                         aria-label={retryLabel(failure)}
                         onClick={() => retry(failure)}
-                        disabled={disabled || retrying}
+                        disabled={disabled || offline || retrying}
                         className="text-content"
-                        style={{ border: 0, background: 'none', padding: '3px 0', fontFamily: 'inherit', fontSize: 'calc(11px * var(--fs-scale-body, 1))', fontWeight: 650, cursor: disabled || retrying ? 'default' : 'pointer', flexShrink: 0 }}
+                        style={{ border: 0, background: 'none', padding: '3px 0', fontFamily: 'inherit', fontSize: 'calc(11px * var(--fs-scale-body, 1))', fontWeight: 650, cursor: disabled || offline || retrying ? 'default' : 'pointer', flexShrink: 0 }}
                       >
                         {t('costs.retryAttachment')}
                       </button>
@@ -223,9 +227,9 @@ export default function ExpenseFilePicker({
                         type="button"
                         aria-label={retryLabel(failure)}
                         onClick={(event) => { event.preventDefault(); event.stopPropagation(); retry(failure) }}
-                        disabled={disabled || retrying}
+                        disabled={disabled || offline || retrying}
                         className="text-content"
-                        style={{ border: 0, background: 'none', padding: '3px 0', fontFamily: 'inherit', fontSize: 'calc(11px * var(--fs-scale-body, 1))', fontWeight: 650, cursor: disabled || retrying ? 'default' : 'pointer', flexShrink: 0 }}
+                        style={{ border: 0, background: 'none', padding: '3px 0', fontFamily: 'inherit', fontSize: 'calc(11px * var(--fs-scale-body, 1))', fontWeight: 650, cursor: disabled || offline || retrying ? 'default' : 'pointer', flexShrink: 0 }}
                       >
                         {t('costs.retryAttachment')}
                       </button>

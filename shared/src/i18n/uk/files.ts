@@ -68,5 +68,8 @@ const files: TranslationStrings = {
   'files.confirm.deleteWithExpenses': 'Цей файл пов’язаний з {count} активними витратами. Перемістити його до кошика?',
   'files.confirm.permanentDeleteWithExpense': 'Цей файл пов’язаний з 1 активною витратою. Видалити його безповоротно?',
   'files.confirm.permanentDeleteWithExpenses': 'Цей файл пов’язаний з {count} активними витратами. Видалити його безповоротно?',
+  'files.offlineUnavailable': 'Цей файл недоступний офлайн. Підключіться, щоб відкрити або завантажити його.',
+  'files.offlineListUnavailable': 'Файли ще недоступні офлайн. Підключіться, щоб завантажити їх.',
+  'files.offlineReadOnly': 'Зв’язки файлів не можна змінювати офлайн.',
 };
 export default files;

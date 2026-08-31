@@ -1,10 +1,12 @@
 // FE-COMP-FILEMANAGER-001 to FE-COMP-FILEMANAGER-012
+import { afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '../../../tests/helpers/render';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../../tests/helpers/msw/server';
 import { useAuthStore } from '../../store/authStore';
 import { useTripStore } from '../../store/tripStore';
+import { setForcedOffline } from '../../sync/networkMode';
 import { resetAllStores, seedStore } from '../../../tests/helpers/store';
 import { buildBudgetItem, buildUser, buildTrip } from '../../../tests/helpers/factories';
 import type { TripFile } from '../../types';
@@ -108,6 +110,10 @@ beforeEach(() => {
 
   // Stub window.confirm
   vi.spyOn(window, 'confirm').mockReturnValue(true);
+});
+
+afterEach(() => {
+  setForcedOffline(false);
 });
 
 describe('FileManager', () => {
@@ -653,5 +659,18 @@ describe('FileManager', () => {
       const call = onUpload.mock.calls[0];
       expect(call[0]).toBeInstanceOf(FormData);
     });
+  });
+
+  it('FE-COMP-FILEMANAGER-038: offline disables upload and File relationship controls', () => {
+    setForcedOffline(true);
+    seedStore(useTripStore, { filesAvailability: 'available' });
+    const expense = buildBudgetItem({ id: 7, name: 'Dinner' });
+    const file = buildFile({ linked_expense_ids: [7] });
+    const { container } = render(<FileManager {...defaultProps} files={[file]} expenses={[expense]} />);
+
+    expect(container.querySelector('input[type="file"]')).toBeDisabled();
+    expect(screen.getByTitle(/assign/i)).toBeDisabled();
+
+    expect(screen.getByRole('alert')).toHaveTextContent('File relationships cannot be changed while offline.');
   });
 });

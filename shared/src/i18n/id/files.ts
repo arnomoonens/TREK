@@ -68,5 +68,8 @@ const files: TranslationStrings = {
   'files.confirm.deleteWithExpenses': 'File ini tertaut ke {count} pengeluaran aktif. Pindahkan ke sampah?',
   'files.confirm.permanentDeleteWithExpense': 'File ini tertaut ke 1 pengeluaran aktif. Hapus secara permanen?',
   'files.confirm.permanentDeleteWithExpenses': 'File ini tertaut ke {count} pengeluaran aktif. Hapus secara permanen?',
+  'files.offlineUnavailable': 'File ini tidak tersedia saat offline. Sambungkan ke internet untuk membuka atau mengunduhnya.',
+  'files.offlineListUnavailable': 'File belum tersedia saat offline. Sambungkan ke internet untuk memuatnya.',
+  'files.offlineReadOnly': 'Relasi file tidak dapat diubah saat offline.',
 };
 export default files;

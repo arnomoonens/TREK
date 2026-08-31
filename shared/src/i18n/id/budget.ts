@@ -162,5 +162,7 @@ const budget: TranslationStrings = {
   'costs.noAttachments': 'Tidak ada file yang dilampirkan ke pengeluaran ini.',
   'costs.confirm.deleteBodyWithFile': '"{name}" akan dihapus secara permanen. 1 file terlampir akan tetap ada.',
   'costs.confirm.deleteBodyWithFiles': '"{name}" akan dihapus secara permanen. {count} file terlampir akan tetap ada.',
+  'costs.attachmentsUnavailable': 'Detail lampiran belum tersedia saat offline. Sambungkan ke internet untuk memuatnya.',
+  'costs.expensesUnavailable': 'Pengeluaran belum tersedia saat offline. Sambungkan ke internet untuk memuatnya.',
 };
 export default budget;

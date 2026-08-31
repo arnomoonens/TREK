@@ -68,5 +68,8 @@ const files: TranslationStrings = {
   'files.confirm.deleteWithExpenses': 'Ez a fájl {count} aktív kiadáshoz kapcsolódik. Áthelyezed a kukába?',
   'files.confirm.permanentDeleteWithExpense': 'Ez a fájl 1 aktív kiadáshoz kapcsolódik. Véglegesen törlöd?',
   'files.confirm.permanentDeleteWithExpenses': 'Ez a fájl {count} aktív kiadáshoz kapcsolódik. Véglegesen törlöd?',
+  'files.offlineUnavailable': 'Ez a fájl offline nem érhető el. A megnyitáshoz vagy letöltéshez csatlakozz az internethez.',
+  'files.offlineListUnavailable': 'A fájlok offline még nem érhetők el. Csatlakozz a betöltésükhöz.',
+  'files.offlineReadOnly': 'A fájlkapcsolatok offline nem módosíthatók.',
 };
 export default files;

@@ -9,6 +9,7 @@ import { useTranslation } from '../../../../i18n'
 import { useToast } from '../../../../components/shared/Toast'
 import { useTripStore } from '../../../../store/tripStore'
 import { useExchangeRates } from '../../../../hooks/useExchangeRates'
+import { useNetworkMode } from '../../../../hooks/useNetworkMode'
 import { formatMoney, localizeAmountInput, cleanAmount } from '../../../../utils/formatters'
 import { SYMBOLS, SPLIT_COLORS, currenciesWith } from '../../../../components/Budget/BudgetPanel.constants'
 import { COST_CATEGORY_LIST, catMeta } from '../../../../components/Budget/costsCategories'
@@ -66,6 +67,9 @@ export default function MCostSheet({ tripId, base, people, me, editing, prefill,
   const { t, locale } = useTranslation()
   const toast = useToast()
   const { addBudgetItem, updateBudgetItem, deleteBudgetItem, addFile, files, loadFiles, attachExpenseFile, detachExpenseFile } = useTripStore()
+  const { offline } = useNetworkMode()
+  const attachmentEditingEnabled = canAttachFiles && !offline
+  const uploadEnabled = canUploadFiles && !offline
   const { convert } = useExchangeRates(base)
   const sym = (c: string) => SYMBOLS[c] || (c + ' ')
 
@@ -136,7 +140,7 @@ export default function MCostSheet({ tripId, base, people, me, editing, prefill,
   const [selectedFileIds, setSelectedFileIds] = useState<Set<number>>(() =>
     editing ? new Set(filesForExpense(files, editing.id).map(file => file.id)) : new Set(),
   )
-  const { stagedUploads, addStagedUploads, removeStagedUpload, markStagedUpload, removeStagedUploadFile } = useExpenseFileStaging(canAttachFiles, canUploadFiles)
+  const { stagedUploads, addStagedUploads, removeStagedUpload, markStagedUpload, removeStagedUploadFile } = useExpenseFileStaging(attachmentEditingEnabled, uploadEnabled)
   const { attachmentFailures, recordResult, forgetStagedUpload } = useExpenseAttachmentRecovery()
   const [retryingAttachmentKey, setRetryingAttachmentKey] = useState<string | null>(null)
   const [deleteArmed, setDeleteArmed] = useState(false)
@@ -256,7 +260,7 @@ export default function MCostSheet({ tripId, base, people, me, editing, prefill,
   }
 
   const toggleExpenseFile = (fileId: number) => {
-    if (!canAttachFiles) return
+    if (!attachmentEditingEnabled) return
     setAttachmentSelectionTouched(true)
     setSelectedFileIds(previous => {
       const next = new Set(previous)
@@ -292,8 +296,8 @@ export default function MCostSheet({ tripId, base, people, me, editing, prefill,
       files,
       selectedFileIds,
       stagedUploads,
-      canAttachFiles,
-      canUploadFiles,
+      canAttachFiles: attachmentEditingEnabled,
+      canUploadFiles: uploadEnabled,
       addFile,
       attachExpenseFile,
       detachExpenseFile,
@@ -307,7 +311,7 @@ export default function MCostSheet({ tripId, base, people, me, editing, prefill,
   }
 
   const retryAttachment = async (failure: ExpenseAttachmentFailure) => {
-    if (saving) return
+    if (saving || offline) return
     const expenseId = editing?.id ?? savedExpenseId
     if (!expenseId) return
     setSaving(true)
@@ -550,12 +554,13 @@ export default function MCostSheet({ tripId, base, people, me, editing, prefill,
           stagedUploads={stagedUploads}
           onAddUploads={addStagedUploads}
           onRemoveUpload={removeExpenseStagedUpload}
-          canAttachFiles={canAttachFiles}
-          canUploadFiles={canUploadFiles}
+          canAttachFiles={attachmentEditingEnabled}
+          canUploadFiles={uploadEnabled}
           attachmentFailures={attachmentFailures}
           onRetryAttachment={retryAttachment}
           retryingAttachmentKey={retryingAttachmentKey}
           disabled={saving}
+          offline={offline}
         />
 
         {/* WHO PAID */}

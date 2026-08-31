@@ -42,7 +42,7 @@ type TFn = (key: string, params?: Record<string, string | number>) => string
  * exported desktop equivalent existed for it).
  */
 export default function MCostsTab({ planner, shell }: MTabScreenProps) {
-  const { t, tripId, trip, tripMembers, budgetItems, files, days, toast } = planner
+  const { t, tripId, trip, tripMembers, budgetItems, files, days, toast, budgetAvailability, filesAvailability } = planner
   const { locale } = useTranslation()
   const canEdit = planner.can('budget_edit', trip)
   const me = useAuthStore(s => s.user?.id ?? -1)
@@ -169,6 +169,12 @@ export default function MCostsTab({ planner, shell }: MTabScreenProps) {
 
   return (
     <TabScroller>
+      {(budgetAvailability === 'unavailable' || filesAvailability === 'unavailable') && (
+        <div role="alert" className="rounded-2xl border border-[color:var(--m-rowbr)] bg-m-card px-[13px] py-[10px] font-geist text-[0.6875rem] text-m-muted">
+          {budgetAvailability === 'unavailable' && <div>{t('costs.expensesUnavailable')}</div>}
+          {filesAvailability === 'unavailable' && <div>{t('costs.attachmentsUnavailable')}</div>}
+        </div>
+      )}
       {/* Hero — "Total Trip Spend" (spec §3.1). Fixed dark card, both themes. */}
       <div className="rounded-[20px] p-4 shadow-[0_18px_44px_-18px_rgba(0,0,0,.5)]" style={{ background: '#15151A', color: '#F5F5F7' }}>
         <div className="font-geist text-[0.625rem] font-bold uppercase tracking-[.09em]" style={{ color: 'rgba(245,245,247,.55)' }}>
@@ -465,6 +471,7 @@ export default function MCostsTab({ planner, shell }: MTabScreenProps) {
                 onDelete={() => setConfirmDelete(item)}
                 onTogglePaid={(userId, paid) => handleTogglePaid(item.id, userId, paid)}
                 attachmentCount={attachmentCounts.get(item.id) ?? 0}
+                attachmentUnavailable={filesAvailability === 'unavailable'}
                 onOpenAttachments={() => setAttachmentExpense(item)}
               />
             ))}
@@ -508,6 +515,7 @@ export default function MCostsTab({ planner, shell }: MTabScreenProps) {
           expenseId={attachmentExpense.id}
           expenseName={attachmentExpense.name}
           files={files}
+          attachmentsUnavailable={filesAvailability === 'unavailable'}
           onClose={() => setAttachmentExpense(null)}
         />
       )}
@@ -546,7 +554,7 @@ export default function MCostsTab({ planner, shell }: MTabScreenProps) {
 }
 
 /** One expense card (spec 03 §3.7): category ribbon, optional unfinished ribbon, member chips, total pill, edit/delete stack. */
-function ExpenseRow({ item, ctx, base, locale, t, canEdit, onEdit, onDelete, onTogglePaid, attachmentCount, onOpenAttachments }: {
+function ExpenseRow({ item, ctx, base, locale, t, canEdit, onEdit, onDelete, onTogglePaid, attachmentCount, attachmentUnavailable, onOpenAttachments }: {
   item: BudgetItem
   ctx: CostsCtx
   base: string
@@ -557,6 +565,7 @@ function ExpenseRow({ item, ctx, base, locale, t, canEdit, onEdit, onDelete, onT
   onDelete: () => void
   onTogglePaid: (userId: number, paid: boolean) => void
   attachmentCount: number
+  attachmentUnavailable?: boolean
   onOpenAttachments: () => void
 }) {
   const meta = catMeta(item.category)
@@ -594,7 +603,7 @@ function ExpenseRow({ item, ctx, base, locale, t, canEdit, onEdit, onDelete, onT
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
               <div className="min-w-0 flex-1 truncate text-[0.8125rem] font-bold text-m-ink">{item.name}</div>
-              <ExpenseAttachmentCount count={attachmentCount} onClick={onOpenAttachments} />
+              <ExpenseAttachmentCount count={attachmentCount} unavailable={attachmentUnavailable} onClick={onOpenAttachments} />
             </div>
             {cur !== base && (
               <div className="mt-[1px] truncate font-geist text-[0.59375rem] text-m-faint">

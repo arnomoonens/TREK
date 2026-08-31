@@ -10,6 +10,7 @@ import { todoRepo } from '../repo/todoRepo'
 import { budgetRepo } from '../repo/budgetRepo'
 import { reservationRepo } from '../repo/reservationRepo'
 import { fileRepo } from '../repo/fileRepo'
+import { unavailableRead, type CacheStatus } from '../repo/readResult'
 import { isEffectivelyOnline } from '../sync/networkMode'
 import { createPlacesSlice } from './slices/placesSlice'
 import { createAssignmentsSlice } from './slices/assignmentsSlice'
@@ -61,6 +62,8 @@ export interface TripStoreState
   categories: Category[]
   budgetItems: BudgetItem[]
   files: TripFile[]
+  budgetAvailability: CacheStatus
+  filesAvailability: CacheStatus
   reservations: Reservation[]
   selectedDayId: number | null
   // Places filter (list + map markers). Lives here, not in the sidebar, so the
@@ -96,6 +99,8 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
   categories: [],
   budgetItems: [],
   files: [],
+  budgetAvailability: 'unknown',
+  filesAvailability: 'unknown',
   reservations: [],
   selectedDayId: null,
   placesFilter: 'all',
@@ -122,6 +127,8 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
     todoItems: [],
     budgetItems: [],
     files: [],
+    budgetAvailability: 'unknown',
+    filesAvailability: 'unknown',
     reservations: [],
     selectedDayId: null,
     placesFilter: 'all',
@@ -142,9 +149,9 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
         // Budget / reservations / files are hydrated here too so the offline
         // path is uniform (no separate tab-gated effects). Non-fatal: a failure
         // in any of these must not blank the whole trip.
-        budgetRepo.list(tripId).catch(() => ({ items: [] as BudgetItem[] })),
+        budgetRepo.list(tripId).catch(() => unavailableRead({ items: [] as BudgetItem[] })),
         reservationRepo.list(tripId).catch(() => ({ reservations: [] as Reservation[] })),
-        fileRepo.list(tripId).catch(() => ({ files: [] as TripFile[] })),
+        fileRepo.list(tripId).catch(() => unavailableRead({ files: [] as TripFile[] })),
         isEffectivelyOnline()
           ? tagsApi.list().catch(() => offlineDb.tags.toArray().then(tags => ({ tags })))
           : offlineDb.tags.toArray().then(tags => ({ tags })),
@@ -169,8 +176,10 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
         packingItems: packingData.items,
         todoItems: todoData.items,
         budgetItems: budgetData.items,
+        budgetAvailability: budgetData.cacheStatus,
         reservations: reservationsData.reservations,
         files: filesData.files,
+        filesAvailability: filesData.cacheStatus,
         tags: tagsData.tags,
         categories: categoriesData.categories,
         isLoading: false,

@@ -162,5 +162,7 @@ const budget: TranslationStrings = {
   'costs.noAttachments': 'Ehhez a kiadáshoz nincs csatolt fájl.',
   'costs.confirm.deleteBodyWithFile': 'A(z) „{name}” véglegesen törlődik. 1 csatolt fájl megmarad.',
   'costs.confirm.deleteBodyWithFiles': 'A(z) „{name}” véglegesen törlődik. {count} csatolt fájl megmarad.',
+  'costs.attachmentsUnavailable': 'A mellékletek részletei offline még nem érhetők el. Csatlakozz a betöltésükhöz.',
+  'costs.expensesUnavailable': 'A kiadások offline még nem érhetők el. Csatlakozz a betöltésükhöz.',
 };
 export default budget;

@@ -69,6 +69,8 @@ export function useTripPlanner() {
   const reservations = useTripStore(s => s.reservations)
   const budgetItems = useTripStore(s => s.budgetItems)
   const files = useTripStore(s => s.files)
+  const budgetAvailability = useTripStore(s => s.budgetAvailability)
+  const filesAvailability = useTripStore(s => s.filesAvailability)
   const selectedDayId = useTripStore(s => s.selectedDayId)
   const isLoading = useTripStore(s => s.isLoading)
   // Actions — stable references, don't cause re-renders
@@ -1046,7 +1048,7 @@ export function useTripPlanner() {
 
   return {
     tripId, navigate, toast, t, language, settings, placesPhotosEnabled,
-    trip, days, places, assignments, packingItems, todoItems, categories, reservations, budgetItems, files,
+    trip, days, places, assignments, packingItems, todoItems, categories, reservations, budgetItems, files, budgetAvailability, filesAvailability,
     selectedDayId, isLoading, tripActions, can, canUploadFiles,
     pushUndo, undo, canUndo, lastActionLabel, handleUndo,
     enabledAddons, collabFeatures, tripAccommodations, setTripAccommodations,

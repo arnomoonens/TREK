@@ -68,5 +68,8 @@ const files: TranslationStrings = {
   'files.confirm.deleteWithExpenses': 'This file is linked to {count} live Expenses. Move it to trash?',
   'files.confirm.permanentDeleteWithExpense': 'This file is linked to 1 live Expense. Permanently delete it?',
   'files.confirm.permanentDeleteWithExpenses': 'This file is linked to {count} live Expenses. Permanently delete it?',
+  'files.offlineUnavailable': 'This file is not available offline. Connect to open or download it.',
+  'files.offlineListUnavailable': 'Files are not available offline yet. Connect to load them.',
+  'files.offlineReadOnly': 'File relationships cannot be changed while offline.',
 };
 export default files;

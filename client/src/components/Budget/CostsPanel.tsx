@@ -10,6 +10,7 @@ import { useTranslation } from '../../i18n'
 import { budgetApi } from '../../api/client'
 import { useExchangeRates } from '../../hooks/useExchangeRates'
 import { useIsMobile } from '../../hooks/useIsMobile'
+import { useNetworkMode } from '../../hooks/useNetworkMode'
 import { formatMoney, currencyDecimals, currencyLocale, localizeAmountInput, cleanAmount } from '../../utils/formatters'
 import { downloadBlob } from '../../utils/fileDownload'
 import Modal from '../shared/Modal'
@@ -68,7 +69,14 @@ const round2 = (n: number) => Math.round(n * 100) / 100
 const FIELD_H = 40 // shared height for the amount / currency / day row in the modal
 
 export default function CostsPanel({ tripId, tripMembers = [] }: CostsPanelProps) {
-  const { trip, budgetItems, files, deleteBudgetItem, loadBudgetItems, loadFiles } = useTripStore()
+  const trip = useTripStore(s => s.trip)
+  const budgetItems = useTripStore(s => s.budgetItems)
+  const files = useTripStore(s => s.files)
+  const budgetAvailability = useTripStore(s => s.budgetAvailability)
+  const filesAvailability = useTripStore(s => s.filesAvailability)
+  const deleteBudgetItem = useTripStore(s => s.deleteBudgetItem)
+  const loadBudgetItems = useTripStore(s => s.loadBudgetItems)
+  const loadFiles = useTripStore(s => s.loadFiles)
   const me = useAuthStore(s => s.user?.id ?? -1)
   const can = useCanDo()
   const canEdit = can('budget_edit', trip)
@@ -340,6 +348,12 @@ export default function CostsPanel({ tripId, tripMembers = [] }: CostsPanelProps
 
   return (
     <div className="costs-root" style={{ minHeight: '100%', background: 'var(--c-bg)', padding: isMobile ? '6px 14px 28px' : '40px 24px 48px' }}>
+     {(budgetAvailability === 'unavailable' || filesAvailability === 'unavailable') && (
+       <div role="alert" className="bg-surface-secondary border border-edge text-content-muted" style={{ maxWidth: '100%', margin: '0 auto 16px', borderRadius: 12, padding: '10px 14px', fontSize: 'calc(12.5px * var(--fs-scale-body, 1))' }}>
+         {budgetAvailability === 'unavailable' && <div>{t('costs.expensesUnavailable')}</div>}
+         {filesAvailability === 'unavailable' && <div>{t('costs.attachmentsUnavailable')}</div>}
+       </div>
+     )}
      {isMobile ? MobileBody() : (
      <div style={{ maxWidth: '100%', margin: '0 auto' }}>
       {/* ── Header bar ── */}
@@ -512,6 +526,7 @@ export default function CostsPanel({ tripId, tripMembers = [] }: CostsPanelProps
           expenseId={attachmentExpense.id}
           expenseName={attachmentExpense.name}
           files={files}
+          attachmentsUnavailable={filesAvailability === 'unavailable'}
           onClose={() => setAttachmentExpense(null)}
         />
       ) : (
@@ -520,6 +535,7 @@ export default function CostsPanel({ tripId, tripMembers = [] }: CostsPanelProps
           expenseId={attachmentExpense.id}
           expenseName={attachmentExpense.name}
           files={files}
+          attachmentsUnavailable={filesAvailability === 'unavailable'}
           onClose={() => setAttachmentExpense(null)}
         />
       ))}
@@ -788,7 +804,7 @@ export default function CostsPanel({ tripId, tripMembers = [] }: CostsPanelProps
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
             <span className="text-content" style={{ fontSize: 'calc(15px * var(--fs-scale-subtitle, 1))', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</span>
-            <ExpenseAttachmentCount count={filesForExpense(files, e.id).length} onClick={() => setAttachmentExpense(e)} />
+            <ExpenseAttachmentCount count={filesForExpense(files, e.id).length} unavailable={filesAvailability === 'unavailable'} onClick={() => setAttachmentExpense(e)} />
             {unfinished && !isMobile && (
               <span title={t('costs.unfinishedHint')} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px 2px 6px', borderRadius: 999, background: 'rgba(217,119,6,0.14)', color: '#d97706', fontSize: 'calc(11px * var(--fs-scale-caption, 1))', fontWeight: 700, flexShrink: 0 }}>
                 <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#d97706', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 'calc(10px * var(--fs-scale-caption, 1))', fontWeight: 800 }}>!</span>
@@ -1079,7 +1095,10 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAt
   const { t, locale } = useTranslation()
   const toast = useToast()
   const isMobile = useIsMobile()
+  const { offline } = useNetworkMode()
   const { addBudgetItem, updateBudgetItem, addFile, files, loadFiles, attachExpenseFile, detachExpenseFile } = useTripStore()
+  const attachmentEditingEnabled = canAttachFiles && !offline
+  const uploadEnabled = canUploadFiles && !offline
   const { convert } = useExchangeRates(base)
   const sym = (c: string) => SYMBOLS[c] || (c + ' ')
 
@@ -1151,7 +1170,7 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAt
   const [selectedFileIds, setSelectedFileIds] = useState<Set<number>>(() =>
     editing ? new Set(filesForExpense(files, editing.id).map(file => file.id)) : new Set()
   )
-  const { stagedUploads, addStagedUploads, removeStagedUpload, markStagedUpload, removeStagedUploadFile } = useExpenseFileStaging(canAttachFiles, canUploadFiles)
+  const { stagedUploads, addStagedUploads, removeStagedUpload, markStagedUpload, removeStagedUploadFile } = useExpenseFileStaging(attachmentEditingEnabled, uploadEnabled)
   const { attachmentFailures, recordResult, forgetStagedUpload } = useExpenseAttachmentRecovery()
   const [retryingAttachmentKey, setRetryingAttachmentKey] = useState<string | null>(null)
 
@@ -1292,7 +1311,7 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAt
   }
 
   const toggleExpenseFile = (fileId: number) => {
-    if (!canAttachFiles) return
+    if (!attachmentEditingEnabled) return
     setAttachmentSelectionTouched(true)
     setSelectedFileIds(previous => {
       const next = new Set(previous)
@@ -1328,8 +1347,8 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAt
       files,
       selectedFileIds,
       stagedUploads,
-      canAttachFiles,
-      canUploadFiles,
+      canAttachFiles: attachmentEditingEnabled,
+      canUploadFiles: uploadEnabled,
       addFile,
       attachExpenseFile,
       detachExpenseFile,
@@ -1343,7 +1362,7 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAt
   }
 
   const retryAttachment = async (failure: ExpenseAttachmentFailure) => {
-    if (saving) return
+    if (saving || offline) return
     const expenseId = editing?.id ?? savedExpenseId
     if (!expenseId) return
     setSaving(true)
@@ -1534,12 +1553,13 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAt
           stagedUploads={stagedUploads}
           onAddUploads={addStagedUploads}
           onRemoveUpload={removeExpenseStagedUpload}
-          canAttachFiles={canAttachFiles}
-          canUploadFiles={canUploadFiles}
+          canAttachFiles={attachmentEditingEnabled}
+          canUploadFiles={uploadEnabled}
           attachmentFailures={attachmentFailures}
           onRetryAttachment={retryAttachment}
           retryingAttachmentKey={retryingAttachmentKey}
           disabled={saving}
+          offline={offline}
         />
 
         </div>

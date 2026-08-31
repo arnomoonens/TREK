@@ -4,7 +4,8 @@ import MDancingTrek from '../../../components/MDancingTrek'
 import { useTranslation, translateApiError } from '../../../../i18n'
 import { filesApi } from '../../../../api/client'
 import { openFile } from '../../../../utils/fileDownload'
-import { isMedia, formatSize } from '../../../../components/Files/FileManager.helpers'
+import { fileErrorMessage, formatSize, isMedia } from '../../../../components/Files/FileManager.helpers'
+import { useNetworkMode } from '../../../../hooks/useNetworkMode'
 import type { TripFile } from '../../../../types'
 import { TabScroller } from './tabChrome'
 import type { MTabScreenProps } from './tabModel'
@@ -32,6 +33,7 @@ const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 export default function MFilesTab({ planner, shell }: MTabScreenProps) {
   const { t } = planner
   const files = planner.files || []
+  const { offline } = useNetworkMode()
 
   const [filter, setFilter] = useState<FileFilterId>('all')
   const [menuFileId, setMenuFileId] = useState<number | null>(null)
@@ -49,12 +51,17 @@ export default function MFilesTab({ planner, shell }: MTabScreenProps) {
   const lastUploadSignal = useRef(shell.uploadFilesSignal)
   useEffect(() => {
     if (shell.uploadFilesSignal !== lastUploadSignal.current && shell.uploadFilesSignal > 0) {
-      inputRef.current?.click()
+      if (offline) planner.toast.error(t('files.offlineReadOnly'))
+      else inputRef.current?.click()
     }
     lastUploadSignal.current = shell.uploadFilesSignal
-  }, [shell.uploadFilesSignal])
+  }, [shell.uploadFilesSignal, offline, planner.toast, t])
 
   const uploadFiles = async (list: File[]) => {
+    if (offline) {
+      planner.toast.error(t('files.offlineReadOnly'))
+      return
+    }
     const tooBig = list.filter(f => f.size > MAX_UPLOAD_BYTES)
     const okFiles = list.filter(f => f.size <= MAX_UPLOAD_BYTES)
     if (tooBig.length > 0) planner.toast.error(t('files.uploadErrorSize'))
@@ -85,7 +92,7 @@ export default function MFilesTab({ planner, shell }: MTabScreenProps) {
   }
 
   const onPaste = (e: ClipboardEvent<HTMLDivElement>) => {
-    if (!planner.canUploadFiles) return
+    if (offline || !planner.canUploadFiles) return
     const items = e.clipboardData?.items
     if (!items) return
     const pasted: File[] = []
@@ -133,7 +140,7 @@ export default function MFilesTab({ planner, shell }: MTabScreenProps) {
       // handling as the transport/reservation file chips: openFile() opens PDFs
       // inline (SAFE_INLINE_TYPES) and forces a download for anything unsafe
       // (incl. .pkpass, so it reaches Apple Wallet, #1447).
-      openFile(file.url, file.original_name).catch(() => planner.toast.error(t('files.openError')))
+      openFile(file.url, file.original_name).catch(error => planner.toast.error(fileErrorMessage(t, error)))
     }
   }
 
@@ -143,7 +150,7 @@ export default function MFilesTab({ planner, shell }: MTabScreenProps) {
   return (
     <TabScroller>
       <div onPaste={onPaste} tabIndex={-1} className="flex min-h-full flex-col">
-        <input ref={inputRef} type="file" multiple className="hidden" onChange={onPickFiles} />
+        <input ref={inputRef} type="file" multiple className="hidden" onChange={onPickFiles} disabled={offline} />
 
         {uploading && (
           <div className="mb-2 flex items-center justify-center gap-2 rounded-full bg-[color:var(--m-ic)] px-3 py-[6px] font-geist text-[0.6875rem] font-bold text-m-muted">
@@ -152,7 +159,11 @@ export default function MFilesTab({ planner, shell }: MTabScreenProps) {
           </div>
         )}
 
-        {isEmpty ? (
+        {planner.filesAvailability === 'unavailable' ? (
+          <div className="flex flex-1 items-center justify-center px-8 py-10 text-center">
+            <p role="alert" className="font-geist text-[0.8125rem] font-medium text-m-muted">{t('files.offlineListUnavailable')}</p>
+          </div>
+        ) : isEmpty ? (
           <div className="flex flex-1 flex-col items-center justify-center px-8 py-10 text-center">
             <MDancingTrek scene="files" className="mb-2" />
             <p className="font-geist text-[0.8125rem] font-medium text-m-muted">{t('mobileTrip.filesEmpty')}</p>

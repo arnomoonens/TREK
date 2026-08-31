@@ -18,9 +18,9 @@ import {
   upsertPlaces,
   upsertPackingItems,
   upsertTodoItems,
-  upsertBudgetItems,
+  replaceBudgetItems,
   upsertReservations,
-  upsertTripFiles,
+  replaceTripFiles,
   upsertAccommodations,
   upsertTripMembers,
   upsertTags,
@@ -107,9 +107,9 @@ async function syncTrip(tripId: number): Promise<void> {
   await upsertPlaces(bundle.places)
   await upsertPackingItems(bundle.packingItems)
   await upsertTodoItems(bundle.todoItems)
-  await upsertBudgetItems(bundle.budgetItems)
+  await replaceBudgetItems(tripId, bundle.budgetItems)
   await upsertReservations(bundle.reservations)
-  await upsertTripFiles(bundle.files)
+  await replaceTripFiles(tripId, bundle.files)
   await upsertAccommodations(bundle.accommodations || [])
   await upsertTripMembers(tripId, bundle.members || [])
   await upsertSyncMeta({
@@ -118,6 +118,8 @@ async function syncTrip(tripId: number): Promise<void> {
     status: 'idle',
     tilesBbox: null,
     filesCachedCount: 0,
+    budgetMetadataCachedAt: Date.now(),
+    filesMetadataCachedAt: Date.now(),
   })
 }
 

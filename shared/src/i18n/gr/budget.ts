@@ -163,5 +163,7 @@ const budget: TranslationStrings = {
   'costs.noAttachments': 'Δεν υπάρχουν αρχεία συνημμένα σε αυτή τη δαπάνη.',
   'costs.confirm.deleteBodyWithFile': 'Το «{name}» θα διαγραφεί οριστικά. Θα παραμείνει 1 συνημμένο αρχείο.',
   'costs.confirm.deleteBodyWithFiles': 'Το «{name}» θα διαγραφεί οριστικά. Θα παραμείνουν {count} συνημμένα αρχεία.',
+  'costs.attachmentsUnavailable': 'Οι λεπτομέρειες των συνημμένων δεν είναι ακόμη διαθέσιμες εκτός σύνδεσης. Συνδεθείτε για να τις φορτώσετε.',
+  'costs.expensesUnavailable': 'Οι δαπάνες δεν είναι ακόμη διαθέσιμες εκτός σύνδεσης. Συνδεθείτε για να τις φορτώσετε.',
 };
 export default budget;

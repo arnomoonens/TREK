@@ -409,6 +409,28 @@ describe('AssignModal expense list', () => {
     await waitFor(() => expect(detachExpenseFile).toHaveBeenCalledWith(3, 12, 7))
     expect(refreshFiles).toHaveBeenCalled()
   })
+
+  it('FE-W5ASG-036: disables every relationship control while offline', () => {
+    const expense = buildBudgetItem({ id: 12, name: 'Dinner' })
+    render(<AssignModal {...state({
+      places: [place(1, 'Louvre')],
+      reservations: [reservation(10, 'Hotel Lutetia', 'hotel')],
+      expenses: [expense],
+      offline: true,
+      can: () => true,
+      attachExpenseFile,
+      detachExpenseFile,
+    })} />)
+
+    expect(screen.getByPlaceholderText('files.notePlaceholder')).toBeDisabled()
+    for (const name of ['Louvre', 'Hotel Lutetia', 'Dinner']) {
+      expect(screen.getByRole('button', { name })).toBeDisabled()
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dinner' }))
+    expect(attachExpenseFile).not.toHaveBeenCalled()
+    expect(detachExpenseFile).not.toHaveBeenCalled()
+  })
 })
 
 describe('AssignModal split layout', () => {

@@ -68,5 +68,8 @@ const files: TranslationStrings = {
   'files.confirm.deleteWithExpenses': 'Bu dosya {count} etkin harcamaya bağlı. Çöp kutusuna taşınsın mı?',
   'files.confirm.permanentDeleteWithExpense': 'Bu dosya 1 etkin harcamaya bağlı. Kalıcı olarak silinsin mi?',
   'files.confirm.permanentDeleteWithExpenses': 'Bu dosya {count} etkin harcamaya bağlı. Kalıcı olarak silinsin mi?',
+  'files.offlineUnavailable': 'Bu dosya çevrimdışı kullanılamıyor. Açmak veya indirmek için bağlanın.',
+  'files.offlineListUnavailable': 'Dosyalar henüz çevrimdışı kullanılamıyor. Yüklemek için bağlanın.',
+  'files.offlineReadOnly': 'Dosya ilişkileri çevrimdışı değiştirilemez.',
 };
 export default files;

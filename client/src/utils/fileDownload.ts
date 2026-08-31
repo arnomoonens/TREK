@@ -1,5 +1,6 @@
 import { getCachedBlob } from '../db/offlineDb'
 import { isEffectivelyOffline } from '../sync/networkMode'
+import { OfflineFileUnavailableError } from './offlineFile'
 
 // MIME types safe to open inline (will not execute script in any browser).
 // Everything else (text/html, image/svg+xml, text/javascript, …) is forced to
@@ -55,7 +56,7 @@ async function getFileBlob(url: string): Promise<Blob> {
   if (typeof navigator !== 'undefined' && isEffectivelyOffline()) {
     const cached = await getCachedBlob(url)
     if (cached) return cached
-    throw new Error('File not available offline')
+    throw new OfflineFileUnavailableError()
   }
   let resp: Response
   try {

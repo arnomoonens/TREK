@@ -163,5 +163,7 @@ const budget: TranslationStrings = {
 
   'costs.confirm.deleteBodyWithFile': '"{name}" sẽ bị xóa vĩnh viễn. 1 tệp đính kèm sẽ được giữ lại.',
   'costs.confirm.deleteBodyWithFiles': '"{name}" sẽ bị xóa vĩnh viễn. {count} tệp đính kèm sẽ được giữ lại.',
+  'costs.attachmentsUnavailable': 'Chi tiết tệp đính kèm chưa khả dụng khi ngoại tuyến. Hãy kết nối để tải chúng.',
+  'costs.expensesUnavailable': 'Các khoản chi chưa khả dụng khi ngoại tuyến. Hãy kết nối để tải chúng.',
 };
 export default budget;

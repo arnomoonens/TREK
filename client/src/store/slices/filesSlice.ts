@@ -4,6 +4,7 @@ import type { StoreApi } from 'zustand'
 import type { TripStoreState } from '../tripStore'
 import type { TripFile } from '../../types'
 import { getApiErrorMessage } from '../../types'
+import { isEffectivelyOffline } from '../../sync/networkMode'
 
 type SetState = StoreApi<TripStoreState>['setState']
 type GetState = StoreApi<TripStoreState>['getState']
@@ -18,13 +19,18 @@ export const createFilesSlice = (set: SetState, get: GetState): FilesSlice => ({
   loadFiles: async (tripId) => {
     try {
       const data = await fileRepo.list(tripId)
-      set({ files: data.files })
+      if (data.cacheStatus === 'unavailable') {
+        set({ filesAvailability: data.cacheStatus })
+        return
+      }
+      set({ files: data.files, filesAvailability: data.cacheStatus })
     } catch (err: unknown) {
       console.error('Failed to load files:', err)
     }
   },
 
   addFile: async (tripId, formData) => {
+    if (isEffectivelyOffline()) throw new Error('File uploads are unavailable offline')
     try {
       const data = await filesApi.upload(tripId, formData)
       set(state => ({ files: [data.file, ...state.files] }))

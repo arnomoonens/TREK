@@ -68,5 +68,8 @@ const files: TranslationStrings = {
   'files.confirm.deleteWithExpenses': 'Diese Datei ist mit {count} aktiven Ausgaben verknüpft. In den Papierkorb verschieben?',
   'files.confirm.permanentDeleteWithExpense': 'Diese Datei ist mit 1 aktiven Ausgabe verknüpft. Endgültig löschen?',
   'files.confirm.permanentDeleteWithExpenses': 'Diese Datei ist mit {count} aktiven Ausgaben verknüpft. Endgültig löschen?',
+  'files.offlineUnavailable': 'Diese Datei ist offline nicht verfügbar. Verbinde dich, um sie zu öffnen oder herunterzuladen.',
+  'files.offlineListUnavailable': 'Dateien sind offline noch nicht verfügbar. Verbinde dich, um sie zu laden.',
+  'files.offlineReadOnly': 'Dateiverknüpfungen können offline nicht geändert werden.',
 };
 export default files;

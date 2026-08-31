@@ -1,4 +1,4 @@
-// FE-REPO-BUDGET-001 to FE-REPO-BUDGET-004
+// FE-REPO-BUDGET-001 to FE-REPO-BUDGET-006
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'
 import { http, HttpResponse } from 'msw'
@@ -27,6 +27,8 @@ describe('budgetRepo.list', () => {
 
     const result = await budgetRepo.list(12)
     expect(result.items[0].total_price).toBe(420)
+    expect(result.source).toBe('network')
+    expect(result.cacheStatus).toBe('available')
 
     await new Promise(r => setTimeout(r, 0))
     expect((await offlineDb.budgetItems.get(61))!.name).toBe('Hotel')
@@ -41,14 +43,34 @@ describe('budgetRepo.list', () => {
 
     const result = await budgetRepo.list('12')
     expect(result.items.map(i => i.id)).toEqual([62])
+    expect(result.cacheStatus).toBe('available')
   })
 
-  it('FE-REPO-BUDGET-003: offline with an empty cache — returns an empty list', async () => {
+  it('FE-REPO-BUDGET-003: offline with no cache — reports the list as unavailable', async () => {
     setOnline(false)
-    expect((await budgetRepo.list(404)).items).toEqual([])
+    const result = await budgetRepo.list(404)
+    expect(result.items).toEqual([])
+    expect(result.cacheStatus).toBe('unavailable')
   })
 
-  it('FE-REPO-BUDGET-004: a 500 is rethrown, not masked by the cache', async () => {
+  it('FE-REPO-BUDGET-005: an online empty response is known-empty when read offline', async () => {
+    server.use(http.get('/api/trips/12/budget', () => HttpResponse.json({ items: [] })))
+
+    await expect(budgetRepo.list(12)).resolves.toMatchObject({
+      items: [],
+      source: 'network',
+      cacheStatus: 'available',
+    })
+
+    setOnline(false)
+    await expect(budgetRepo.list(12)).resolves.toMatchObject({
+      items: [],
+      source: 'cache',
+      cacheStatus: 'empty',
+    })
+  })
+
+  it('FE-REPO-BUDGET-006: a 500 is rethrown, not masked by the cache', async () => {
     server.use(http.get('/api/trips/12/budget', () => HttpResponse.json({ error: 'boom' }, { status: 500 })))
     await expect(budgetRepo.list(12)).rejects.toThrow()
   })

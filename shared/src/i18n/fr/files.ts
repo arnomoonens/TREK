@@ -69,5 +69,8 @@ const files: TranslationStrings = {
   'files.confirm.deleteWithExpenses': 'Ce fichier est lié à {count} dépenses actives. Le déplacer vers la corbeille ?',
   'files.confirm.permanentDeleteWithExpense': 'Ce fichier est lié à 1 dépense active. Le supprimer définitivement ?',
   'files.confirm.permanentDeleteWithExpenses': 'Ce fichier est lié à {count} dépenses actives. Le supprimer définitivement ?',
+  'files.offlineUnavailable': 'Ce fichier n’est pas disponible hors connexion. Connectez-vous pour l’ouvrir ou le télécharger.',
+  'files.offlineListUnavailable': 'Les fichiers ne sont pas encore disponibles hors connexion. Connectez-vous pour les charger.',
+  'files.offlineReadOnly': 'Les relations entre fichiers ne peuvent pas être modifiées hors connexion.',
 };
 export default files;

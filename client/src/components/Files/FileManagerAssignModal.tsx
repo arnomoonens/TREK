@@ -11,9 +11,10 @@ export function AssignModal(S: FileManagerState) {
   const {
     files, assignFileId, setAssignFileId, t, days, assignments, places, reservations, expenses,
     tripId, trip, can, toast, handleAssign, refreshFiles, attachExpenseFile, detachExpenseFile,
+    offline,
   } = S
   const [busyExpenseId, setBusyExpenseId] = useState<number | null>(null)
-  const canAttachExpenses = can('budget_edit', trip) && can('file_edit', trip)
+  const canAttachExpenses = !offline && can('budget_edit', trip) && can('file_edit', trip)
   return createPortal(
     <div role="presentation" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 5000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onClick={() => setAssignFileId(null)}>
@@ -33,6 +34,7 @@ export function AssignModal(S: FileManagerState) {
           </button>
         </div>
         <div style={{ padding: '8px 12px 0' }}>
+          {offline && <div role="alert" style={{ color: 'var(--text-muted)', fontSize: 'calc(12px * var(--fs-scale-body, 1))', padding: '4px 2px 8px' }}>{t('files.offlineReadOnly')}</div>}
           <div style={{ fontSize: 'calc(11px * var(--fs-scale-caption, 1))', fontWeight: 600, color: 'var(--text-faint)', padding: '0 2px 4px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
             {t('files.noteLabel') || 'Note'}
           </div>
@@ -41,6 +43,7 @@ export function AssignModal(S: FileManagerState) {
             placeholder={t('files.notePlaceholder')}
             defaultValue={files.find(f => f.id === assignFileId)?.description || ''}
             onBlur={e => {
+              if (offline) return
               const val = e.target.value.trim()
               const file = files.find(f => f.id === assignFileId)
               if (file && val !== (file.description || '')) {
@@ -48,6 +51,7 @@ export function AssignModal(S: FileManagerState) {
               }
             }}
             onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+            disabled={offline}
             style={{
               width: '100%', padding: '7px 10px', fontSize: 'calc(13px * var(--fs-scale-body, 1))', borderRadius: 8,
               border: '1px solid var(--border-primary)', background: 'var(--bg-secondary)',
@@ -73,7 +77,7 @@ export function AssignModal(S: FileManagerState) {
             const placeBtn = (p: Place, idx: number) => {
               const isLinked = file.place_id === p.id || (file.linked_place_ids || []).includes(p.id)
               return (
-                <button type="button" key={`${p.id}-${idx}`} onClick={async () => {
+                <button type="button" key={`${p.id}-${idx}`} disabled={offline} onClick={async () => {
                   if (isLinked) {
                     if (file.place_id === p.id) {
                       await handleAssign(file.id, { place_id: null })
@@ -103,7 +107,7 @@ export function AssignModal(S: FileManagerState) {
                   width: '100%', textAlign: 'left', padding: '6px 10px 6px 20px', background: isLinked ? 'var(--bg-hover)' : 'none',
                   border: 'none', cursor: 'pointer', fontSize: 'calc(13px * var(--fs-scale-body, 1))', color: 'var(--text-primary)',
                   borderRadius: 8, fontFamily: 'inherit', fontWeight: isLinked ? 600 : 400,
-                  display: 'flex', alignItems: 'center', gap: 6,
+                  display: 'flex', alignItems: 'center', gap: 6, opacity: offline ? 0.55 : 1,
                 }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
                   onMouseLeave={e => e.currentTarget.style.background = isLinked ? 'var(--bg-hover)' : 'transparent'}>
@@ -152,7 +156,7 @@ export function AssignModal(S: FileManagerState) {
               const isLinked = file.reservation_id === r.id || (file.linked_reservation_ids || []).includes(r.id)
               const Icon = TRANSPORT_TYPES.has(r.type) ? transportIcon(r.type) : Ticket
               return (
-                <button type="button" key={r.id} onClick={async () => {
+                <button type="button" key={r.id} disabled={offline} onClick={async () => {
                   if (isLinked) {
                     if (file.reservation_id === r.id) {
                       await handleAssign(file.id, { reservation_id: null })
@@ -182,7 +186,7 @@ export function AssignModal(S: FileManagerState) {
                   width: '100%', textAlign: 'left', padding: '6px 10px 6px 20px', background: isLinked ? 'var(--bg-hover)' : 'none',
                   border: 'none', cursor: 'pointer', fontSize: 'calc(13px * var(--fs-scale-body, 1))', color: 'var(--text-primary)',
                   borderRadius: 8, fontFamily: 'inherit', fontWeight: isLinked ? 600 : 400,
-                  display: 'flex', alignItems: 'center', gap: 6,
+                  display: 'flex', alignItems: 'center', gap: 6, opacity: offline ? 0.55 : 1,
                 }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
                   onMouseLeave={e => e.currentTarget.style.background = isLinked ? 'var(--bg-hover)' : 'transparent'}>

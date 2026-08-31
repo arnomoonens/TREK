@@ -2,10 +2,10 @@ import { createPortal } from 'react-dom'
 import { ExternalLink, Download, X } from 'lucide-react'
 import { openFile as openFileUrl } from '../../utils/fileDownload'
 import type { FilePreviewState } from './useFileManager'
-import { triggerDownload } from './FileManager.helpers'
+import { fileErrorMessage, triggerDownload } from './FileManager.helpers'
 
 export function PdfPreviewModal(S: FilePreviewState) {
-  const { previewFile, setPreviewFile, previewFileUrl, toast, t } = S
+  const { previewFile, setPreviewFile, previewFileUrl, previewUnavailable, toast, t } = S
   if (!previewFile) return null
 
   return createPortal(
@@ -23,14 +23,14 @@ export function PdfPreviewModal(S: FilePreviewState) {
           <span style={{ fontSize: 'calc(13px * var(--fs-scale-body, 1))', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{previewFile.original_name}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <button type="button"
-              onClick={() => openFileUrl(previewFile.url, previewFile.original_name).catch(() => toast.error(t('files.openError')))}
+              onClick={() => openFileUrl(previewFile.url, previewFile.original_name).catch(error => toast.error(fileErrorMessage(t, error)))}
               style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 'calc(12px * var(--fs-scale-body, 1))', color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'none', padding: '4px 8px', borderRadius: 6, transition: 'color 0.15s' }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'}>
               <ExternalLink size={13} /> {t('files.openTab')}
             </button>
             <button type="button"
-              onClick={() => triggerDownload(previewFile.url, previewFile.original_name)}
+              onClick={() => triggerDownload(previewFile.url, previewFile.original_name, error => toast.error(fileErrorMessage(t, error)))}
               style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 'calc(12px * var(--fs-scale-body, 1))', color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'none', padding: '4px 8px', borderRadius: 6, transition: 'color 0.15s' }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'}>
@@ -44,16 +44,20 @@ export function PdfPreviewModal(S: FilePreviewState) {
             </button>
           </div>
         </div>
-        <object
-          data={previewFileUrl ? `${previewFileUrl}#view=FitH` : undefined}
-          type="application/pdf"
-          style={{ flex: 1, width: '100%', border: 'none' }}
-          title={previewFile.original_name}
-        >
-          <p style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
-            <button type="button" onClick={() => openFileUrl(previewFile.url, previewFile.original_name).catch(() => toast.error(t('files.openError')))} style={{ color: 'var(--text-primary)', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', font: 'inherit' }}>{t('files.downloadPdf')}</button>
-          </p>
-        </object>
+        {previewUnavailable ? (
+          <p role="alert" style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>{t('files.offlineUnavailable')}</p>
+        ) : (
+          <object
+            data={previewFileUrl ? `${previewFileUrl}#view=FitH` : undefined}
+            type="application/pdf"
+            style={{ flex: 1, width: '100%', border: 'none' }}
+            title={previewFile.original_name}
+          >
+            <p style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
+              <button type="button" onClick={() => openFileUrl(previewFile.url, previewFile.original_name).catch(error => toast.error(fileErrorMessage(t, error)))} style={{ color: 'var(--text-primary)', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', font: 'inherit' }}>{t('files.downloadPdf')}</button>
+            </p>
+          </object>
+        )}
       </div>
     </div>,
     document.body

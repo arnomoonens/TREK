@@ -68,5 +68,8 @@ const files: TranslationStrings = {
   'files.confirm.deleteWithExpenses': 'هذا الملف مرتبط بـ {count} مصاريف نشطة. هل تريد نقله إلى سلة المهملات؟',
   'files.confirm.permanentDeleteWithExpense': 'هذا الملف مرتبط بمصروف نشط واحد. هل تريد حذفه نهائيًا؟',
   'files.confirm.permanentDeleteWithExpenses': 'هذا الملف مرتبط بـ {count} مصاريف نشطة. هل تريد حذفه نهائيًا؟',
+  'files.offlineUnavailable': 'هذا الملف غير متاح دون اتصال. اتصل بالإنترنت لفتحه أو تنزيله.',
+  'files.offlineListUnavailable': 'الملفات غير متاحة دون اتصال بعد. اتصل بالإنترنت لتحميلها.',
+  'files.offlineReadOnly': 'لا يمكن تغيير روابط الملفات أثناء عدم الاتصال.',
 };
 export default files;

@@ -68,5 +68,8 @@ const files: TranslationStrings = {
   'files.confirm.deleteWithExpenses': 'このファイルは有効な支出{count}件にリンクされています。ゴミ箱に移動しますか？',
   'files.confirm.permanentDeleteWithExpense': 'このファイルは有効な支出1件にリンクされています。完全に削除しますか？',
   'files.confirm.permanentDeleteWithExpenses': 'このファイルは有効な支出{count}件にリンクされています。完全に削除しますか？',
+  'files.offlineUnavailable': 'このファイルはオフラインでは利用できません。開くかダウンロードするには接続してください。',
+  'files.offlineListUnavailable': 'ファイルはまだオフラインで利用できません。接続して読み込んでください。',
+  'files.offlineReadOnly': 'オフラインではファイルの関連付けを変更できません。',
 };
 export default files;

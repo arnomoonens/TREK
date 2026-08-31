@@ -162,5 +162,7 @@ const budget: TranslationStrings = {
   'costs.noAttachments': 'No hay archivos adjuntos a este gasto.',
   'costs.confirm.deleteBodyWithFile': '"{name}" se eliminará permanentemente. Quedará 1 archivo adjunto.',
   'costs.confirm.deleteBodyWithFiles': '"{name}" se eliminará permanentemente. Quedarán {count} archivos adjuntos.',
+  'costs.attachmentsUnavailable': 'Los detalles de los archivos adjuntos aún no están disponibles sin conexión. Conéctate para cargarlos.',
+  'costs.expensesUnavailable': 'Los gastos aún no están disponibles sin conexión. Conéctate para cargarlos.',
 };
 export default budget;

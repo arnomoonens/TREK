@@ -163,5 +163,7 @@ const budget: TranslationStrings = {
 
   'costs.confirm.deleteBodyWithFile': '"{name}" se suprimirà definitivament. Quedarà 1 fitxer adjunt.',
   'costs.confirm.deleteBodyWithFiles': '"{name}" se suprimirà definitivament. Quedaran {count} fitxers adjunts.',
+  'costs.attachmentsUnavailable': "Els detalls dels fitxers adjunts encara no estan disponibles sense connexió. Connecta't per carregar-los.",
+  'costs.expensesUnavailable': "Les despeses encara no estan disponibles sense connexió. Connecta't per carregar-les.",
 };
 export default budget;
