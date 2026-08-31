@@ -109,6 +109,27 @@ describe('Expense attachment viewer', () => {
     expect(await screen.findByAltText('early-receipt.jpg')).toHaveAttribute('src', '/signed/file')
   })
 
+  it('renders the image lightbox outside the expense dialog so the full image can use the viewport', async () => {
+    render(
+      <ExpenseAttachmentsDialog
+        isOpen
+        expenseId={7}
+        expenseName="Dinner"
+        files={attachmentFiles()}
+        onClose={vi.fn()}
+      />,
+    )
+
+    const imageRow = screen.getAllByTestId('expense-attachment-row')[0]
+    fireEvent.click(within(imageRow).getByTestId('expense-attachment-name'))
+
+    const lightboxImage = await screen.findByAltText('early-receipt.jpg')
+    const lightbox = lightboxImage.closest('[data-testid="file-image-lightbox"]')
+    expect(lightbox).not.toBeNull()
+    expect(lightbox?.parentElement).toBe(document.body)
+    expect(lightbox).toHaveStyle({ zIndex: '20000' })
+  })
+
   it('falls back to the existing type icon when an image thumbnail fails', async () => {
     render(
       <ExpenseAttachmentsDialog

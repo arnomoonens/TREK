@@ -27,9 +27,9 @@ interface ExpenseFilePickerProps {
   offline?: boolean
 }
 
-type PickerTab = 'upload' | 'trip-files'
+type PickerTab = 'upload' | 'expense-files'
 
-/** Existing trip-file selection and new-upload staging for an expense. */
+/** Existing File selection and new-upload staging for an expense. */
 export default function ExpenseFilePicker({
   files,
   selectedFileIds,
@@ -46,7 +46,7 @@ export default function ExpenseFilePicker({
   offline = false,
 }: ExpenseFilePickerProps) {
   const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState<PickerTab>('trip-files')
+  const [activeTab, setActiveTab] = useState<PickerTab>('expense-files')
   const liveFiles = files.filter(file => !file.deleted_at)
   const attachEnabled = canAttachFiles && !disabled && !offline
   const uploadEnabled = attachEnabled && canUploadFiles && !offline
@@ -69,10 +69,10 @@ export default function ExpenseFilePicker({
         <Paperclip size={16} className="text-content-muted" style={{ marginTop: 2, flexShrink: 0 }} />
         <div>
           <div id="expense-files-title" className="text-content" style={{ fontSize: 'calc(13px * var(--fs-scale-body, 1))', fontWeight: 650 }}>
-            {t('costs.tripFiles')}
+            {t('costs.filesForExpense')}
           </div>
           <div className="text-content-faint" style={{ fontSize: 'calc(11.5px * var(--fs-scale-caption, 1))', lineHeight: 1.45, marginTop: 3 }}>
-            {t('costs.tripFilesHint')}
+            {t('costs.filesForExpenseHint')}
           </div>
         </div>
       </div>
@@ -106,12 +106,12 @@ export default function ExpenseFilePicker({
         <button
           type="button"
           role="tab"
-          aria-selected={activeTab === 'trip-files'}
-          onClick={() => setActiveTab('trip-files')}
-          className={activeTab === 'trip-files' ? 'text-content border-b-2' : 'text-content-muted'}
-          style={{ padding: '6px 10px 8px', border: 0, borderBottomColor: activeTab === 'trip-files' ? 'var(--text-primary)' : 'transparent', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'calc(12px * var(--fs-scale-body, 1))', fontWeight: 650 }}
+          aria-selected={activeTab === 'expense-files'}
+          onClick={() => setActiveTab('expense-files')}
+          className={activeTab === 'expense-files' ? 'text-content border-b-2' : 'text-content-muted'}
+          style={{ padding: '6px 10px 8px', border: 0, borderBottomColor: activeTab === 'expense-files' ? 'var(--text-primary)' : 'transparent', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'calc(12px * var(--fs-scale-body, 1))', fontWeight: 650 }}
         >
-          {t('costs.tripFiles')}
+          {t('costs.filesForExpense')}
           {selectedFileIds.size > 0 && ` (${selectedFileIds.size})`}
         </button>
       </div>
@@ -189,10 +189,10 @@ export default function ExpenseFilePicker({
           )}
         </div>
       ) : (
-        <div role="tabpanel" aria-label={t('costs.tripFiles')}>
+        <div role="tabpanel" aria-label={t('costs.filesForExpense')}>
           {liveFiles.length === 0 ? (
             <div className="text-content-faint" style={{ fontSize: 'calc(12px * var(--fs-scale-body, 1))', padding: '8px 0 2px' }}>
-              {t('costs.noTripFiles')}
+              {t('costs.noFilesForExpense')}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

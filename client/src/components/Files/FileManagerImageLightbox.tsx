@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { ExternalLink, Download, X, ChevronLeft, ChevronRight, Play } from 'lucide-react'
 import { useTranslation } from '../../i18n'
 import { useToast } from '../shared/Toast'
@@ -88,13 +89,14 @@ export function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxPro
     </button>
   ) : null
 
-  return (
+  return createPortal(
     <div
+      data-testid="file-image-lightbox"
       // Backdrop only — Escape and the header's close button do the same job for
       // the keyboard. Closing on the backdrop's own clicks (rather than letting
       // every child stop the bubble) keeps the chrome free of click handlers.
       role="presentation"
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 2000, display: 'flex', flexDirection: 'column', paddingBottom: 'var(--bottom-nav-h)' }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 20000, display: 'flex', flexDirection: 'column', paddingBottom: 'var(--bottom-nav-h)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
       onTouchStart={e => setTouchStart(e.touches[0].clientX)}
       onTouchEnd={e => {
@@ -154,7 +156,8 @@ export function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxPro
           ))}
         </div>
       )}
-    </div>
+    </div>,
+    document.body,
   )
 }
 

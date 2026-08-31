@@ -43,6 +43,14 @@ function renderPicker({
 }
 
 describe('ExpenseFilePicker', () => {
+  it('labels the existing files as files for this expense', () => {
+    renderPicker({ files: [buildTripFile({ id: 40, original_name: 'receipt.pdf' })] })
+
+    expect(screen.getByRole('region', { name: 'Files for this expense' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Files for this expense' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Trip files' })).not.toBeInTheDocument()
+  })
+
   it('supports a multi-file drop on the Upload tab', async () => {
     const onAddUploads = vi.fn()
     renderPicker({ canUploadFiles: true, onAddUploads })
