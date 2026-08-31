@@ -43,6 +43,17 @@ function renderPicker({
 }
 
 describe('ExpenseFilePicker', () => {
+  it('keeps the upload icon and label on one line', () => {
+    renderPicker({ canUploadFiles: true })
+
+    expect(screen.getByRole('tab', { name: 'Upload' })).toHaveStyle({
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '5px',
+      whiteSpace: 'nowrap',
+    })
+  })
+
   it('labels the existing files as files for this expense', () => {
     renderPicker({ files: [buildTripFile({ id: 40, original_name: 'receipt.pdf' })] })
 

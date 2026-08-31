@@ -97,9 +97,9 @@ export default function ExpenseFilePicker({
           aria-selected={activeTab === 'upload'}
           onClick={() => setActiveTab('upload')}
           className={activeTab === 'upload' ? 'text-content border-b-2' : 'text-content-muted'}
-          style={{ padding: '6px 10px 8px', border: 0, borderBottomColor: activeTab === 'upload' ? 'var(--text-primary)' : 'transparent', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'calc(12px * var(--fs-scale-body, 1))', fontWeight: 650 }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap', padding: '6px 10px 8px', border: 0, borderBottomColor: activeTab === 'upload' ? 'var(--text-primary)' : 'transparent', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'calc(12px * var(--fs-scale-body, 1))', fontWeight: 650 }}
         >
-          <Upload size={13} style={{ verticalAlign: '-2px', marginRight: 5 }} />
+          <Upload size={13} style={{ flexShrink: 0 }} />
           {t('costs.uploadFiles')}
           {stagedUploads.length > 0 && ` (${stagedUploads.length})`}
         </button>
