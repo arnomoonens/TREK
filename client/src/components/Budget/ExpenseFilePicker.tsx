@@ -1,9 +1,18 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { Paperclip, Upload, X } from 'lucide-react'
+import { Eye, Paperclip, Upload, X } from 'lucide-react'
 import { useTranslation } from '../../i18n'
+import { useToast } from '../shared/Toast'
 import type { TripFile } from '../../types'
-import { formatSize, getFileIcon } from '../Files/FileManager.helpers'
+import { getAuthUrl } from '../../api/authUrl'
+import { openFile as openFileInTab } from '../../utils/fileDownload'
+import { getCachedFileObjectUrl } from '../../utils/offlineFile'
+import { AuthedImg } from '../Files/FileManagerAuthedImg'
+import { ImageLightbox } from '../Files/FileManagerImageLightbox'
+import { MarkdownPreviewModal } from '../Files/FileManagerMarkdownPreviewModal'
+import { PdfPreviewModal } from '../Files/FileManagerPdfPreviewModal'
+import type { FilePreviewState } from '../Files/useFileManager'
+import { fileErrorMessage, formatSize, getFileIcon, isImage, isMarkdown, isMedia, isWalletPass } from '../Files/FileManager.helpers'
 import type {
   ExpenseAttachmentFailure,
   ExpenseStagedUpload,
@@ -46,8 +55,17 @@ export default function ExpenseFilePicker({
   offline = false,
 }: ExpenseFilePickerProps) {
   const { t } = useTranslation()
+  const toast = useToast()
+  const toastRef = useRef(toast)
+  toastRef.current = toast
   const [activeTab, setActiveTab] = useState<PickerTab>('expense-files')
-  const liveFiles = files.filter(file => !file.deleted_at)
+  const [previewFile, setPreviewFile] = useState<TripFile | null>(null)
+  const [previewFileUrl, setPreviewFileUrl] = useState('')
+  const [previewError, setPreviewError] = useState(false)
+  const [previewUnavailable, setPreviewUnavailable] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+  const liveFiles = useMemo(() => files.filter(file => !file.deleted_at), [files])
+  const mediaFiles = useMemo(() => liveFiles.filter(file => isMedia(file.mime_type)), [liveFiles])
   const attachEnabled = canAttachFiles && !disabled && !offline
   const uploadEnabled = attachEnabled && canUploadFiles && !offline
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -63,8 +81,70 @@ export default function ExpenseFilePicker({
     onRetryAttachment(failure)
   }
 
+  const previewUrl = previewFile?.url
+  useEffect(() => {
+    let objectUrl = ''
+    if (!previewUrl) {
+      setPreviewFileUrl('')
+      setPreviewError(false)
+      setPreviewUnavailable(false)
+      return
+    }
+    let current = true
+    setPreviewFileUrl('')
+    setPreviewError(false)
+    setPreviewUnavailable(false)
+    const resolve = offline
+      ? getCachedFileObjectUrl(previewUrl)
+      : getAuthUrl(previewUrl, 'download')
+    resolve
+      .then(url => {
+        if (current) {
+          objectUrl = offline ? url : ''
+          setPreviewFileUrl(url)
+        } else if (offline) {
+          URL.revokeObjectURL(url)
+        }
+      })
+      .catch(() => {
+        if (!current) return
+        if (offline) setPreviewUnavailable(true)
+        else {
+          setPreviewError(true)
+          toastRef.current.error(t('files.openError'))
+        }
+      })
+    return () => {
+      current = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [previewUrl, t, offline])
+
+  const openFile = (file: TripFile) => {
+    if (isMedia(file.mime_type)) {
+      const index = mediaFiles.findIndex(candidate => candidate.id === file.id)
+      setLightboxIndex(index >= 0 ? index : 0)
+      return
+    }
+    if (isWalletPass(file.mime_type, file.original_name)) {
+      openFileInTab(file.url, file.original_name).catch(error => toastRef.current.error(fileErrorMessage(t, error)))
+      return
+    }
+    setPreviewFile(file)
+  }
+
+  const previewState: FilePreviewState = {
+    previewFile,
+    setPreviewFile,
+    previewFileUrl: previewError ? '' : previewFileUrl,
+    previewUnavailable,
+    toast,
+    t,
+  }
+
   return (
-    <section className="rounded-2xl border border-edge bg-surface-secondary p-4" aria-labelledby="expense-files-title">
+    <>
+      <section className="rounded-2xl border border-edge bg-surface-secondary p-4" aria-labelledby="expense-files-title">
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9, marginBottom: 10 }}>
         <Paperclip size={16} className="text-content-muted" style={{ marginTop: 2, flexShrink: 0 }} />
         <div>
@@ -201,25 +281,41 @@ export default function ExpenseFilePicker({
                 const metadata = [formatSize(file.file_size), file.mime_type].filter(Boolean).join(' · ')
                 const failure = attachmentFailures.find(current => current.fileId === file.id)
                 const retrying = failure?.key === retryingAttachmentKey
+                const inputId = `expense-file-${file.id}`
                 return (
-                  <div key={file.id} className="bg-surface-card border border-edge" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 10, opacity: canAttachFiles ? 1 : 0.65 }}>
-                    <label style={{ minWidth: 0, flex: 1, display: 'flex', alignItems: 'center', gap: 9, cursor: attachEnabled ? 'pointer' : 'default' }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedFileIds.has(file.id)}
-                        onChange={() => onToggleFile(file.id)}
-                        disabled={!attachEnabled}
-                        aria-label={file.original_name}
-                        style={{ accentColor: 'var(--text-primary)', flexShrink: 0 }}
-                      />
-                      <Icon size={16} className="text-content-muted" style={{ flexShrink: 0 }} />
+                  <div key={file.id} data-testid={`expense-file-row-${file.id}`} className="bg-surface-card border border-edge" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 10, opacity: canAttachFiles ? 1 : 0.65 }}>
+                    <input
+                      id={inputId}
+                      type="checkbox"
+                      checked={selectedFileIds.has(file.id)}
+                      onChange={() => onToggleFile(file.id)}
+                      disabled={!attachEnabled}
+                      aria-label={file.original_name}
+                      style={{ accentColor: 'var(--text-primary)', flexShrink: 0 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => openFile(file)}
+                      aria-label={file.original_name}
+                      title={t('common.open')}
+                      style={{ width: 42, height: 42, flexShrink: 0, display: 'grid', placeItems: 'center', overflow: 'hidden', borderRadius: 9, border: 0, padding: 0, background: 'var(--bg-tertiary)', color: 'var(--text-muted)', cursor: 'pointer' }}
+                    >
+                      {isImage(file.mime_type)
+                        ? <AuthedImg
+                            src={file.url}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            fallback={<Icon data-testid="expense-file-type-icon" size={20} strokeWidth={1.8} />}
+                          />
+                        : <Icon size={20} strokeWidth={1.8} />}
+                    </button>
+                    <label htmlFor={inputId} style={{ minWidth: 0, flex: 1, display: 'flex', cursor: attachEnabled ? 'pointer' : 'default' }}>
                       <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <span className="text-content" style={{ fontSize: 'calc(12.5px * var(--fs-scale-body, 1))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {file.original_name}
-                        </span>
-                        {metadata && <span className="text-content-faint" style={{ fontSize: 'calc(10.5px * var(--fs-scale-caption, 1))' }}>{metadata}</span>}
-                        {file.description && <span className="text-content-muted" style={{ fontSize: 'calc(10.5px * var(--fs-scale-caption, 1))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.description}</span>}
-                        {failure && <span data-testid="expense-attachment-failure" className="text-content-muted" style={{ fontSize: 'calc(10.5px * var(--fs-scale-caption, 1))' }}>{t('costs.attachmentFailed')}: {failure.fileName}</span>}
+                          <span className="text-content" style={{ fontSize: 'calc(12.5px * var(--fs-scale-body, 1))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {file.original_name}
+                          </span>
+                          {metadata && <span className="text-content-faint" style={{ fontSize: 'calc(10.5px * var(--fs-scale-caption, 1))' }}>{metadata}</span>}
+                          {file.description && <span className="text-content-muted" style={{ fontSize: 'calc(10.5px * var(--fs-scale-caption, 1))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.description}</span>}
+                          {failure && <span data-testid="expense-attachment-failure" className="text-content-muted" style={{ fontSize: 'calc(10.5px * var(--fs-scale-caption, 1))' }}>{t('costs.attachmentFailed')}: {failure.fileName}</span>}
                       </span>
                     </label>
                     {failure && onRetryAttachment && (
@@ -234,6 +330,17 @@ export default function ExpenseFilePicker({
                         {t('costs.retryAttachment')}
                       </button>
                     )}
+                    <button
+                      type="button"
+                      data-testid="expense-file-preview"
+                      onClick={() => openFile(file)}
+                      aria-label={`${t('common.open')} ${file.original_name}`}
+                      title={t('common.open')}
+                      className="text-content-muted hover:text-content"
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 6, border: 0, background: 'none', cursor: 'pointer', flexShrink: 0 }}
+                    >
+                      <Eye size={15} />
+                    </button>
                   </div>
                 )
               })}
@@ -241,6 +348,13 @@ export default function ExpenseFilePicker({
           )}
         </div>
       )}
-    </section>
+      </section>
+      {lightboxIndex !== null && (
+        <ImageLightbox files={mediaFiles} initialIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
+      )}
+      {previewFile && (isMarkdown(previewFile.mime_type, previewFile.original_name)
+        ? <MarkdownPreviewModal {...previewState} />
+        : <PdfPreviewModal {...previewState} />)}
+    </>
   )
 }

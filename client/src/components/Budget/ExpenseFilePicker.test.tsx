@@ -5,11 +5,18 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '../../../tests/helpers/render'
 import { buildTripFile } from '../../../tests/helpers/factories'
 import ExpenseFilePicker, {
   type ExpenseStagedUpload,
 } from './ExpenseFilePicker'
+
+const getAuthUrl = vi.fn(async (url: string, _kind: string) => `${url}?token=abc`)
+
+vi.mock('../../api/authUrl', () => ({
+  getAuthUrl: (url: string, kind: string) => getAuthUrl(url, kind),
+}))
 
 function renderPicker({
   files = [],
@@ -60,6 +67,29 @@ describe('ExpenseFilePicker', () => {
     expect(screen.getByRole('region', { name: 'Files for this expense' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Files for this expense' })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'Trip files' })).not.toBeInTheDocument()
+  })
+
+  it('shows image thumbnails and a preview action for every file', async () => {
+    const image = buildTripFile({ id: 44, original_name: 'receipt.jpg', mime_type: 'image/jpeg' })
+    const pdf = buildTripFile({ id: 45, original_name: 'invoice.pdf' })
+    renderPicker({ files: [image, pdf] })
+
+    await waitFor(() => expect(screen.getByTestId('expense-file-row-44').querySelector('img')).not.toBeNull())
+    expect(screen.getAllByTestId('expense-file-preview')).toHaveLength(2)
+    expect(getAuthUrl).toHaveBeenCalledWith(image.url, 'download')
+  })
+
+  it('opens image and document previews from the Files for this expense tab', async () => {
+    const image = buildTripFile({ id: 46, original_name: 'receipt.jpg', mime_type: 'image/jpeg' })
+    const pdf = buildTripFile({ id: 47, original_name: 'invoice.pdf' })
+    renderPicker({ files: [image, pdf] })
+
+    fireEvent.click(within(screen.getByTestId('expense-file-row-46')).getByRole('button', { name: 'Open receipt.jpg' }))
+    expect(await screen.findByAltText('receipt.jpg')).toHaveAttribute('src', `${image.url}?token=abc`)
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    fireEvent.click(within(screen.getByTestId('expense-file-row-47')).getByRole('button', { name: 'Open invoice.pdf' }))
+    await waitFor(() => expect(screen.getByTitle('invoice.pdf')).toHaveAttribute('data', `${pdf.url}?token=abc#view=FitH`))
   })
 
   it('supports a multi-file drop on the Upload tab', async () => {
