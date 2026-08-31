@@ -205,6 +205,41 @@ describe('MCostSheet', () => {
     expect(events.indexOf('upload:ticket.pdf')).toBeLessThan(events.indexOf('attach:202'))
   })
 
+  it('FE-MOB-COSTSH-002d: keeps a partial attachment save open and retries only the failed File', async () => {
+    const user = userEvent.setup()
+    const first = buildTripFile({ id: 71, original_name: 'failed.pdf', linked_expense_ids: [] })
+    const second = buildTripFile({ id: 72, original_name: 'saved.pdf', linked_expense_ids: [] })
+    let actualFiles = [first, second]
+    let firstAttempts = 0
+    const addBudgetItem = vi.fn(async () => buildBudgetItem({ id: 9, trip_id: 1, name: 'Dinner', total_price: 30 }))
+    const attachExpenseFile = vi.fn(async (_tripId: number, _expenseId: number, fileId: number) => {
+      if (fileId === first.id && firstAttempts++ === 0) throw new Error('temporary attach failure')
+      actualFiles = actualFiles.map(file => file.id === fileId ? { ...file, linked_expense_ids: [9] } : file)
+      return actualFiles.find(file => file.id === fileId)!
+    })
+    const loadFiles = vi.fn(async () => useTripStore.setState({ files: actualFiles }))
+    useTripStore.setState({ files: actualFiles, addBudgetItem, attachExpenseFile, loadFiles } as unknown as Partial<TripStoreState>)
+
+    const { onSaved } = renderSheet({ canUploadFiles: false })
+    await user.click(screen.getByLabelText(first.original_name))
+    await user.click(screen.getByLabelText(second.original_name))
+    fillBasics('Dinner', '30')
+    fireEvent.click(submit())
+
+    await waitFor(() => expect(screen.getByTestId('expense-attachment-failure-summary')).toHaveTextContent('1 file attachment failed'))
+    expect(addBudgetItem).toHaveBeenCalledTimes(1)
+    expect(loadFiles).toHaveBeenCalledTimes(1)
+    expect(onSaved).not.toHaveBeenCalled()
+    expect(screen.getByLabelText(first.original_name)).not.toBeChecked()
+    expect(screen.getByLabelText(second.original_name)).toBeChecked()
+
+    await user.click(screen.getByRole('button', { name: `Retry ${first.original_name}` }))
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
+    expect(addBudgetItem).toHaveBeenCalledTimes(1)
+    expect(attachExpenseFile.mock.calls.map(call => call[2])).toEqual([first.id, second.id, first.id])
+  })
+
   it('FE-MOB-COSTSH-020: the category dropdown opens, marks the current pick and closes on choose (#1658)', () => {
     renderSheet()
     expect(screen.queryByRole('button', { name: 'Groceries' })).toBeNull()
@@ -633,7 +668,7 @@ describe('MCostSheet', () => {
     fillBasics('Dinner', '20')
     fireEvent.click(submit())
 
-    await waitFor(() => expect(addToast).toHaveBeenCalledWith('Unknown error', 'error', undefined))
+    await waitFor(() => expect(addToast).toHaveBeenCalledWith('The expense could not be saved. No file changes were made.', 'error', undefined))
     expect(onSaved).not.toHaveBeenCalled()
     await waitFor(() => expect(submit()).toBeEnabled())
   })

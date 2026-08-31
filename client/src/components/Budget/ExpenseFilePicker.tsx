@@ -4,7 +4,10 @@ import { Paperclip, Upload, X } from 'lucide-react'
 import { useTranslation } from '../../i18n'
 import type { TripFile } from '../../types'
 import { formatSize, getFileIcon } from '../Files/FileManager.helpers'
-import type { ExpenseStagedUpload } from './expenseAttachmentStaging'
+import type {
+  ExpenseAttachmentFailure,
+  ExpenseStagedUpload,
+} from './expenseAttachmentStaging'
 
 export type { ExpenseStagedUpload } from './expenseAttachmentStaging'
 
@@ -17,6 +20,10 @@ interface ExpenseFilePickerProps {
   onRemoveUpload: (index: number) => void
   canAttachFiles?: boolean
   canUploadFiles?: boolean
+  attachmentFailures?: readonly ExpenseAttachmentFailure[]
+  onRetryAttachment?: (failure: ExpenseAttachmentFailure) => void
+  retryingAttachmentKey?: string | null
+  disabled?: boolean
 }
 
 type PickerTab = 'upload' | 'trip-files'
@@ -31,16 +38,28 @@ export default function ExpenseFilePicker({
   onRemoveUpload,
   canAttachFiles = true,
   canUploadFiles = false,
+  attachmentFailures = [],
+  onRetryAttachment,
+  retryingAttachmentKey = null,
+  disabled = false,
 }: ExpenseFilePickerProps) {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<PickerTab>('trip-files')
   const liveFiles = files.filter(file => !file.deleted_at)
-  const uploadEnabled = canAttachFiles && canUploadFiles
+  const attachEnabled = canAttachFiles && !disabled
+  const uploadEnabled = attachEnabled && canUploadFiles
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: onAddUploads,
     multiple: true,
     disabled: !uploadEnabled,
   })
+
+  const retryLabel = (failure: ExpenseAttachmentFailure) =>
+    `${t('costs.retryAttachment')} ${failure.fileName}`
+  const retry = (failure: ExpenseAttachmentFailure) => {
+    if (!onRetryAttachment || retryingAttachmentKey === failure.key) return
+    onRetryAttachment(failure)
+  }
 
   return (
     <section className="rounded-2xl border border-edge bg-surface-secondary p-4" aria-labelledby="expense-files-title">
@@ -55,6 +74,17 @@ export default function ExpenseFilePicker({
           </div>
         </div>
       </div>
+
+      {attachmentFailures.length > 0 && (
+        <div
+          role="alert"
+          data-testid="expense-attachment-failure-summary"
+          className="border border-edge bg-surface-card text-content"
+          style={{ borderRadius: 10, padding: '8px 10px', marginBottom: 10, fontSize: 'calc(12px * var(--fs-scale-body, 1))' }}
+        >
+          {t(attachmentFailures.length === 1 ? 'costs.attachmentFailure' : 'costs.attachmentsFailure', { count: attachmentFailures.length })}
+        </div>
+      )}
 
       <div role="tablist" style={{ display: 'flex', gap: 4, marginBottom: 10, borderBottom: '1px solid var(--border-primary)' }}>
         <button
@@ -110,23 +140,41 @@ export default function ExpenseFilePicker({
               {stagedUploads.map((staged, index) => {
                 const Icon = getFileIcon(staged.file.type)
                 const metadata = [formatSize(staged.file.size), staged.file.type].filter(Boolean).join(' · ')
+                const failure = attachmentFailures.find(current =>
+                  current.stagedUploadId === staged.id ||
+                  (current.fileId !== undefined && current.fileId === staged.uploadedFile?.id),
+                )
+                const retrying = failure?.key === retryingAttachmentKey
                 return (
-                  <div key={`${staged.file.name}-${staged.file.lastModified}-${index}`} className="bg-surface-card border border-edge" data-testid="expense-staged-upload" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 10 }}>
+                  <div key={staged.id} className="bg-surface-card border border-edge" data-testid="expense-staged-upload" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 10 }}>
                     <Icon size={16} className="text-content-muted" style={{ flexShrink: 0 }} />
                     <span style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
                       <span className="text-content" style={{ fontSize: 'calc(12.5px * var(--fs-scale-body, 1))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {staged.file.name}
                       </span>
                       {metadata && <span className="text-content-faint" style={{ fontSize: 'calc(10.5px * var(--fs-scale-caption, 1))' }}>{metadata}</span>}
+                      {failure && <span data-testid="expense-attachment-failure" className="text-content-muted" style={{ fontSize: 'calc(10.5px * var(--fs-scale-caption, 1))' }}>{t('costs.attachmentFailed')}: {failure.fileName}</span>}
                     </span>
-                    {staged.uploadedFile && <span className="text-content-faint" style={{ fontSize: 'calc(10.5px * var(--fs-scale-caption, 1))' }}>✓</span>}
+                    {failure && onRetryAttachment && (
+                      <button
+                        type="button"
+                        aria-label={retryLabel(failure)}
+                        onClick={() => retry(failure)}
+                        disabled={disabled || retrying}
+                        className="text-content"
+                        style={{ border: 0, background: 'none', padding: '3px 0', fontFamily: 'inherit', fontSize: 'calc(11px * var(--fs-scale-body, 1))', fontWeight: 650, cursor: disabled || retrying ? 'default' : 'pointer', flexShrink: 0 }}
+                      >
+                        {t('costs.retryAttachment')}
+                      </button>
+                    )}
+                    {staged.uploadedFile && !failure && <span className="text-content-faint" style={{ fontSize: 'calc(10.5px * var(--fs-scale-caption, 1))' }}>✓</span>}
                     <button
                       type="button"
                       aria-label={`${t('files.unlink')} ${staged.file.name}`}
                       onClick={() => onRemoveUpload(index)}
-                      disabled={!uploadEnabled}
+                      disabled={!uploadEnabled || Boolean(staged.uploadedFile && failure)}
                       className="text-content-muted"
-                      style={{ display: 'grid', placeItems: 'center', padding: 3, border: 0, background: 'none', cursor: uploadEnabled ? 'pointer' : 'default', flexShrink: 0 }}
+                      style={{ display: 'grid', placeItems: 'center', padding: 3, border: 0, background: 'none', cursor: uploadEnabled && !(staged.uploadedFile && failure) ? 'pointer' : 'default', flexShrink: 0 }}
                     >
                       <X size={15} />
                     </button>
@@ -147,25 +195,42 @@ export default function ExpenseFilePicker({
               {liveFiles.map(file => {
                 const Icon = getFileIcon(file.mime_type)
                 const metadata = [formatSize(file.file_size), file.mime_type].filter(Boolean).join(' · ')
+                const failure = attachmentFailures.find(current => current.fileId === file.id)
+                const retrying = failure?.key === retryingAttachmentKey
                 return (
-                  <label key={file.id} className="bg-surface-card border border-edge" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 10, cursor: canAttachFiles ? 'pointer' : 'default', opacity: canAttachFiles ? 1 : 0.65 }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedFileIds.has(file.id)}
-                      onChange={() => onToggleFile(file.id)}
-                      disabled={!canAttachFiles}
-                      aria-label={file.original_name}
-                      style={{ accentColor: 'var(--text-primary)', flexShrink: 0 }}
-                    />
-                    <Icon size={16} className="text-content-muted" style={{ flexShrink: 0 }} />
-                    <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <span className="text-content" style={{ fontSize: 'calc(12.5px * var(--fs-scale-body, 1))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {file.original_name}
+                  <div key={file.id} className="bg-surface-card border border-edge" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 10, opacity: canAttachFiles ? 1 : 0.65 }}>
+                    <label style={{ minWidth: 0, flex: 1, display: 'flex', alignItems: 'center', gap: 9, cursor: attachEnabled ? 'pointer' : 'default' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedFileIds.has(file.id)}
+                        onChange={() => onToggleFile(file.id)}
+                        disabled={!attachEnabled}
+                        aria-label={file.original_name}
+                        style={{ accentColor: 'var(--text-primary)', flexShrink: 0 }}
+                      />
+                      <Icon size={16} className="text-content-muted" style={{ flexShrink: 0 }} />
+                      <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span className="text-content" style={{ fontSize: 'calc(12.5px * var(--fs-scale-body, 1))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {file.original_name}
+                        </span>
+                        {metadata && <span className="text-content-faint" style={{ fontSize: 'calc(10.5px * var(--fs-scale-caption, 1))' }}>{metadata}</span>}
+                        {file.description && <span className="text-content-muted" style={{ fontSize: 'calc(10.5px * var(--fs-scale-caption, 1))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.description}</span>}
+                        {failure && <span data-testid="expense-attachment-failure" className="text-content-muted" style={{ fontSize: 'calc(10.5px * var(--fs-scale-caption, 1))' }}>{t('costs.attachmentFailed')}: {failure.fileName}</span>}
                       </span>
-                      {metadata && <span className="text-content-faint" style={{ fontSize: 'calc(10.5px * var(--fs-scale-caption, 1))' }}>{metadata}</span>}
-                      {file.description && <span className="text-content-muted" style={{ fontSize: 'calc(10.5px * var(--fs-scale-caption, 1))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.description}</span>}
-                    </span>
-                  </label>
+                    </label>
+                    {failure && onRetryAttachment && (
+                      <button
+                        type="button"
+                        aria-label={retryLabel(failure)}
+                        onClick={(event) => { event.preventDefault(); event.stopPropagation(); retry(failure) }}
+                        disabled={disabled || retrying}
+                        className="text-content"
+                        style={{ border: 0, background: 'none', padding: '3px 0', fontFamily: 'inherit', fontSize: 'calc(11px * var(--fs-scale-body, 1))', fontWeight: 650, cursor: disabled || retrying ? 'default' : 'pointer', flexShrink: 0 }}
+                      >
+                        {t('costs.retryAttachment')}
+                      </button>
+                    )}
+                  </div>
                 )
               })}
             </div>

@@ -1459,7 +1459,7 @@ describe('CostsPanel — expense modal', () => {
     const submits = screen.getAllByRole('button', { name: 'Add expense' })
     await user.click(submits[submits.length - 1])
 
-    await waitFor(() => expect(addToast).toHaveBeenCalledWith('Unknown error', 'error', undefined))
+    await waitFor(() => expect(addToast).toHaveBeenCalledWith('The expense could not be saved. No file changes were made.', 'error', undefined))
     expect(screen.getByPlaceholderText('e.g. Dinner, souvenirs, gas…')).toBeInTheDocument()
     delete window.__addToast
   })
@@ -2220,5 +2220,242 @@ describe('CostsPanel — expense file attachment staging', () => {
 
     await user.click(screen.getByTitle('Edit'))
     expect(await screen.findByLabelText('saved.pdf')).toBeChecked()
+  })
+
+  it('keeps the saved Expense open after a partial attach and retries only the failed File', async () => {
+    const user = userEvent.setup()
+    const first = buildTripFile({ id: 701, trip_id: 1, original_name: 'failed-receipt.pdf', linked_expense_ids: [] })
+    const second = buildTripFile({ id: 702, trip_id: 1, original_name: 'saved-ticket.pdf', linked_expense_ids: [] })
+    let actualFiles = [first, second]
+    const addBudgetItem = vi.fn(async () => buildBudgetItem({ id: 77, trip_id: 1, name: 'Dinner', total_price: 30, members: [], payers: [] }))
+    const attachCalls: number[] = []
+    const attachExpenseFile = vi.fn(async (_tripId: number, _expenseId: number, fileId: number) => {
+      attachCalls.push(fileId)
+      if (fileId === first.id && attachCalls.filter(id => id === first.id).length === 1) {
+        throw new Error('temporary attach failure')
+      }
+      actualFiles = actualFiles.map(file => file.id === fileId
+        ? { ...file, linked_expense_ids: [77] }
+        : file)
+      return actualFiles.find(file => file.id === fileId)!
+    })
+    const loadFiles = vi.fn(async () => {
+      useTripStore.setState({ files: actualFiles })
+    })
+    const onSaved = vi.fn()
+    useTripStore.setState({
+      files: actualFiles,
+      addBudgetItem,
+      attachExpenseFile,
+      loadFiles,
+    } as Partial<TripStoreState>)
+
+    render(
+      <ExpenseModal
+        tripId={1}
+        base="EUR"
+        people={tripMembers}
+        me={1}
+        editing={null}
+        canAttachFiles
+        onClose={vi.fn()}
+        onSaved={onSaved}
+      />,
+    )
+
+    await user.click(screen.getByLabelText(first.original_name))
+    await user.click(screen.getByLabelText(second.original_name))
+    await user.type(screen.getByPlaceholderText('e.g. Dinner, souvenirs, gas…'), 'Dinner')
+    await user.type(screen.getAllByPlaceholderText('0,00')[0], '30')
+    await user.click(screen.getByRole('button', { name: 'Add expense' }))
+
+    await waitFor(() => expect(screen.getByTestId('expense-attachment-failure-summary')).toHaveTextContent('1 file attachment failed'))
+    expect(addBudgetItem).toHaveBeenCalledTimes(1)
+    expect(onSaved).not.toHaveBeenCalled()
+    expect(loadFiles).toHaveBeenCalledTimes(1)
+    expect(screen.getByLabelText(first.original_name)).not.toBeChecked()
+    expect(screen.getByLabelText(second.original_name)).toBeChecked()
+    expect(screen.getByTestId('expense-attachment-failure')).toHaveTextContent(first.original_name)
+
+    await user.click(screen.getByRole('button', { name: `Retry ${first.original_name}` }))
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
+    expect(addBudgetItem).toHaveBeenCalledTimes(1)
+    expect(attachCalls).toEqual([first.id, second.id, first.id])
+  })
+
+  it('continues later uploads after one upload fails and retries only that upload', async () => {
+    const user = userEvent.setup()
+    const first = new File(['first'], 'failed-receipt.pdf', { type: 'application/pdf' })
+    const second = new File(['second'], 'saved-ticket.pdf', { type: 'application/pdf' })
+    const actualFiles: ReturnType<typeof buildTripFile>[] = []
+    let firstUploadAttempts = 0
+    let nextFileId = 811
+    const addBudgetItem = vi.fn(async () => buildBudgetItem({ id: 77, trip_id: 1, name: 'Dinner', total_price: 30, members: [], payers: [] }))
+    const addFile = vi.fn(async (_tripId: number, formData: FormData) => {
+      const file = formData.get('file') as File
+      if (file.name === first.name && firstUploadAttempts++ === 0) {
+        throw new Error('temporary upload failure')
+      }
+      const uploaded = buildTripFile({ id: nextFileId++, trip_id: 1, original_name: file.name, filename: file.name, linked_expense_ids: [] })
+      actualFiles.unshift(uploaded)
+      useTripStore.setState({ files: actualFiles })
+      return uploaded
+    })
+    const attachExpenseFile = vi.fn(async (_tripId: number, _expenseId: number, fileId: number) => {
+      const updated = actualFiles.map(file => file.id === fileId ? { ...file, linked_expense_ids: [77] } : file)
+      actualFiles.splice(0, actualFiles.length, ...updated)
+      useTripStore.setState({ files: actualFiles })
+      return actualFiles.find(file => file.id === fileId)!
+    })
+    const loadFiles = vi.fn(async () => useTripStore.setState({ files: actualFiles }))
+    const onSaved = vi.fn()
+    useTripStore.setState({ files: actualFiles, addBudgetItem, addFile, attachExpenseFile, loadFiles } as Partial<TripStoreState>)
+
+    render(
+      <ExpenseModal
+        tripId={1}
+        base="EUR"
+        people={tripMembers}
+        me={1}
+        editing={null}
+        canAttachFiles
+        canUploadFiles
+        onClose={vi.fn()}
+        onSaved={onSaved}
+      />,
+    )
+
+    await user.click(screen.getByRole('tab', { name: 'Upload' }))
+    await user.upload(screen.getByTestId('expense-upload-input'), [first, second])
+    await user.type(screen.getByPlaceholderText('e.g. Dinner, souvenirs, gas…'), 'Dinner')
+    await user.type(screen.getAllByPlaceholderText('0,00')[0], '30')
+    await user.click(screen.getByRole('button', { name: 'Add expense' }))
+
+    await waitFor(() => expect(screen.getByTestId('expense-attachment-failure-summary')).toHaveTextContent('1 file attachment failed'))
+    expect(addBudgetItem).toHaveBeenCalledTimes(1)
+    expect(addFile).toHaveBeenCalledTimes(2)
+    expect(attachExpenseFile).toHaveBeenCalledTimes(1)
+    expect(onSaved).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: `Retry ${first.name}` })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: `Retry ${first.name}` }))
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
+    expect(addBudgetItem).toHaveBeenCalledTimes(1)
+    expect(addFile).toHaveBeenCalledTimes(3)
+    expect(attachExpenseFile).toHaveBeenCalledTimes(2)
+    expect(attachExpenseFile.mock.calls.map(call => call[2])).toEqual([811, 812])
+  })
+
+  it('retains an uploaded File when attach fails and retries attach without uploading again', async () => {
+    const user = userEvent.setup()
+    const receipt = new File(['receipt'], 'receipt.pdf', { type: 'application/pdf' })
+    let uploaded = buildTripFile({ id: 821, trip_id: 1, original_name: receipt.name, filename: receipt.name, linked_expense_ids: [] })
+    let attachAttempts = 0
+    const addBudgetItem = vi.fn(async () => buildBudgetItem({ id: 77, trip_id: 1, name: 'Dinner', total_price: 30, members: [], payers: [] }))
+    const addFile = vi.fn(async () => {
+      useTripStore.setState({ files: [uploaded] })
+      return uploaded
+    })
+    const attachExpenseFile = vi.fn(async () => {
+      attachAttempts += 1
+      if (attachAttempts === 1) throw new Error('temporary attach failure')
+      uploaded = { ...uploaded, linked_expense_ids: [77] }
+      useTripStore.setState({ files: [uploaded] })
+      return uploaded
+    })
+    const loadFiles = vi.fn(async () => useTripStore.setState({ files: [uploaded] }))
+    const onSaved = vi.fn()
+    useTripStore.setState({ addBudgetItem, addFile, attachExpenseFile, loadFiles } as Partial<TripStoreState>)
+
+    render(
+      <ExpenseModal
+        tripId={1}
+        base="EUR"
+        people={tripMembers}
+        me={1}
+        editing={null}
+        canAttachFiles
+        canUploadFiles
+        onClose={vi.fn()}
+        onSaved={onSaved}
+      />,
+    )
+
+    await user.click(screen.getByRole('tab', { name: 'Upload' }))
+    await user.upload(screen.getByTestId('expense-upload-input'), receipt)
+    await user.type(screen.getByPlaceholderText('e.g. Dinner, souvenirs, gas…'), 'Dinner')
+    await user.type(screen.getAllByPlaceholderText('0,00')[0], '30')
+    await user.click(screen.getByRole('button', { name: 'Add expense' }))
+
+    await waitFor(() => expect(screen.getByTestId('expense-attachment-failure-summary')).toHaveTextContent('1 file attachment failed'))
+    expect(addFile).toHaveBeenCalledTimes(1)
+    expect(attachExpenseFile).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('expense-staged-upload')).toHaveTextContent('Attachment failed')
+    expect(onSaved).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: `Retry ${receipt.name}` }))
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
+    expect(addFile).toHaveBeenCalledTimes(1)
+    expect(attachExpenseFile).toHaveBeenCalledTimes(2)
+    expect(screen.queryByTestId('expense-staged-upload')).not.toBeInTheDocument()
+  })
+
+  it('continues after a detach failure and retries only the unresolved detach', async () => {
+    const user = userEvent.setup()
+    const attached = buildTripFile({ id: 831, trip_id: 1, original_name: 'old-receipt.pdf', linked_expense_ids: [88] })
+    const available = buildTripFile({ id: 832, trip_id: 1, original_name: 'new-receipt.pdf', linked_expense_ids: [] })
+    let actualFiles = [attached, available]
+    let detachAttempts = 0
+    const expense = buildBudgetItem({ id: 88, trip_id: 1, name: 'Dinner', total_price: 30, members: [], payers: [] })
+    const addBudgetItem = vi.fn()
+    const updateBudgetItem = vi.fn(async () => expense)
+    const detachExpenseFile = vi.fn(async (_tripId: number, _expenseId: number, fileId: number) => {
+      detachAttempts += 1
+      if (detachAttempts === 1) throw new Error('temporary detach failure')
+      actualFiles = actualFiles.map(file => file.id === fileId ? { ...file, linked_expense_ids: [] } : file)
+      return actualFiles.find(file => file.id === fileId)!
+    })
+    const attachExpenseFile = vi.fn(async (_tripId: number, _expenseId: number, fileId: number) => {
+      actualFiles = actualFiles.map(file => file.id === fileId ? { ...file, linked_expense_ids: [88] } : file)
+      return actualFiles.find(file => file.id === fileId)!
+    })
+    const loadFiles = vi.fn(async () => useTripStore.setState({ files: actualFiles }))
+    const onSaved = vi.fn()
+    useTripStore.setState({ files: actualFiles, addBudgetItem, updateBudgetItem, attachExpenseFile, detachExpenseFile, loadFiles } as Partial<TripStoreState>)
+
+    render(
+      <ExpenseModal
+        tripId={1}
+        base="EUR"
+        people={tripMembers}
+        me={1}
+        editing={expense}
+        canAttachFiles
+        onClose={vi.fn()}
+        onSaved={onSaved}
+      />,
+    )
+
+    await user.click(screen.getByLabelText(attached.original_name))
+    await user.click(screen.getByLabelText(available.original_name))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(screen.getByTestId('expense-attachment-failure-summary')).toHaveTextContent('1 file attachment failed'))
+    expect(updateBudgetItem).toHaveBeenCalledTimes(1)
+    expect(detachExpenseFile).toHaveBeenCalledTimes(1)
+    expect(attachExpenseFile).toHaveBeenCalledWith(1, 88, available.id)
+    expect(screen.getByLabelText(attached.original_name)).toBeChecked()
+    expect(screen.getByLabelText(available.original_name)).toBeChecked()
+    expect(onSaved).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: `Retry ${attached.original_name}` }))
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
+    expect(updateBudgetItem).toHaveBeenCalledTimes(1)
+    expect(detachExpenseFile).toHaveBeenCalledTimes(2)
+    expect(attachExpenseFile).toHaveBeenCalledTimes(1)
   })
 })

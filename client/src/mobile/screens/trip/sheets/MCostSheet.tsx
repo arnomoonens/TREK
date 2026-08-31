@@ -17,7 +17,13 @@ import { calculateTicketShares, hasTicketSplit, NOTE_MAX, readTicketItems, readU
 import type { ExpensePrefill } from '../../../../components/Budget/CostsPanel'
 import { payersBalanced, rebalancePayers } from '../../../../components/Budget/CostsPanel.helpers'
 import ExpenseFilePicker from '../../../../components/Budget/ExpenseFilePicker'
-import { saveExpenseFileAttachments, useExpenseFileStaging } from '../../../../components/Budget/expenseAttachmentStaging'
+import {
+  mergeExpenseAttachmentResult,
+  saveExpenseFileAttachments,
+  useExpenseAttachmentRecovery,
+  useExpenseFileStaging,
+  type ExpenseAttachmentFailure,
+} from '../../../../components/Budget/expenseAttachmentStaging'
 import { filesForExpense, getExpenseDeleteWarning } from '../../../../components/Budget/expenseAttachmentUtils'
 import GuestBadge from '../../../../components/shared/GuestBadge'
 import type { TripMember } from '../../../../components/Budget/BudgetPanelMemberChips'
@@ -59,7 +65,7 @@ const SPLIT_MODES = [
 export default function MCostSheet({ tripId, base, people, me, editing, prefill, canAttachFiles = true, canUploadFiles = false, onClose, onSaved }: MCostSheetProps) {
   const { t, locale } = useTranslation()
   const toast = useToast()
-  const { addBudgetItem, updateBudgetItem, deleteBudgetItem, addFile, files, attachExpenseFile, detachExpenseFile } = useTripStore()
+  const { addBudgetItem, updateBudgetItem, deleteBudgetItem, addFile, files, loadFiles, attachExpenseFile, detachExpenseFile } = useTripStore()
   const { convert } = useExchangeRates(base)
   const sym = (c: string) => SYMBOLS[c] || (c + ' ')
 
@@ -131,6 +137,8 @@ export default function MCostSheet({ tripId, base, people, me, editing, prefill,
     editing ? new Set(filesForExpense(files, editing.id).map(file => file.id)) : new Set(),
   )
   const { stagedUploads, addStagedUploads, removeStagedUpload, markStagedUpload, removeStagedUploadFile } = useExpenseFileStaging(canAttachFiles, canUploadFiles)
+  const { attachmentFailures, recordResult, forgetStagedUpload } = useExpenseAttachmentRecovery()
+  const [retryingAttachmentKey, setRetryingAttachmentKey] = useState<string | null>(null)
   const [deleteArmed, setDeleteArmed] = useState(false)
 
   const isTicketMode = splitMode === 'ticket'
@@ -258,6 +266,73 @@ export default function MCostSheet({ tripId, base, people, me, editing, prefill,
     })
   }
 
+  const removeExpenseStagedUpload = (index: number) => {
+    const staged = stagedUploads[index]
+    if (!staged) return
+    forgetStagedUpload(staged.id)
+    removeStagedUpload(index)
+  }
+
+  const reconcileSavedAttachments = async (expenseId: number) => {
+    try {
+      await loadFiles(tripId)
+    } catch {
+      // The file slice normally handles refresh errors itself. Keep the last
+      // known relationship if a test or alternate store implementation rejects.
+    }
+    const actualFiles = useTripStore.getState().files
+    setSelectedFileIds(new Set(filesForExpense(actualFiles, expenseId).map(file => file.id)))
+    setAttachmentSelectionTouched(true)
+  }
+
+  const runAttachmentWork = async (expenseId: number, retryOnly?: ExpenseAttachmentFailure) => {
+    const result = await saveExpenseFileAttachments({
+      tripId,
+      expenseId,
+      files,
+      selectedFileIds,
+      stagedUploads,
+      canAttachFiles,
+      canUploadFiles,
+      addFile,
+      attachExpenseFile,
+      detachExpenseFile,
+      pendingFailures: retryOnly ? [] : attachmentFailures,
+      retryOnly,
+      onUploaded: markStagedUpload,
+      onAttached: removeStagedUploadFile,
+    })
+    recordResult(result)
+    return mergeExpenseAttachmentResult(attachmentFailures, result)
+  }
+
+  const retryAttachment = async (failure: ExpenseAttachmentFailure) => {
+    if (saving) return
+    const expenseId = editing?.id ?? savedExpenseId
+    if (!expenseId) return
+    setSaving(true)
+    setRetryingAttachmentKey(failure.key)
+    try {
+      let nextFailures: ExpenseAttachmentFailure[]
+      try {
+        nextFailures = await runAttachmentWork(expenseId, failure)
+      } catch {
+        await reconcileSavedAttachments(expenseId)
+        toast.error(t('costs.attachmentsSaveError'))
+        return
+      }
+      if (nextFailures.length > 0) {
+        await reconcileSavedAttachments(expenseId)
+        toast.error(t('costs.attachmentsSaveError'))
+        return
+      }
+      onSaved()
+    } finally {
+      setRetryingAttachmentKey(null)
+      setSaving(false)
+    }
+  }
+
   const save = async () => {
     if (!valid || saving) return
     setSaving(true)
@@ -286,8 +361,8 @@ export default function MCostSheet({ tripId, base, people, me, editing, prefill,
       total_price: totalNum,
       note: note.trim() || null,
       ticket_json: splitMode === 'ticket' ? writeTicketItems(ticketItems) : null,
-      ...(!editing && prefill?.reservationId ? { reservation_id: prefill.reservationId } : {}),
-      ...(!editing && prefill?.placeId ? { place_id: prefill.placeId } : {}),
+      ...(!editing && savedExpenseId == null && prefill?.reservationId ? { reservation_id: prefill.reservationId } : {}),
+      ...(!editing && savedExpenseId == null && prefill?.placeId ? { place_id: prefill.placeId } : {}),
     }
     try {
       const expenseId = editing?.id ?? savedExpenseId
@@ -295,28 +370,22 @@ export default function MCostSheet({ tripId, base, people, me, editing, prefill,
         ? await updateBudgetItem(tripId, expenseId, data)
         : await addBudgetItem(tripId, data)
       if (!expenseId) setSavedExpenseId(savedExpense.id)
+      let nextFailures: ExpenseAttachmentFailure[]
       try {
-        await saveExpenseFileAttachments({
-          tripId,
-          expenseId: savedExpense.id,
-          files,
-          selectedFileIds,
-          stagedUploads,
-          canAttachFiles,
-          canUploadFiles,
-          addFile,
-          attachExpenseFile,
-          detachExpenseFile,
-          onUploaded: markStagedUpload,
-          onAttached: removeStagedUploadFile,
-        })
+        nextFailures = await runAttachmentWork(savedExpense.id)
       } catch {
+        await reconcileSavedAttachments(savedExpense.id)
+        toast.error(t('costs.attachmentsSaveError'))
+        return
+      }
+      if (nextFailures.length > 0) {
+        await reconcileSavedAttachments(savedExpense.id)
         toast.error(t('costs.attachmentsSaveError'))
         return
       }
       onSaved()
     } catch {
-      toast.error(t('common.unknownError'))
+      toast.error(t('costs.expenseSaveError'))
     } finally {
       setSaving(false)
     }
@@ -363,18 +432,19 @@ export default function MCostSheet({ tripId, base, people, me, editing, prefill,
         </span>
       )
 
-  const submitLabel = saving ? t('common.saving') : editing ? t('common.save') : t('common.add')
+  const hasPersistedExpense = editing !== null || savedExpenseId !== null
+  const submitLabel = saving ? t('common.saving') : hasPersistedExpense ? t('common.save') : t('common.add')
 
   return (
     <MSheet
       open={open}
       onClose={requestClose}
       material="opaque"
-      ariaLabel={editing ? t('costs.editExpense') : t('costs.addExpense')}
+      ariaLabel={hasPersistedExpense ? t('costs.editExpense') : t('costs.addExpense')}
     >
       <FormSheetHeader
         icon={Wallet}
-        title={editing ? t('costs.editExpense') : t('costs.addExpense')}
+        title={hasPersistedExpense ? t('costs.editExpense') : t('costs.addExpense')}
         onClose={requestClose}
         closeLabel={t('common.close')}
       />
@@ -479,9 +549,13 @@ export default function MCostSheet({ tripId, base, people, me, editing, prefill,
           onToggleFile={toggleExpenseFile}
           stagedUploads={stagedUploads}
           onAddUploads={addStagedUploads}
-          onRemoveUpload={removeStagedUpload}
+          onRemoveUpload={removeExpenseStagedUpload}
           canAttachFiles={canAttachFiles}
           canUploadFiles={canUploadFiles}
+          attachmentFailures={attachmentFailures}
+          onRetryAttachment={retryAttachment}
+          retryingAttachmentKey={retryingAttachmentKey}
+          disabled={saving}
         />
 
         {/* WHO PAID */}
