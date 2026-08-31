@@ -501,7 +501,7 @@ export class TripsMcp {
     if (this.auth.isDemoUser(ctx.userId)) return demoDenied();
     if (!this.trips.canAccessTrip(tripId, ctx.userId)) return noAccess();
     try {
-      const newTripId = this.trips.copy(tripId, ctx.userId, title);
+      const newTripId = await this.trips.copy(tripId, ctx.userId, title);
       const newTrip = this.trips.canAccessTrip(newTripId, ctx.userId);
       return ok({ trip: { id: newTripId, ...newTrip } });
     } catch {

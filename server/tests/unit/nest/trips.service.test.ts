@@ -82,10 +82,12 @@ import { TrekPhotosRepository } from '../../../src/nest/photos/trek-photos.repos
 import { RuntimeEnvService } from '../../../src/nest/app-config/runtime-env.service';
 import { makeStorageFixture } from '../../helpers/storage-fixture';
 import { QueryHelpersService } from '../../../src/nest/query-helpers/query-helpers.service';
+import { Readable } from 'node:stream';
 import fs from 'fs';
 import path from 'path';
 import { notificationsStub } from '../../helpers/notifications';
 import { EphemeralTokenService } from '../../../src/nest/auth/ephemeral-token.service';
+import type { TripFile } from '../../../src/types';
 
 // Real sibling services over the same in-memory DB — updateTrip's date-shift
 // resyncs and the summary/bundle aggregation run their actual SQL.
@@ -165,6 +167,12 @@ function getAssignments(dayId: number) {
 
 function getNotes(dayId: number) {
   return testDb.prepare('SELECT * FROM day_notes WHERE day_id = ?').all(dayId) as { id: number; day_id: number }[];
+}
+
+async function getStoredFileNames(): Promise<string[]> {
+  const names: string[] = [];
+  for await (const stat of coversFx.storage.list('files')) names.push(stat.key);
+  return names.sort();
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -729,7 +737,7 @@ describe('folded trip CRUD', () => {
     expect(() => svc.remove(99999, user.id, 'user')).toThrow('Trip not found');
   });
 
-  it('TRIP-SVC-046: copy duplicates days/places/assignments and resets packing to unchecked', () => {
+  it('TRIP-SVC-046: copy duplicates days/places/assignments and resets packing to unchecked', async () => {
     const { user } = createUser(testDb);
     const trip = createTrip(testDb, user.id, { title: 'Origin', start_date: '2025-06-01', end_date: '2025-06-02' });
     const days = getDays(trip.id);
@@ -737,7 +745,7 @@ describe('folded trip CRUD', () => {
     createDayAssignment(testDb, days[0].id, place.id);
     testDb.prepare("INSERT INTO packing_items (trip_id, name, checked) VALUES (?, 'Socks', 1)").run(trip.id);
 
-    const newTripId = svc.copy(trip.id, user.id, 'Clone');
+    const newTripId = await svc.copy(trip.id, user.id, 'Clone');
 
     const copied = testDb.prepare('SELECT title, is_archived FROM trips WHERE id = ?').get(newTripId) as any;
     expect(copied.title).toBe('Clone');
@@ -750,11 +758,11 @@ describe('folded trip CRUD', () => {
     expect(packing).toEqual([{ checked: 0 }]);
 
     // No title → source title (|| fallback).
-    const secondCopy = svc.copy(trip.id, user.id);
+    const secondCopy = await svc.copy(trip.id, user.id);
     expect((testDb.prepare('SELECT title FROM trips WHERE id = ?').get(secondCopy) as any).title).toBe('Origin');
   });
 
-  it('TRIP-SVC-060: copying a trip keeps a staged booking staged', () => {
+  it('TRIP-SVC-060: copying a trip keeps a staged booking staged', async () => {
     const { user } = createUser(testDb);
     const trip = createTrip(testDb, user.id, { title: 'Origin', start_date: '2025-06-01', end_date: '2025-06-02' });
     testDb.prepare(`INSERT INTO reservations (trip_id, title, type, status, ingest_state)
@@ -762,7 +770,7 @@ describe('folded trip CRUD', () => {
     testDb.prepare(`INSERT INTO reservations (trip_id, title, type, status)
       VALUES (?, 'Booked', 'flight', 'confirmed')`).run(trip.id);
 
-    const newTripId = svc.copy(trip.id, user.id, 'Clone');
+    const newTripId = await svc.copy(trip.id, user.id, 'Clone');
 
     // Without ingest_state on the duplicate INSERT the staged row falls back to
     // the column default and shows up in the copy's public feed.
@@ -780,7 +788,7 @@ describe('folded trip CRUD', () => {
    * member's Personal or Shared item reappeared in the copy as a Common item
    * that everyone on the new trip could read (GHSA-vh2h-288v-ggch).
    */
-  it("TRIP-SVC-046b: copy leaves other members' restricted packing items behind", () => {
+  it("TRIP-SVC-046b: copy leaves other members' restricted packing items behind", async () => {
     const { user: owner } = createUser(testDb);
     const { user: member } = createUser(testDb);
     const trip = createTrip(testDb, owner.id, { title: 'Origin', start_date: '2025-06-01', end_date: '2025-06-02' });
@@ -789,7 +797,7 @@ describe('folded trip CRUD', () => {
     ins.run(trip.id, "Owner's diary", 1, owner.id);      // the owner's Personal
     ins.run(trip.id, "Member's meds", 1, member.id);     // the copier's own Personal
 
-    const newTripId = svc.copy(trip.id, member.id, 'Copy');
+    const newTripId = await svc.copy(trip.id, member.id, 'Copy');
     const rows = testDb.prepare('SELECT name, is_private, owner_id FROM packing_items WHERE trip_id = ? ORDER BY name').all(newTripId) as any[];
 
     // The owner's private row is gone, not relabelled as Common.
@@ -799,7 +807,7 @@ describe('folded trip CRUD', () => {
     expect(rows.find(r => r.name === "Member's meds")).toMatchObject({ is_private: 1, owner_id: member.id });
   });
 
-  it('TRIP-SVC-059: copy remaps cross-links and carries splits/participants (smoke-test I-01)', () => {
+  it('TRIP-SVC-059: copy remaps cross-links and carries splits/participants (smoke-test I-01)', async () => {
     const { user: owner } = createUser(testDb);
     const { user: friend } = createUser(testDb);
     const trip = createTrip(testDb, owner.id, { title: 'Linked', start_date: '2025-06-01', end_date: '2025-06-02' });
@@ -827,7 +835,7 @@ describe('folded trip CRUD', () => {
     testDb.prepare('INSERT INTO budget_item_payers (budget_item_id, user_id, amount) VALUES (?, ?, 240)').run(itemId, owner.id);
     testDb.prepare("INSERT INTO todo_items (trip_id, name, checked) VALUES (?, 'Book transfer', 1)").run(trip.id);
 
-    const newTripId = svc.copy(trip.id, owner.id, 'Linked copy');
+    const newTripId = await svc.copy(trip.id, owner.id, 'Linked copy');
 
     // Budget → reservation link points at the copied reservation, not null / not the old id.
     const newItem = testDb.prepare('SELECT * FROM budget_items WHERE trip_id = ?').get(newTripId) as any;
@@ -859,6 +867,99 @@ describe('folded trip CRUD', () => {
     // To-dos come across but reset to unchecked (documented behaviour).
     const todos = testDb.prepare('SELECT name, checked FROM todo_items WHERE trip_id = ?').all(newTripId) as any[];
     expect(todos).toEqual([{ name: 'Book transfer', checked: 0 }]);
+  });
+
+  it('copies live Expense Files once and remaps their Expense and File relationships', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id, { title: 'Evidence', start_date: '2025-06-01', end_date: '2025-06-02' });
+    const days = getDays(trip.id);
+    const place = createPlace(testDb, trip.id, { name: 'Receipt place' });
+    const assignment = createDayAssignment(testDb, days[0].id, place.id);
+    const accommodationId = Number(testDb.prepare(`
+      INSERT INTO day_accommodations (trip_id, place_id, start_day_id, end_day_id)
+      VALUES (?, ?, ?, ?)
+    `).run(trip.id, place.id, days[0].id, days[1].id).lastInsertRowid);
+    const reservationId = Number(testDb.prepare(`
+      INSERT INTO reservations (trip_id, day_id, place_id, assignment_id, accommodation_id, title, type)
+      VALUES (?, ?, ?, ?, ?, 'Receipt booking', 'hotel')
+    `).run(trip.id, days[0].id, place.id, assignment.id, accommodationId).lastInsertRowid);
+    const expenseIds = [
+      Number(testDb.prepare("INSERT INTO budget_items (trip_id, category, name, total_price) VALUES (?, 'stay', 'Hotel', 120)").run(trip.id).lastInsertRowid),
+      Number(testDb.prepare("INSERT INTO budget_items (trip_id, category, name, total_price) VALUES (?, 'fees', 'Booking fee', 10)").run(trip.id).lastInsertRowid),
+    ];
+    const sourceName = `expense-attachment-${trip.id}.pdf`;
+    const fileId = Number(testDb.prepare(`
+      INSERT INTO trip_files (trip_id, place_id, reservation_id, filename, original_name, file_size, mime_type, description, uploaded_by, starred, created_at)
+      VALUES (?, ?, ?, ?, 'receipt.pdf', 14, 'application/pdf', 'Original receipt', ?, 1, '2020-01-01 00:00:00')
+    `).run(trip.id, place.id, reservationId, sourceName, user.id).lastInsertRowid);
+    for (const expenseId of expenseIds) {
+      testDb.prepare('INSERT INTO expense_attachments (expense_id, file_id) VALUES (?, ?)').run(expenseId, fileId);
+    }
+
+    const { user: otherOwner } = createUser(testDb);
+    const foreignTrip = createTrip(testDb, otherOwner.id);
+    const foreignPlace = createPlace(testDb, foreignTrip.id, { name: 'Foreign place' });
+    const foreignReservationId = Number(testDb.prepare(
+      "INSERT INTO reservations (trip_id, title, type) VALUES (?, 'Foreign booking', 'hotel')",
+    ).run(foreignTrip.id).lastInsertRowid);
+    testDb.prepare('INSERT INTO file_links (file_id, reservation_id, place_id) VALUES (?, ?, ?)').run(fileId, reservationId, foreignPlace.id);
+    testDb.prepare('INSERT INTO file_links (file_id, assignment_id) VALUES (?, ?)').run(fileId, assignment.id);
+    testDb.prepare('INSERT INTO file_links (file_id, place_id) VALUES (?, ?)').run(fileId, place.id);
+    testDb.prepare('INSERT INTO file_links (file_id, reservation_id) VALUES (?, ?)').run(fileId, foreignReservationId);
+
+    testDb.prepare(`
+      INSERT INTO trip_files (trip_id, filename, original_name, file_size, mime_type, deleted_at)
+      VALUES (?, 'trashed.pdf', 'trashed.pdf', 7, 'application/pdf', '2025-01-01 00:00:00')
+    `).run(trip.id);
+    testDb.prepare(
+      "INSERT INTO trip_files (trip_id, filename, original_name, file_size, mime_type) VALUES (?, 'unrelated.pdf', 'unrelated.pdf', 9, 'application/pdf')",
+    ).run(trip.id);
+    await coversFx.storage.put('files', sourceName, Readable.from('receipt bytes!'));
+
+    let copiedFilename: string | undefined;
+    try {
+      const newTripId = await svc.copy(trip.id, user.id, 'Evidence copy');
+      const copiedFiles = testDb.prepare('SELECT * FROM trip_files WHERE trip_id = ?').all(newTripId) as TripFile[];
+      expect(copiedFiles).toHaveLength(1);
+      const copiedFile = copiedFiles[0];
+      copiedFilename = copiedFile.filename;
+      expect(copiedFile.id).not.toBe(fileId);
+      expect(copiedFile.filename).not.toBe(sourceName);
+      expect(copiedFile).toMatchObject({
+        original_name: 'receipt.pdf',
+        file_size: 14,
+        mime_type: 'application/pdf',
+        description: 'Original receipt',
+        uploaded_by: user.id,
+        starred: 1,
+        place_id: testDb.prepare('SELECT id FROM places WHERE trip_id = ?').get(newTripId).id,
+      });
+      expect(copiedFile.created_at).not.toBe('2020-01-01 00:00:00');
+
+      const copiedReservation = testDb.prepare('SELECT id FROM reservations WHERE trip_id = ?').get(newTripId) as { id: number };
+      expect(copiedFile.reservation_id).toBe(copiedReservation.id);
+      const copiedExpenseIds = (testDb.prepare('SELECT id FROM budget_items WHERE trip_id = ? ORDER BY id').all(newTripId) as { id: number }[]).map(row => row.id);
+      const copiedAttachments = testDb.prepare(
+        'SELECT expense_id, file_id FROM expense_attachments WHERE expense_id IN (?, ?) ORDER BY expense_id',
+      ).all(...copiedExpenseIds) as { expense_id: number; file_id: number }[];
+      expect(copiedAttachments).toEqual(copiedExpenseIds.map(expense_id => ({ expense_id, file_id: copiedFile.id })));
+
+      const copiedPlace = testDb.prepare('SELECT id FROM places WHERE trip_id = ?').get(newTripId) as { id: number };
+      const copiedAssignment = testDb.prepare('SELECT id FROM day_assignments WHERE day_id IN (SELECT id FROM days WHERE trip_id = ?)').get(newTripId) as { id: number };
+      const copiedLinks = testDb.prepare(
+        'SELECT reservation_id, assignment_id, place_id FROM file_links WHERE file_id = ? ORDER BY id',
+      ).all(copiedFile.id) as { reservation_id: number | null; assignment_id: number | null; place_id: number | null }[];
+      expect(copiedLinks).toEqual(expect.arrayContaining([
+        { reservation_id: copiedReservation.id, assignment_id: null, place_id: null },
+        { reservation_id: null, assignment_id: copiedAssignment.id, place_id: null },
+        { reservation_id: null, assignment_id: null, place_id: copiedPlace.id },
+      ]));
+      expect(copiedLinks).toHaveLength(3);
+      expect(await coversFx.storage.withLocalFile('files', copiedFilename, async filePath => fs.promises.readFile(filePath, 'utf8'))).toBe('receipt bytes!');
+    } finally {
+      await coversFx.storage.delete('files', sourceName);
+      if (copiedFilename) await coversFx.storage.delete('files', copiedFilename);
+    }
   });
 });
 
@@ -961,7 +1062,7 @@ describe('folded quirk branches', () => {
     expect(testDb.prepare('SELECT id FROM trip_members WHERE trip_id = ? AND user_id = ?').get(trip.id, invitee.id)).toBeUndefined();
   });
 
-  it('TRIP-SVC-050: copy remaps tags, accommodations, reservations, day notes, budget, bags and category order', () => {
+  it('TRIP-SVC-050: copy remaps tags, accommodations, reservations, day notes, budget, bags and category order', async () => {
     const { user } = createUser(testDb);
     const trip = createTrip(testDb, user.id, { title: 'Deep', start_date: '2025-06-01', end_date: '2025-06-02' });
     const days = getDays(trip.id);
@@ -982,7 +1083,7 @@ describe('folded quirk branches', () => {
     testDb.prepare("INSERT INTO todo_items (trip_id, name, checked) VALUES (?, 'Book', 1)").run(trip.id);
     testDb.prepare("INSERT INTO budget_category_order (trip_id, category, sort_order) VALUES (?, 'stay', 2)").run(trip.id);
 
-    const newTripId = svc.copy(trip.id, user.id);
+    const newTripId = await svc.copy(trip.id, user.id);
 
     const newDays = getDays(newTripId);
     expect(newDays).toHaveLength(2);
@@ -1007,7 +1108,7 @@ describe('folded quirk branches', () => {
     expect((testDb.prepare('SELECT COUNT(*) AS n FROM day_notes WHERE trip_id = ?').get(newTripId) as any).n).toBe(1);
 
     // Missing source throws the byte-identical error.
-    expect(() => svc.copy(99999, user.id)).toThrow('Trip not found');
+    await expect(svc.copy(99999, user.id)).rejects.toThrow('Trip not found');
   });
 });
 
@@ -1094,6 +1195,60 @@ describe('quirk fixes', () => {
     const trip = createTrip(testDb, owner.id);
     const { owner: row } = membersSvc.listMembers(trip.id, owner.id);
     expect(row.username).toBe('Olive Displayed');
+  });
+
+  it('cleans copied storage objects when the database transaction fails', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const expenseId = Number(testDb.prepare(
+      "INSERT INTO budget_items (trip_id, category, name, total_price) VALUES (?, 'other', 'Receipt', 12)",
+    ).run(trip.id).lastInsertRowid);
+    const sourceName = `db-failure-${trip.id}.pdf`;
+    const fileId = Number(testDb.prepare(`
+      INSERT INTO trip_files (trip_id, filename, original_name, file_size, mime_type)
+      VALUES (?, ?, 'receipt.pdf', 7, 'application/pdf')
+    `).run(trip.id, sourceName).lastInsertRowid);
+    testDb.prepare('INSERT INTO expense_attachments (expense_id, file_id) VALUES (?, ?)').run(expenseId, fileId);
+    await coversFx.storage.put('files', sourceName, Readable.from('receipt'));
+
+    try {
+      const broken = failingTrips('INSERT INTO trip_files');
+      await expect(broken.copy(trip.id, user.id, 'Broken copy')).rejects.toThrow('boom');
+      expect(testDb.prepare('SELECT COUNT(*) AS count FROM trips').get()).toEqual({ count: 1 });
+      expect(await getStoredFileNames()).toEqual([sourceName]);
+    } finally {
+      await coversFx.storage.delete('files', sourceName);
+    }
+  });
+
+  it('cleans earlier copied objects when a later source object cannot be read', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const firstExpenseId = Number(testDb.prepare(
+      "INSERT INTO budget_items (trip_id, category, name, total_price) VALUES (?, 'other', 'First', 12)",
+    ).run(trip.id).lastInsertRowid);
+    const secondExpenseId = Number(testDb.prepare(
+      "INSERT INTO budget_items (trip_id, category, name, total_price) VALUES (?, 'other', 'Second', 13)",
+    ).run(trip.id).lastInsertRowid);
+    const firstName = `storage-failure-${trip.id}-first.pdf`;
+    const missingName = `storage-failure-${trip.id}-missing.pdf`;
+    const firstFileId = Number(testDb.prepare(
+      "INSERT INTO trip_files (trip_id, filename, original_name, file_size, mime_type) VALUES (?, ?, 'first.pdf', 5, 'application/pdf')",
+    ).run(trip.id, firstName).lastInsertRowid);
+    const missingFileId = Number(testDb.prepare(
+      "INSERT INTO trip_files (trip_id, filename, original_name, file_size, mime_type) VALUES (?, ?, 'missing.pdf', 7, 'application/pdf')",
+    ).run(trip.id, missingName).lastInsertRowid);
+    testDb.prepare('INSERT INTO expense_attachments (expense_id, file_id) VALUES (?, ?)').run(firstExpenseId, firstFileId);
+    testDb.prepare('INSERT INTO expense_attachments (expense_id, file_id) VALUES (?, ?)').run(secondExpenseId, missingFileId);
+    await coversFx.storage.put('files', firstName, Readable.from('first'));
+
+    try {
+      await expect(svc.copy(trip.id, user.id, 'Storage failure')).rejects.toThrow('storage object not found');
+      expect(testDb.prepare('SELECT COUNT(*) AS count FROM trips').get()).toEqual({ count: 1 });
+      expect(await getStoredFileNames()).toEqual([firstName]);
+    } finally {
+      await coversFx.storage.delete('files', firstName);
+    }
   });
 });
 

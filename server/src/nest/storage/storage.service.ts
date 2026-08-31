@@ -71,6 +71,35 @@ export class StorageService {
     return driver.put(key, source, opts);
   }
 
+  /**
+   * Copy one object through the configured backend as a stream.
+   *
+   * Keeping both resolutions together matters for composite backends: a
+   * MirrorDriver may read from a replica, while its put still writes the new
+   * object to the mirror's primary and replicas. Callers never need to know
+   * whether the configured category is local, remote, or mirrored.
+   */
+  async copy(
+    category: ServedCategory,
+    sourceName: string,
+    destinationName: string,
+    opts?: PutOptions,
+  ): Promise<void> {
+    const { driver, keyPrefix } = this.registry.resolve(category);
+    const sourceKey = keyPrefix + sourceName;
+    const destinationKey = keyPrefix + destinationName;
+    assertValidKey(sourceKey);
+    assertValidKey(destinationKey);
+
+    const { stream } = await driver.getStream(sourceKey);
+    try {
+      await driver.put(destinationKey, stream, opts);
+    } catch (err) {
+      stream.destroy();
+      throw err;
+    }
+  }
+
   async getStream(
     category: ServedCategory,
     name: string,

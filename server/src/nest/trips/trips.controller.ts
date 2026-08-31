@@ -216,7 +216,7 @@ export class TripsController {
 
   @Post(':id/copy')
   @HttpCode(201)
-  copy(@CurrentUser() user: User, @Param('id') id: string, @Body() body: TripCopyDto, @Req() req: Request) {
+  async copy(@CurrentUser() user: User, @Param('id') id: string, @Body() body: TripCopyDto, @Req() req: Request) {
     if (!this.trips.can('trip_create', user.role, null, user.id, false)) {
       throw new HttpException({ error: 'No permission to create trips' }, 403);
     }
@@ -225,7 +225,7 @@ export class TripsController {
     }
     const { title } = body;
     try {
-      const newTripId = this.trips.copy(id, user.id, title);
+      const newTripId = await this.trips.copy(id, user.id, title);
       this.audit.writeAudit({ userId: user.id, action: 'trip.copy', ip: getClientIp(req), details: { sourceTripId: Number(id), newTripId, title } });
       return { trip: this.trips.getCopiedTrip(newTripId, user.id) };
     } catch {

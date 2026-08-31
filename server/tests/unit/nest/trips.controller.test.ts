@@ -262,14 +262,14 @@ describe('TripsController (parity with the legacy /api/trips route)', () => {
   });
 
   describe('POST /:id/copy', () => {
-    it('403 without trip_create, 404 without access', () => {
-      expect(thrown(() => tc(svc({ can: vi.fn().mockReturnValue(false) })).copy(user, '9', {}, req))).toEqual({ status: 403, body: { error: 'No permission to create trips' } });
-      expect(thrown(() => tc(svc({ canAccessTrip: vi.fn().mockReturnValue(undefined) })).copy(user, '9', {}, req))).toEqual({ status: 404, body: { error: 'Trip not found' } });
+    it('403 without trip_create, 404 without access', async () => {
+      expect(await thrownAsync(() => tc(svc({ can: vi.fn().mockReturnValue(false) })).copy(user, '9', {}, req))).toEqual({ status: 403, body: { error: 'No permission to create trips' } });
+      expect(await thrownAsync(() => tc(svc({ canAccessTrip: vi.fn().mockReturnValue(undefined) })).copy(user, '9', {}, req))).toEqual({ status: 404, body: { error: 'Trip not found' } });
     });
 
-    it('copies + returns the new trip', () => {
-      const s = svc({ copy: vi.fn().mockReturnValue(42), getCopiedTrip: vi.fn().mockReturnValue({ id: 42 }) } as Partial<TripsService>);
-      expect(tc(s).copy(user, '9', { title: 'Copy' }, req)).toEqual({ trip: { id: 42 } });
+    it('copies + returns the new trip', async () => {
+      const s = svc({ copy: vi.fn().mockResolvedValue(42), getCopiedTrip: vi.fn().mockReturnValue({ id: 42 }) } as Partial<TripsService>);
+      await expect(tc(s).copy(user, '9', { title: 'Copy' }, req)).resolves.toEqual({ trip: { id: 42 } });
     });
   });
 
@@ -394,8 +394,8 @@ describe('TripsController (parity with the legacy /api/trips route)', () => {
     });
   });
 
-  it('POST /:id/copy maps a copy failure to 500', () => {
-    const s = svc({ copy: vi.fn().mockImplementation(() => { throw new Error('boom'); }) } as Partial<TripsService>);
-    expect(thrown(() => tc(s).copy(user, '9', {}, req))).toEqual({ status: 500, body: { error: 'Failed to copy trip' } });
+  it('POST /:id/copy maps a copy failure to 500', async () => {
+    const s = svc({ copy: vi.fn().mockRejectedValue(new Error('boom')) } as Partial<TripsService>);
+    expect(await thrownAsync(() => tc(s).copy(user, '9', {}, req))).toEqual({ status: 500, body: { error: 'Failed to copy trip' } });
   });
 });

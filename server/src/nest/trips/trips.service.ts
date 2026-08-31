@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import path from 'path';
 import { DatabaseService } from '../database/database.service';
 import type { ActiveTrip, TrekWsPayload, TrekWsTripEventName } from '@trek/shared';
 import { RealtimeService } from '../realtime/realtime.service';
 import { PermissionsService } from '../permissions/permissions.service';
-import type { Trip, User } from '../../types';
+import type { Trip, TripFile, User } from '../../types';
 import { DaysService } from '../days/days.service';
 import { BudgetService } from '../budget/budget.service';
 import { ReservationsService } from '../reservations/reservations.service';
@@ -87,6 +88,13 @@ export interface DeleteTripInfo {
   ownerId: number;
   isAdminDelete: boolean;
   ownerEmail?: string;
+}
+
+interface CopyFileLink {
+  file_id: number;
+  reservation_id: number | null;
+  assignment_id: number | null;
+  place_id: number | null;
 }
 
 export interface AddMemberResult {
@@ -525,11 +533,50 @@ export class TripsService {
    * (budget_item_members/payers incl. paid flags, assignment_participants).
    * Packing items and to-dos are reset to unchecked. Returns the new trip's ID.
    */
-  copy(sourceTripId: string | number, newOwnerId: number, title?: string): number {
+  async copy(sourceTripId: string | number, newOwnerId: number, title?: string): Promise<number> {
     const src = this.db.prepare('SELECT * FROM trips WHERE id = ?').get(sourceTripId) as any;
     if (!src) throw new NotFoundError('Trip not found');
 
     const newTitle = title || src.title;
+
+    // Plan this set before any destination rows are written. A file is carried
+    // only when a live Expense in this source trip references it, and DISTINCT
+    // keeps one reused File on the storage-copy path exactly once.
+    const filesToCopy = this.db.prepare(`
+      SELECT DISTINCT f.*
+      FROM trip_files f
+      JOIN expense_attachments ea ON ea.file_id = f.id
+      JOIN budget_items b ON b.id = ea.expense_id
+      WHERE f.trip_id = ? AND b.trip_id = ? AND f.deleted_at IS NULL
+      ORDER BY f.id
+    `).all(sourceTripId, sourceTripId) as TripFile[];
+    const filePlans = filesToCopy.map((file) => {
+      const sourceName = path.basename(file.filename);
+      const extension = path.extname(sourceName) || path.extname(file.original_name || '');
+      return { file, sourceName, destinationName: `${randomUUID()}${extension}` };
+    });
+
+    const sourceFileIds = filePlans.map(({ file }) => file.id);
+    const fileLinks = sourceFileIds.length > 0
+      ? this.db.prepare(`
+        SELECT fl.*
+        FROM file_links fl
+        JOIN trip_files f ON f.id = fl.file_id
+        WHERE f.trip_id = ? AND fl.file_id IN (${sourceFileIds.map(() => '?').join(',')})
+        ORDER BY fl.id
+      `).all(sourceTripId, ...sourceFileIds) as CopyFileLink[]
+      : [];
+    const expenseAttachments = sourceFileIds.length > 0
+      ? this.db.prepare(`
+        SELECT ea.expense_id, ea.file_id
+        FROM expense_attachments ea
+        JOIN budget_items b ON b.id = ea.expense_id
+        WHERE b.trip_id = ? AND ea.file_id IN (${sourceFileIds.map(() => '?').join(',')})
+        ORDER BY ea.id
+      `).all(sourceTripId, ...sourceFileIds) as { expense_id: number; file_id: number }[]
+      : [];
+
+    const copiedStorageKeys: string[] = [];
 
     const fn = this.db.transaction(() => {
       const tripResult = this.db.prepare(`
@@ -680,6 +727,53 @@ export class TripsService {
         if (newItemId) insertBudgetPayer.run(newItemId, bp.user_id, bp.amount ?? 0);
       }
 
+      const fileMap = new Map<number, number | bigint>();
+      const insertFile = this.db.prepare(`
+        INSERT INTO trip_files (trip_id, place_id, reservation_id, filename, original_name, file_size, mime_type, description, uploaded_by, starred)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const { file, destinationName } of filePlans) {
+        const newPlaceId = file.place_id != null ? (placeMap.get(Number(file.place_id)) ?? null) : null;
+        const newReservationId = file.reservation_id != null ? (reservationMap.get(Number(file.reservation_id)) ?? null) : null;
+        const fileResult = insertFile.run(
+          newTripId,
+          newPlaceId,
+          newReservationId,
+          destinationName,
+          file.original_name,
+          file.file_size,
+          file.mime_type,
+          file.description,
+          newOwnerId,
+          file.starred ?? 0,
+        );
+        fileMap.set(file.id, fileResult.lastInsertRowid);
+      }
+
+      const insertExpenseAttachment = this.db.prepare(
+        'INSERT INTO expense_attachments (expense_id, file_id) VALUES (?, ?)',
+      );
+      for (const attachment of expenseAttachments) {
+        const newExpenseId = budgetMap.get(Number(attachment.expense_id));
+        const newFileId = fileMap.get(Number(attachment.file_id));
+        if (newExpenseId && newFileId) insertExpenseAttachment.run(newExpenseId, newFileId);
+      }
+
+      const insertFileLink = this.db.prepare(
+        'INSERT OR IGNORE INTO file_links (file_id, reservation_id, assignment_id, place_id) VALUES (?, ?, ?, ?)',
+      );
+      for (const link of fileLinks) {
+        const newFileId = fileMap.get(Number(link.file_id));
+        if (!newFileId) continue;
+        const newReservationId = link.reservation_id != null ? reservationMap.get(Number(link.reservation_id)) : undefined;
+        const newAssignmentId = link.assignment_id != null ? assignmentMap.get(Number(link.assignment_id)) : undefined;
+        const newPlaceId = link.place_id != null ? placeMap.get(Number(link.place_id)) : undefined;
+        if (newReservationId === undefined && newAssignmentId === undefined && newPlaceId === undefined) {
+          continue;
+        }
+        insertFileLink.run(newFileId, newReservationId ?? null, newAssignmentId ?? null, newPlaceId ?? null);
+      }
+
       const oldBags = this.db.prepare('SELECT * FROM packing_bags WHERE trip_id = ?').all(sourceTripId) as any[];
       const bagMap = new Map<number, number | bigint>();
       const insertBag = this.db.prepare(`
@@ -742,7 +836,34 @@ export class TripsService {
       return Number(newTripId);
     });
 
-    return fn();
+    try {
+      for (const { sourceName, destinationName, file } of filePlans) {
+        // Record the attempted destination before the copy. A backend may have
+        // created bytes before reporting a failure; delete is idempotent, so
+        // including that key makes compensation safe for both partial and
+        // complete backend operations.
+        copiedStorageKeys.push(destinationName);
+        await this.storage.copy('files', sourceName, destinationName, {
+          contentType: file.mime_type || undefined,
+        });
+      }
+      return fn();
+    } catch (err) {
+      await this.deleteCopiedStorageObjects(copiedStorageKeys);
+      throw err;
+    }
+  }
+
+  private async deleteCopiedStorageObjects(names: readonly string[]): Promise<void> {
+    for (const name of names) {
+      try {
+        await this.storage.delete('files', name);
+      } catch (cleanupError) {
+        // Compensation must never mask the storage/database failure that made
+        // the copy fail. Keep trying the remaining destination keys instead.
+        console.error(`[trips] failed to clean up copied File '${name}'`, cleanupError);
+      }
+    }
   }
 
   /** Re-read a freshly copied trip in list shape (mirrors the route's TRIP_SELECT query). */

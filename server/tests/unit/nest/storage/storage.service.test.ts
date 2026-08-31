@@ -163,6 +163,17 @@ describe('StorageService key composition', () => {
     await fx.storage.delete('files', 'c.bin');
     expect(await fx.storage.exists('files', 'c.bin')).toBe(false);
   });
+
+  it('copies an object as a stream without removing the source', async () => {
+    const fx = makeFixture('files/');
+    await fx.storage.put('files', 'receipt.pdf', Readable.from('receipt bytes'));
+
+    await fx.storage.copy('files', 'receipt.pdf', 'receipt-copy.pdf', { contentType: 'application/pdf' });
+
+    expect(await fx.storage.exists('files', 'receipt.pdf')).toBe(true);
+    await expect(fx.storage.withLocalFile('files', 'receipt-copy.pdf', async (filePath) => fs.promises.readFile(filePath, 'utf8')))
+      .resolves.toBe('receipt bytes');
+  });
 });
 
 describe('StorageService spool + temp dirs', () => {
