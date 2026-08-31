@@ -296,7 +296,7 @@ export default function ExpenseFilePicker({
                     <button
                       type="button"
                       onClick={() => openFile(file)}
-                      aria-label={file.original_name}
+                      aria-label={`${file.original_name} preview`}
                       title={t('common.open')}
                       style={{ width: 42, height: 42, flexShrink: 0, display: 'grid', placeItems: 'center', overflow: 'hidden', borderRadius: 9, border: 0, padding: 0, background: 'var(--bg-tertiary)', color: 'var(--text-muted)', cursor: 'pointer' }}
                     >
