@@ -24,6 +24,12 @@ A `@PluginMethod` declaration is checked against that table twice:
 
 `@PluginHook` gets the same treatment against `HOOK_PERMISSION`.
 
+Operations that cross permission families declare the complete grant set. For
+example, `costs.listFiles` declares `db:read:costs` as its primary permission
+and `db:read:files` as an additional permission. The registry validates that
+declaration against `METHOD_ADDITIONAL_PERMISSIONS` and binds the method only
+when every required grant is present.
+
 ## The import rule
 
 The kit may import:

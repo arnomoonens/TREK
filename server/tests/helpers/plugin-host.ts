@@ -57,6 +57,8 @@ import { TripMembersService } from '../../src/nest/trip-members/trip-members.ser
 import { ItineraryRpc } from '../../src/nest/assignments/itinerary.rpc';
 import { TripsRpc } from '../../src/nest/trips/trips.rpc';
 import { CostsRpc } from '../../src/nest/budget/costs.rpc';
+import { ExpenseAttachmentsRpc } from '../../src/nest/expense-attachments/expense-attachments.rpc';
+import { ExpenseAttachmentsService } from '../../src/nest/expense-attachments/expense-attachments.service';
 import { ReservationsRpc } from '../../src/nest/reservations/reservations.rpc';
 import { CollabRpc } from '../../src/nest/collab/collab.rpc';
 import { AtlasRpc } from '../../src/nest/atlas/atlas.rpc';
@@ -114,6 +116,7 @@ export function createPluginRpcHostFactory(dbs: DatabaseService): PluginRpcHostF
   const trips = new TripsService(dbs, reservations, days, permissions, budget, vacay, realtime, unsplash, generalStorage);
   const members = new TripMembersService(dbs, budget, new UserCleanupService(dbs, budget), permissions, realtime, notificationsStub());
   const guards = new PluginGuards(dbs, permissions, addons);
+  const expenseAttachments = new ExpenseAttachmentsService(dbs, files, permissions);
 
   const registry = createTestPluginRegistry([
     new TagsRpc(new TagsService(dbs)),
@@ -130,6 +133,7 @@ export function createPluginRpcHostFactory(dbs: DatabaseService): PluginRpcHostF
     new ItineraryRpc(assignments, realtime, guards),
     new TripsRpc(trips, reservations, days, membership, dbs, realtime, guards, accommodations, members),
     new CostsRpc(budget, dbs, realtime, guards, membership),
+    new ExpenseAttachmentsRpc(expenseAttachments, guards),
     new ReservationsRpc(reservations, realtime, guards),
     new CollabRpc(collab, realtime, guards),
     new AtlasRpc(atlas, guards),

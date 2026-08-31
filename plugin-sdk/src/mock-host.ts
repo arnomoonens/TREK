@@ -2,6 +2,7 @@ import { PLUGIN_SESSION_MAX_KEYS, PLUGIN_SESSION_MAX_KEY_LENGTH, PLUGIN_SESSION_
 import type { PluginContext, PluginDefinition, PluginRequest, PluginResponse, Trip, Place, Day, Reservation, PackingItem, TripFile, BudgetItem, User, NotificationMessage, PluginActionResult, PluginSessionStorage } from './index.js';
 import { CHANNEL_EVENTS } from './manifest.js';
 import { PermissionDenied, HOOK_PERMISSION, USER_DATA_PERMISSION, EVENTS_PERMISSION, JOBS_PERMISSION } from './permissions.js';
+import { METHOD_ADDITIONAL_PERMISSIONS, METHOD_PERMISSION } from './generated/host-facts.js';
 
 /**
  * A mock PluginContext for unit-testing a plugin without a running TREK
@@ -24,7 +25,7 @@ export interface MockHostOptions {
   /**
    * Fixtures keyed by trip id; `members` gates access like the real host.
    * `costs` seeds budget items; `canEditCosts` (default true) models the
-   * 'budget_edit' permission for `costs.create`.
+   * 'budget_edit' permission for Costs writes, including attachment changes.
    */
   trips?: Record<
     number,
@@ -325,6 +326,14 @@ export function createMockHost(opts: MockHostOptions = {}): MockHost {
     calls.push({ method, args: [] });
     if (!grants.has(perm)) throw new PermissionDenied(`PERMISSION_DENIED: ${method} requires ${perm}`);
   };
+  const needMethod = (method: string) => {
+    calls.push({ method, args: [] });
+    const primary = METHOD_PERMISSION[method];
+    if (!primary) throw new Error(`unknown host method: ${method}`);
+    const permissions = [primary, ...(METHOD_ADDITIONAL_PERMISSIONS[method] ?? [])];
+    const missing = permissions.find((permission) => !grants.has(permission));
+    if (missing) throw new PermissionDenied(`PERMISSION_DENIED: ${method} requires ${missing}`);
+  };
   const assertMember = (tripId: number, asUserId: number) => {
     const t = opts.trips?.[tripId];
     if (!t || !t.members.includes(asUserId)) throw new Error(`RESOURCE_FORBIDDEN: no access to trip ${tripId}`);
@@ -410,6 +419,21 @@ export function createMockHost(opts: MockHostOptions = {}): MockHost {
     const requireActingUser = (): number => {
       if (actingUserId === undefined) throw new Error('RESOURCE_FORBIDDEN: this call requires an authenticated user context');
       return actingUserId;
+    };
+    const prepareExpenseFileMutation = (tripId: number, expenseId: number, fileId: number) => {
+      const uid = requireActingUser();
+      requireAddon(opts.budgetAddonEnabled, 'costs');
+      const t = assertMember(tripId, uid);
+      if (t.canEditCosts === false) {
+        throw new Error(`RESOURCE_FORBIDDEN: no permission to edit costs on trip ${tripId}`);
+      }
+      assertRight(t, 'file_edit', tripId);
+      if (!rows(t.costs).some((x) => x.id === expenseId)) {
+        throw new Error(`RESOURCE_FORBIDDEN: no cost ${expenseId} on trip ${tripId}`);
+      }
+      const file = rows(t.files).find((x) => x.id === fileId);
+      if (!file) throw new Error(`RESOURCE_FORBIDDEN: no file ${fileId} on trip ${tripId}`);
+      return file;
     };
     const metaGate = (entityType: string, entityId: number) => {
       // The real host resolves place/day → trip; the mock only membership-checks the
@@ -1315,6 +1339,48 @@ export function createMockHost(opts: MockHostOptions = {}): MockHost {
           if (i < 0) throw new Error(`RESOURCE_FORBIDDEN: no cost ${itemId} on trip ${tripId}`);
           list.splice(i, 1);
           return { deleted: true };
+        },
+        async listFiles(tripId, expenseId) {
+          needMethod('costs.listFiles');
+          const t = assertMember(tripId, requireActingUser());
+          requireAddon(opts.budgetAddonEnabled, 'costs');
+          if (!rows(t.costs).some((x) => x.id === expenseId)) {
+            throw new Error(`RESOURCE_FORBIDDEN: no cost ${expenseId} on trip ${tripId}`);
+          }
+          return rows(t.files).filter((file) =>
+            file.deleted_at == null
+            && Array.isArray(file.linked_expense_ids)
+            && file.linked_expense_ids.includes(expenseId),
+          ) as TripFile[];
+        },
+        async attachFile(tripId, expenseId, fileId) {
+          needMethod('costs.attachFile');
+          const file = prepareExpenseFileMutation(tripId, expenseId, fileId);
+          if (file.deleted_at != null) {
+            throw new Error(`RESOURCE_FORBIDDEN: no live file ${fileId} on trip ${tripId}`);
+          }
+          const links = Array.isArray(file.linked_expense_ids) ? file.linked_expense_ids : [];
+          if (!links.includes(expenseId)) {
+            file.linked_expense_ids = [...links, expenseId];
+            const timestamps = file.expense_attachment_created_at && typeof file.expense_attachment_created_at === 'object'
+              ? { ...(file.expense_attachment_created_at as Record<string, string>) }
+              : {};
+            timestamps[String(expenseId)] ??= new Date().toISOString();
+            file.expense_attachment_created_at = timestamps;
+          }
+          return file as TripFile;
+        },
+        async detachFile(tripId, expenseId, fileId) {
+          needMethod('costs.detachFile');
+          const file = prepareExpenseFileMutation(tripId, expenseId, fileId);
+          const links = Array.isArray(file.linked_expense_ids) ? file.linked_expense_ids : [];
+          file.linked_expense_ids = links.filter((id) => id !== expenseId);
+          if (file.expense_attachment_created_at && typeof file.expense_attachment_created_at === 'object') {
+            const timestamps = { ...(file.expense_attachment_created_at as Record<string, string>) };
+            delete timestamps[String(expenseId)];
+            file.expense_attachment_created_at = timestamps;
+          }
+          return file as TripFile;
         },
       },
       places: {

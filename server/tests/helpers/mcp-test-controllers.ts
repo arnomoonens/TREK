@@ -108,6 +108,8 @@ import { AirtrailImportService } from '../../src/nest/integrations/airtrail-impo
 import { ReservationImportMcp } from '../../src/nest/reservation-import/reservation-import.mcp';
 import { HelpMcp } from '../../src/nest/help/help.mcp';
 import { AddonsMcp } from '../../src/nest/addons/addons.mcp';
+import { ExpenseAttachmentsMcp } from '../../src/nest/expense-attachments/expense-attachments.mcp';
+import { ExpenseAttachmentsService } from '../../src/nest/expense-attachments/expense-attachments.service';
 
 /**
  * Hand-wired counterpart of the boot-time discovery in McpRegistryService,
@@ -212,6 +214,16 @@ export function createMcpTestRegistry(): McpRegistry {
       new DayNotesMcp(new DayNotesService(dbService, permissionsService, realtimeService), authService, guards),
       new DaysMcp(daysService, authService, guards),
       new FilesMcp(new FilesService(dbService, permissionsService, realtimeService, new EphemeralTokenService(), generalStorage), authService, guards),
+      new ExpenseAttachmentsMcp(
+        new ExpenseAttachmentsService(
+          dbService,
+          new FilesService(dbService, permissionsService, realtimeService, new EphemeralTokenService(), generalStorage),
+          permissionsService,
+        ),
+        dbService,
+        new RuntimeEnvService(),
+        addonsService,
+      ),
       new AccommodationsMcp(accommodationsService, dbService, placesService, authService, guards),
       new AssignmentsMcp(assignmentsService, daysService, authService, guards),
       new CollabMcp(collabService, authService, addonsService, guards),

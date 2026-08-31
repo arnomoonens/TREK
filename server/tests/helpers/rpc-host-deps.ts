@@ -24,6 +24,7 @@ import { DbRpc } from '../../src/nest/plugins/host/rpc/db.rpc';
 import { MetaRpc } from '../../src/nest/plugins/host/rpc/meta.rpc';
 import { HostSurfaceRpc } from '../../src/nest/plugins/host/rpc/host-surface.rpc';
 import { PluginHooks } from '../../src/nest/plugins/plugin-hooks.service';
+import { ExpenseAttachmentsRpc } from '../../src/nest/expense-attachments/expense-attachments.rpc';
 
 /**
  * The stubbed HostDeps every plugin router test builds on.
@@ -73,6 +74,7 @@ export function allRpcControllers(): object[] {
     new ItineraryRpc(anyService(), anyService(), anyService()),
     new TripsRpc(anyService(), anyService(), anyService(), anyService(), anyService(), anyService(), anyService(), anyService(), anyService()),
     new CostsRpc(anyService(), anyService(), anyService(), anyService(), anyService()),
+    new ExpenseAttachmentsRpc(anyService(), anyService()),
     new ReservationsRpc(anyService(), anyService(), anyService()),
     new AccommodationsRpc(anyService(), anyService(), anyService()),
     new CollabRpc(anyService(), anyService(), anyService()),

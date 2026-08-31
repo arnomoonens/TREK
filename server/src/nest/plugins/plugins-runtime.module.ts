@@ -37,6 +37,7 @@ import { AtlasModule } from '../atlas/atlas.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { TripMembershipModule } from '../trip-membership/trip-membership.module';
 import { JournalRpcModule } from '../journey/journal-rpc.module';
+import { ExpenseAttachmentsModule } from '../expense-attachments/expense-attachments.module';
 
 /**
  * The plugin execution half (#plugins, M1/M2): the process supervisor, the
@@ -45,7 +46,7 @@ import { JournalRpcModule } from '../journey/journal-rpc.module';
  *
  * The domain import list has to be COMPLETE, not just "whatever this module's own
  * code needs". Every `@PluginController()` provider in the container contributes part
- * of the 113-method wire surface, and PluginRpcRegistryService validates total
+ * of the 117-method wire surface, and PluginRpcRegistryService validates total
  * coverage at boot — so a domain reachable only from AppModule would make this module
  * fail to start in any test app that assembles a subset. WeatherModule is in the list
  * for exactly that reason and for nothing else.
@@ -66,7 +67,7 @@ import { JournalRpcModule } from '../journey/journal-rpc.module';
     TodoModule, PackingModule, DaysModule, DayNotesModule, AccommodationsModule, AssignmentsModule, LlmParseModule,
     FilesModule, CollabModule, VacayModule, TripsModule, PlacesModule,
     PermissionsModule, AuditModule, AddonsModule, CollectionsModule, AtlasModule,
-    NotificationsModule, TripMembershipModule, JournalRpcModule,
+    NotificationsModule, TripMembershipModule, JournalRpcModule, ExpenseAttachmentsModule,
   ],
   providers: [
     PluginsService,

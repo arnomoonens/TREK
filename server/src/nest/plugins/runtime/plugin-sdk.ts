@@ -274,6 +274,12 @@ export interface PluginContext {
     create(tripId: number, input: Record<string, unknown>): Promise<unknown>;
     update(tripId: number, itemId: number, input: Record<string, unknown>): Promise<unknown>;
     delete(tripId: number, itemId: number): Promise<{ deleted: boolean }>;
+    /** List live Files attached to an Expense. Needs 'db:read:costs' + 'db:read:files'. */
+    listFiles(tripId: number, expenseId: number): Promise<unknown[]>;
+    /** Attach an existing live File. Needs 'db:write:costs' + 'db:write:files', budget_edit and file_edit. */
+    attachFile(tripId: number, expenseId: number, fileId: number): Promise<unknown>;
+    /** Detach an existing File. Needs 'db:write:costs' + 'db:write:files', budget_edit and file_edit. */
+    detachFile(tripId: number, expenseId: number, fileId: number): Promise<unknown>;
   };
   // Core planner writes (#1429). Each is membership-checked against the current
   // invocation's user and needs the matching write scope + the app's edit
@@ -907,6 +913,9 @@ export function createPluginContext(
       create: (tripId, input) => t.rpc('costs.create', { tripId, input, _inv: invocationId }),
       update: (tripId, itemId, input) => t.rpc('costs.update', { tripId, itemId, input, _inv: invocationId }),
       delete: (tripId, itemId) => t.rpc('costs.delete', { tripId, itemId, _inv: invocationId }) as Promise<{ deleted: boolean }>,
+      listFiles: (tripId, expenseId) => t.rpc('costs.listFiles', { tripId, expenseId, _inv: invocationId }) as Promise<unknown[]>,
+      attachFile: (tripId, expenseId, fileId) => t.rpc('costs.attachFile', { tripId, expenseId, fileId, _inv: invocationId }) as Promise<unknown>,
+      detachFile: (tripId, expenseId, fileId) => t.rpc('costs.detachFile', { tripId, expenseId, fileId, _inv: invocationId }) as Promise<unknown>,
     },
     places: {
       create: (tripId, input) => t.rpc('places.create', { tripId, input, _inv: invocationId }),

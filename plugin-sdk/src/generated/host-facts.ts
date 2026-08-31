@@ -178,6 +178,9 @@ export const METHOD_PERMISSION: Readonly<Record<string, string>> = {
   'costs.create': 'db:write:costs',
   'costs.update': 'db:write:costs',
   'costs.delete': 'db:write:costs',
+  'costs.listFiles': 'db:read:costs',
+  'costs.attachFile': 'db:write:costs',
+  'costs.detachFile': 'db:write:costs',
   'places.create': 'db:write:places',
   'places.update': 'db:write:places',
   'places.delete': 'db:write:places',
@@ -200,6 +203,12 @@ export const METHOD_PERMISSION: Readonly<Record<string, string>> = {
   'oauth.getToken': 'oauth:client',
   'scheduler.set': 'jobs:run',
   'scheduler.cancel': 'jobs:run',
+};
+
+export const METHOD_ADDITIONAL_PERMISSIONS: Readonly<Record<string, readonly string[]>> = {
+  'costs.listFiles': ['db:read:files'],
+  'costs.attachFile': ['db:write:files'],
+  'costs.detachFile': ['db:write:files'],
 };
 
 export const KNOWN_METHODS: string[] = [
@@ -292,6 +301,9 @@ export const KNOWN_METHODS: string[] = [
   'costs.create',
   'costs.update',
   'costs.delete',
+  'costs.listFiles',
+  'costs.attachFile',
+  'costs.detachFile',
   'places.create',
   'places.update',
   'places.delete',

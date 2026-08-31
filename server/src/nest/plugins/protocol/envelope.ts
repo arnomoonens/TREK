@@ -144,6 +144,9 @@ export const KNOWN_METHODS = [
   'costs.create',
   'costs.update',
   'costs.delete',
+  'costs.listFiles',
+  'costs.attachFile',
+  'costs.detachFile',
   'places.create',
   'places.update',
   'places.delete',
@@ -283,6 +286,9 @@ export const METHOD_PERMISSION = {
   'costs.create': 'db:write:costs',
   'costs.update': 'db:write:costs',
   'costs.delete': 'db:write:costs',
+  'costs.listFiles': 'db:read:costs',
+  'costs.attachFile': 'db:write:costs',
+  'costs.detachFile': 'db:write:costs',
   'places.create': 'db:write:places',
   'places.update': 'db:write:places',
   'places.delete': 'db:write:places',
@@ -410,6 +416,31 @@ export const KNOWN_PERMISSIONS = [
  * only ever checked through isKnownPermission below.
  */
 export type KnownPermission = (typeof KNOWN_PERMISSIONS)[number];
+
+/**
+ * Some core operations cross two permission families. The primary permission
+ * remains in METHOD_PERMISSION as the primary declaration; these additional
+ * grants are required at registration time as well.
+ */
+export const METHOD_ADDITIONAL_PERMISSIONS = {
+  'costs.listFiles': ['db:read:files'],
+  'costs.attachFile': ['db:write:files'],
+  'costs.detachFile': ['db:write:files'],
+} as const satisfies Partial<Record<KnownMethod, readonly KnownPermission[]>>;
+
+export type MethodAdditionalPermissions<M extends KnownMethod> =
+  M extends keyof typeof METHOD_ADDITIONAL_PERMISSIONS
+    ? (typeof METHOD_ADDITIONAL_PERMISSIONS)[M]
+    : readonly [];
+export type MethodWithAdditionalPermissions = keyof typeof METHOD_ADDITIONAL_PERMISSIONS;
+
+/** The complete grant set required to register one method for a plugin. */
+export function methodPermissions(method: KnownMethod): readonly string[] {
+  return [
+    METHOD_PERMISSION[method],
+    ...((METHOD_ADDITIONAL_PERMISSIONS as Partial<Record<KnownMethod, readonly string[]>>)[method] ?? []),
+  ];
+}
 
 /**
  * hooks.<key> -> the permission that must ALSO be granted for the host to ever call it.

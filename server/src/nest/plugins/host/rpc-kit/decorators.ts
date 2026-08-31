@@ -1,6 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { addEntry, markController, type ClassRef } from './metadata';
-import type { HookKey, KnownMethod, MethodPermission, UnconditionalMethod } from '../../protocol/envelope';
+import type {
+  HookKey,
+  KnownMethod,
+  MethodAdditionalPermissions,
+  MethodWithAdditionalPermissions,
+  MethodPermission,
+  UnconditionalMethod,
+} from '../../protocol/envelope';
 import type { PluginHookOptions, PluginRpcEntry } from './types';
 
 /**
@@ -42,13 +49,17 @@ function pluginMethodDecorator(entry: (methodName: string) => PluginRpcEntry): M
  */
 export function PluginMethod<M extends KnownMethod>(
   method: M,
-  options: { permission: MethodPermission<M> },
+  options: { permission: MethodPermission<M> } &
+    (M extends MethodWithAdditionalPermissions
+      ? { additionalPermissions: MethodAdditionalPermissions<M> }
+      : { additionalPermissions?: never }),
 ): MethodDecorator {
   return pluginMethodDecorator((methodName) => ({
     kind: 'method',
     methodName,
     method,
     permission: options.permission,
+    ...(options.additionalPermissions ? { additionalPermissions: options.additionalPermissions } : {}),
   }));
 }
 

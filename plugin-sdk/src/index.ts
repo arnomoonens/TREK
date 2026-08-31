@@ -301,6 +301,12 @@ export interface PluginContext {
     create(tripId: number, input: Record<string, unknown>): Promise<BudgetItem>;
     update(tripId: number, itemId: number, input: Record<string, unknown>): Promise<BudgetItem>;
     delete(tripId: number, itemId: number): Promise<{ deleted: boolean }>;
+    /** List live Files attached to an Expense. Needs db:read:costs + db:read:files. */
+    listFiles(tripId: number, expenseId: number): Promise<TripFile[]>;
+    /** Attach an existing live File. Needs db:write:costs + db:write:files, budget_edit and file_edit. */
+    attachFile(tripId: number, expenseId: number, fileId: number): Promise<TripFile>;
+    /** Detach an existing File. Needs db:write:costs + db:write:files, budget_edit and file_edit. */
+    detachFile(tripId: number, expenseId: number, fileId: number): Promise<TripFile>;
   };
   // Core planner writes (#1429). Membership-checked against the invocation's user;
   // each needs the matching write scope + the app's place_edit/day_edit permission.

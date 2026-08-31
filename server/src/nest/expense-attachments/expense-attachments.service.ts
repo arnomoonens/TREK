@@ -17,10 +17,23 @@ export class ExpenseAttachmentsService {
     private readonly permissions: PermissionsService,
   ) {}
 
-  canMutate(trip: TripAccess, user: User): boolean {
+  canMutate(trip: TripAccess, user: Pick<User, 'id' | 'role'>): boolean {
     const shared = trip.user_id !== user.id;
     return this.permissions.checkPermission('budget_edit', user.role, trip.user_id, user.id, shared)
       && this.permissions.checkPermission('file_edit', user.role, trip.user_id, user.id, shared);
+  }
+
+  /** Shared trip-access seam for non-HTTP adapters. */
+  verifyTripAccess(tripId: string | number, userId: number): TripAccess | undefined {
+    return this.db.canAccessTrip(tripId, userId);
+  }
+
+  /** Apply the same combined budget_edit + file_edit gate as the REST controller. */
+  canMutateForUser(tripId: string | number, userId: number): boolean {
+    const trip = this.verifyTripAccess(tripId, userId);
+    if (!trip) return false;
+    const user = this.db.get<{ id: number; role: User['role'] }>('SELECT id, role FROM users WHERE id = ?', userId);
+    return user ? this.canMutate(trip, user) : false;
   }
 
   list(tripId: string | number, expenseId: string | number): TripFile[] | undefined {

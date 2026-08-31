@@ -21,6 +21,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const serverPlugins = path.resolve(here, '../../server/src/nest/plugins');
 const envelopeFile = path.join(serverPlugins, 'protocol/envelope.ts');
 const serverEgress = path.join(serverPlugins, 'runtime/egress-policy.ts');
+const serverRuntimeSdk = path.join(serverPlugins, 'runtime/plugin-sdk.ts');
 const inMonorepo = fs.existsSync(envelopeFile) && fs.existsSync(serverEgress);
 const hostFrame = path.resolve(here, '../../client/src/components/Plugins/PluginFrame.tsx');
 
@@ -35,7 +36,7 @@ describe.skipIf(!inMonorepo)('parity with the host', () => {
     // each entry passed when the host grew a hook the artefact never learned about,
     // which is the drift that actually ships a wrong permission list.
     const envelope = fs.readFileSync(envelopeFile, 'utf8');
-    const block = envelope.match(/HOOK_PERMISSION[^{]*\{([\s\S]*?)\n\}/);
+    const block = envelope.match(/export const HOOK_PERMISSION\s*=\s*\{([\s\S]*?)\n\}\s+as const/);
     expect(block, 'HOOK_PERMISSION not found in envelope.ts').toBeTruthy();
     const theirs: Record<string, string> = {};
     for (const m of block![1].matchAll(/^\s*(\w+):\s*'([^']+)'/gm)) theirs[m[1]] = m[2];
@@ -59,6 +60,21 @@ describe.skipIf(!inMonorepo)('parity with the host', () => {
       return src.slice(start, end).replace(/\s+/g, ' ').trim();
     };
     for (const fn of fns) expect(body(ours, fn), `${fn} has drifted from the server`).toBe(body(theirs, fn));
+  });
+
+  it("the published and in-repo PluginContext Costs APIs stay aligned", () => {
+    const sdk = fs.readFileSync(path.resolve(here, '../src/index.ts'), 'utf8');
+    const runtime = fs.readFileSync(serverRuntimeSdk, 'utf8');
+    const methods = (source: string): string[] => {
+      const start = source.indexOf('\n  costs: {');
+      expect(start, 'PluginContext costs block not found').toBeGreaterThan(-1);
+      const body = source.slice(start);
+      const end = body.indexOf('\n  };');
+      expect(end, 'PluginContext costs block is not closed').toBeGreaterThan(-1);
+      return [...body.slice(0, end).matchAll(/^\s{4}([A-Za-z]\w*)\(/gm)].map((match) => match[1]);
+    };
+
+    expect(methods(runtime)).toEqual(methods(sdk));
   });
 });
 
