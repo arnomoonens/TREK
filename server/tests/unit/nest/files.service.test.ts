@@ -377,7 +377,7 @@ describe('emptyTrash', () => {
     expect(svc.getFileById(kept.id, trip.id)).toBeDefined();
   });
 
-  it('FILE-SVC-025: a partial unlink failure keeps the failed row, swallows the error and counts only successes', async () => {
+  it('FILE-SVC-025: a partial unlink failure keeps the failed row, swallows the error, counts only successes and broadcasts only deleted rows', async () => {
     const { user, trip } = seedTrip();
     const good = makeFile(trip.id, user.id, { filename: 'good.pdf' });
     const bad = makeFile(trip.id, user.id, { filename: 'bad.pdf' });
@@ -388,11 +388,14 @@ describe('emptyTrash', () => {
       name.includes('bad.pdf') ? Promise.reject(boom) : Promise.resolve()
     );
     const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const broadcast = vi.spyOn(svc, 'broadcast');
 
-    await expect(svc.emptyTrash(trip.id)).resolves.toBe(1);
+    await expect(svc.emptyTrash(trip.id, 'sock')).resolves.toBe(1);
     expect(err).toHaveBeenCalledWith('[files] unlink failed for bad.pdf, keeping DB row:', boom);
     expect(svc.getFileById(good.id, trip.id)).toBeUndefined();
     expect(svc.getDeletedFile(bad.id, trip.id)).toBeDefined();
+    expect(broadcast).toHaveBeenCalledWith(String(trip.id), 'file:deleted', { fileId: good.id }, 'sock');
+    expect(broadcast).not.toHaveBeenCalledWith(String(trip.id), 'file:deleted', { fileId: bad.id }, 'sock');
   });
 
   it('FILE-SVC-026: an empty trash resolves to 0 without touching storage', async () => {

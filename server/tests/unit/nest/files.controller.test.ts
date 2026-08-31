@@ -156,10 +156,14 @@ describe('FilesController (parity with the legacy /api/trips/:tripId/files route
     expect(await fc(s).permanent(user, trip, '5', '9')).toEqual({ success: true });
   });
 
-  it('DELETE /trash/empty 403, else returns the count', async () => {
+  it('DELETE /trash/empty 403, else returns the count and forwards the socket id', async () => {
     await expect(fc(fsvc({ can: vi.fn().mockReturnValue(false) })).emptyTrash(user, trip, '5')).rejects.toBeInstanceOf(HttpException);
-    const s = fsvc({ emptyTrash: vi.fn().mockResolvedValue(3) } as Partial<FilesService>);
-    expect(await fc(s).emptyTrash(user, trip, '5')).toEqual({ success: true, deleted: 3 });
+    const emptyTrash = vi.fn().mockResolvedValue(3);
+    const s = fsvc({
+      emptyTrash,
+    } as Partial<FilesService>);
+    expect(await fc(s).emptyTrash(user, trip, '5', 'sock')).toEqual({ success: true, deleted: 3 });
+    expect(emptyTrash).toHaveBeenCalledWith('5', 'sock');
   });
 
   it('POST /:id/link 404 unknown file, else links', () => {

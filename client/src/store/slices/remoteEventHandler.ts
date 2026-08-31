@@ -1,10 +1,11 @@
 import type { StoreApi } from 'zustand'
-import type { TrekWsTripEventName } from '@trek/shared'
+import { tripFileSchema, type TrekWsTripEventName } from '@trek/shared'
 import type { TripStoreState } from '../tripStore'
 import type { Assignment, Place, Day, DayNote, PackingItem, TodoItem, BudgetItem, BudgetItemMember, Reservation, Trip, TripFile, WebSocketEvent } from '../../types'
 import { offlineDb } from '../../db/offlineDb'
 import { useAuthStore } from '../authStore'
 import { mergeAssignmentPlace } from './placesSlice'
+import { addTripFile, normalizeTripFile, removeExpenseLink, removeTripFile, upsertTripFile } from './fileState'
 
 type SetState = StoreApi<TripStoreState>['setState']
 type GetState = StoreApi<TripStoreState>['getState']
@@ -71,20 +72,26 @@ const putReservation: DexieWriter = async payload => {
   if (!payload.reservation) return
   await offlineDb.reservations.put(payload.reservation as Reservation)
 }
-const putTripFile: DexieWriter = async payload => {
-  await offlineDb.tripFiles.put(payload.file as TripFile)
+const putTripFile: DexieWriter = async (payload, state) => {
+  const incoming = parseTripFile(payload.file)
+  if (!incoming) return
+
+  // Persist the same post-event snapshot Zustand kept. This matters when a
+  // delayed create frame follows an update: addTripFile intentionally keeps the
+  // existing row, so Dexie must not put the stale incoming frame over it.
+  const file = state.files.find(existing => existing.id === incoming.id)
+  if (file) await offlineDb.tripFiles.put(file)
 }
 
-function removeExpenseLink(file: TripFile, expenseId: number): TripFile {
-  if (!file.linked_expense_ids?.includes(expenseId)) return file
-  const linkedExpenseIds = file.linked_expense_ids.filter(id => id !== expenseId)
-  const attachmentCreatedAt = { ...(file.expense_attachment_created_at || {}) }
-  delete attachmentCreatedAt[String(expenseId)]
-  return {
-    ...file,
-    linked_expense_ids: linkedExpenseIds,
-    expense_attachment_created_at: attachmentCreatedAt,
-  }
+function parseTripFile(value: unknown): TripFile | null {
+  const result = tripFileSchema.safeParse(value)
+  return result.success ? result.data : null
+}
+
+function parseFileId(value: unknown): number | string | null {
+  if (typeof value !== 'number' && typeof value !== 'string') return null
+  const numeric = Number(value)
+  return Number.isInteger(numeric) && numeric > 0 ? value : null
 }
 
 /**
@@ -173,7 +180,8 @@ export const DEXIE_WRITERS: Partial<Record<TrekWsTripEventName, DexieWriter>> = 
   'file:created': putTripFile,
   'file:updated': putTripFile,
   'file:deleted': async payload => {
-    await offlineDb.tripFiles.delete(payload.fileId as number)
+    const fileId = parseFileId(payload.fileId)
+    if (fileId !== null) await offlineDb.tripFiles.delete(Number(fileId))
   },
 }
 
@@ -509,15 +517,18 @@ export const STATE_APPLIERS: Partial<Record<TrekWsTripEventName, StateApplier>> 
 
   // Files
   'file:created': (payload, state) => {
-    if (state.files.some(f => f.id === (payload.file as TripFile).id)) return {}
-    return { files: [payload.file as TripFile, ...state.files] }
+    const file = parseTripFile(payload.file)
+    if (!file) return {}
+    return { files: addTripFile(state.files, file) }
   },
-  'file:updated': (payload, state) => ({
-    files: state.files.map(f => f.id === (payload.file as TripFile).id ? payload.file as TripFile : f),
-  }),
-  'file:deleted': (payload, state) => ({
-    files: state.files.filter(f => f.id !== payload.fileId),
-  }),
+  'file:updated': (payload, state) => {
+    const file = parseTripFile(payload.file)
+    return file ? { files: upsertTripFile(state.files, file) } : {}
+  },
+  'file:deleted': (payload, state) => {
+    const fileId = parseFileId(payload.fileId)
+    return fileId === null ? {} : { files: removeTripFile(state.files, fileId) }
+  },
 
   // Memories / Photos
   'memories:updated': payload => {

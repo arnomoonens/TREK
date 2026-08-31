@@ -23,6 +23,7 @@ import { createReservationsSlice } from './slices/reservationsSlice'
 import { createFilesSlice } from './slices/filesSlice'
 import { createExpenseAttachmentsSlice } from './slices/expenseAttachmentsSlice'
 import { handleRemoteEvent } from './slices/remoteEventHandler'
+import { normalizeTripFile } from './slices/fileState'
 import type {
   Trip, Day, Place, Assignment, DayNote, PackingItem, TodoItem,
   Tag, Category, BudgetItem, TripFile, Reservation,
@@ -87,7 +88,7 @@ export interface TripStoreState
   addCategory: (data: Partial<Category> & { name: string }) => Promise<Category>
 }
 
-export const useTripStore = create<TripStoreState>((set, get) => ({
+export const createTripStore = () => create<TripStoreState>((set, get) => ({
   trip: null,
   days: [],
   places: [],
@@ -178,7 +179,7 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
         budgetItems: budgetData.items,
         budgetAvailability: budgetData.cacheStatus,
         reservations: reservationsData.reservations,
-        files: filesData.files,
+        files: filesData.files.map(normalizeTripFile),
         filesAvailability: filesData.cacheStatus,
         tags: tagsData.tags,
         categories: categoriesData.categories,
@@ -277,3 +278,5 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
   ...createFilesSlice(set, get),
   ...createExpenseAttachmentsSlice(set),
 }))
+
+export const useTripStore = createTripStore()

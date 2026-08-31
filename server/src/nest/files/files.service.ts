@@ -372,7 +372,7 @@ export class FilesService {
     this.db.run('DELETE FROM trip_files WHERE id = ?', file.id);
   }
 
-  async emptyTrash(tripId: string | number): Promise<number> {
+  async emptyTrash(tripId: string | number, socketId?: string): Promise<number> {
     const trashed = this.db.all<TripFile>('SELECT * FROM trip_files WHERE trip_id = ? AND deleted_at IS NOT NULL', tripId);
     // Collect successful IDs separately so we only DELETE rows whose disk
     // content was actually removed — failing unlinks keep their DB row
@@ -389,6 +389,9 @@ export class FilesService {
     if (successfullyUnlinked.length > 0) {
       const placeholders = successfullyUnlinked.map(() => '?').join(',');
       this.db.run(`DELETE FROM trip_files WHERE id IN (${placeholders})`, ...successfullyUnlinked);
+      for (const fileId of successfullyUnlinked) {
+        this.broadcast(String(tripId), 'file:deleted', { fileId }, socketId);
+      }
     }
     return successfullyUnlinked.length;
   }

@@ -304,6 +304,56 @@ describe('WS rate limiting', () => {
 });
 
 describe('WS real-time broadcast', () => {
+  it('WS-037 — expense attachment changes deliver authoritative file snapshots to the other client only', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const expenseId = Number(testDb.prepare(
+      "INSERT INTO budget_items (trip_id, name, category, total_price) VALUES (?, 'Dinner', 'food', 20)",
+    ).run(trip.id).lastInsertRowid);
+    const fileId = Number(testDb.prepare(
+      "INSERT INTO trip_files (trip_id, filename, original_name, file_size, mime_type, uploaded_by) VALUES (?, 'dinner.pdf', 'dinner.pdf', 100, 'application/pdf', ?)",
+    ).run(trip.id, user.id).lastInsertRowid);
+
+    const clientA = await connectWs(createEphemeralToken(user.id, 'ws')!);
+    const clientB = await connectWs(createEphemeralToken(user.id, 'ws')!);
+    try {
+      const socketA = (await clientA.next()).socketId as number;
+      const socketB = (await clientB.next()).socketId as number;
+      clientA.send({ type: 'join', tripId: trip.id });
+      clientB.send({ type: 'join', tripId: trip.id });
+      await clientA.next();
+      await clientB.next();
+
+      const attachedEvent = clientB.waitFor(message => message.type === 'file:updated');
+      const attached = await request(server)
+        .post(`/api/trips/${trip.id}/budget/${expenseId}/files/${fileId}`)
+        .set('Cookie', authCookie(user.id))
+        .set('X-Socket-Id', String(socketA));
+      expect(attached.status).toBe(200);
+      expect(attached.body.file.linked_expense_ids).toEqual([expenseId]);
+      const attachedRemote = await attachedEvent;
+      expect(attachedRemote.file).toMatchObject({
+        id: fileId,
+        linked_expense_ids: [expenseId],
+        expense_attachment_created_at: expect.objectContaining({ [String(expenseId)]: expect.any(String) }),
+      });
+      expect((await clientA.collectFor(250)).filter(message => message.type === 'file:updated')).toHaveLength(0);
+
+      const detachedEvent = clientA.waitFor(message => message.type === 'file:updated');
+      const detached = await request(server)
+        .delete(`/api/trips/${trip.id}/budget/${expenseId}/files/${fileId}`)
+        .set('Cookie', authCookie(user.id))
+        .set('X-Socket-Id', String(socketB));
+      expect(detached.status).toBe(200);
+      expect(detached.body.file.linked_expense_ids).toEqual([]);
+      expect((await detachedEvent).file).toMatchObject({ id: fileId, linked_expense_ids: [] });
+      expect((await clientB.collectFor(250)).filter(message => message.type === 'file:updated')).toHaveLength(0);
+    } finally {
+      clientA.close();
+      clientB.close();
+    }
+  });
+
   it('WS-009 — POST /api/trips/:id/places broadcasts place:created to room members', async () => {
     const { user } = createUser(testDb);
     const trip = createTrip(testDb, user.id);

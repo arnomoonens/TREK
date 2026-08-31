@@ -6,6 +6,7 @@ import type { BudgetItem, BudgetItemMember } from '../../types'
 import type { BudgetCreateItemRequest, BudgetUpdateItemRequest } from '@trek/shared'
 import { getApiErrorMessage } from '../../types'
 import { notify } from '../notify'
+import { removeExpenseLink } from './fileState'
 
 type SetState = StoreApi<TripStoreState>['setState']
 type GetState = StoreApi<TripStoreState>['getState']
@@ -65,17 +66,7 @@ export const createBudgetSlice = (set: SetState, get: GetState): BudgetSlice => 
     const prevFiles = get().files
     set(state => ({
       budgetItems: state.budgetItems.filter(item => item.id !== id),
-      files: state.files.map(file => {
-        if (!file.linked_expense_ids?.includes(id)) return file
-        const linkedExpenseIds = file.linked_expense_ids.filter(expenseId => expenseId !== id)
-        const attachmentCreatedAt = { ...(file.expense_attachment_created_at || {}) }
-        delete attachmentCreatedAt[String(id)]
-        return {
-          ...file,
-          linked_expense_ids: linkedExpenseIds,
-          expense_attachment_created_at: attachmentCreatedAt,
-        }
-      }),
+      files: state.files.map(file => removeExpenseLink(file, id)),
     }))
     try {
       await budgetApi.delete(tripId, id)

@@ -203,11 +203,16 @@ export class FilesController {
 
   @UseGuards(TripAccessGuard)
   @Delete('trash/empty')
-  async emptyTrash(@CurrentUser() user: User, @Trip() trip: TripAccess, @Param('tripId') tripId: string) {
+  async emptyTrash(
+    @CurrentUser() user: User,
+    @Trip() trip: TripAccess,
+    @Param('tripId') tripId: string,
+    @Headers('x-socket-id') socketId?: string,
+  ) {
     if (!this.files.can('file_delete', trip, user)) {
       throw new HttpException({ error: 'No permission' }, 403);
     }
-    const deleted = await this.files.emptyTrash(tripId);
+    const deleted = await this.files.emptyTrash(tripId, socketId);
     return { success: true, deleted };
   }
 

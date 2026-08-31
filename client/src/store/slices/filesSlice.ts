@@ -5,6 +5,7 @@ import type { TripStoreState } from '../tripStore'
 import type { TripFile } from '../../types'
 import { getApiErrorMessage } from '../../types'
 import { isEffectivelyOffline } from '../../sync/networkMode'
+import { addTripFile, normalizeTripFile, removeTripFile } from './fileState'
 
 type SetState = StoreApi<TripStoreState>['setState']
 type GetState = StoreApi<TripStoreState>['getState']
@@ -23,7 +24,7 @@ export const createFilesSlice = (set: SetState, get: GetState): FilesSlice => ({
         set({ filesAvailability: data.cacheStatus })
         return
       }
-      set({ files: data.files, filesAvailability: data.cacheStatus })
+      set({ files: data.files.map(normalizeTripFile), filesAvailability: data.cacheStatus })
     } catch (err: unknown) {
       console.error('Failed to load files:', err)
     }
@@ -33,7 +34,7 @@ export const createFilesSlice = (set: SetState, get: GetState): FilesSlice => ({
     if (isEffectivelyOffline()) throw new Error('File uploads are unavailable offline')
     try {
       const data = await filesApi.upload(tripId, formData)
-      set(state => ({ files: [data.file, ...state.files] }))
+      set(state => ({ files: addTripFile(state.files, data.file) }))
       return data.file
     } catch (err: unknown) {
       throw new Error(getApiErrorMessage(err, 'Error uploading file'))
@@ -43,7 +44,7 @@ export const createFilesSlice = (set: SetState, get: GetState): FilesSlice => ({
   deleteFile: async (tripId, id) => {
     try {
       await filesApi.delete(tripId, id)
-      set(state => ({ files: state.files.filter(f => f.id !== id) }))
+      set(state => ({ files: removeTripFile(state.files, id) }))
     } catch (err: unknown) {
       throw new Error(getApiErrorMessage(err, 'Error deleting file'))
     }
