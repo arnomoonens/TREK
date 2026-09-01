@@ -7,7 +7,6 @@ import MSheet from '../../mobile/components/MSheet'
 import type { TripFile } from '../../types'
 import { getAuthUrl } from '../../api/authUrl'
 import { openFile as openFileInTab } from '../../utils/fileDownload'
-import { getCachedFileObjectUrl } from '../../utils/offlineFile'
 import { useNetworkMode } from '../../hooks/useNetworkMode'
 import {
   formatSize,
@@ -109,7 +108,6 @@ export function ExpenseAttachmentList({ expenseId, files, attachmentsUnavailable
   const mediaFiles = useMemo(() => attachments.filter(file => isMedia(file.mime_type)), [attachments])
 
   useEffect(() => {
-    let objectUrl = ''
     if (!previewUrl) {
       setPreviewFileUrl('')
       setPreviewUnavailable(false)
@@ -119,30 +117,23 @@ export function ExpenseAttachmentList({ expenseId, files, attachmentsUnavailable
     setPreviewFileUrl('')
     setPreviewError(false)
     setPreviewUnavailable(false)
-    const resolve = offline
-      ? getCachedFileObjectUrl(previewUrl)
-      : getAuthUrl(previewUrl, 'download')
+    if (offline) {
+      setPreviewUnavailable(true)
+      return () => { current = false }
+    }
+    const resolve = getAuthUrl(previewUrl, 'download')
     resolve
       .then(url => {
-        if (current) {
-          objectUrl = offline ? url : ''
-          setPreviewFileUrl(url)
-        } else if (offline) {
-          URL.revokeObjectURL(url)
-        }
+        if (current) setPreviewFileUrl(url)
       })
       .catch(() => {
         if (current) {
-          if (offline) setPreviewUnavailable(true)
-          else {
-            setPreviewError(true)
-            toast.error(t('files.openError'))
-          }
+          setPreviewError(true)
+          toast.error(t('files.openError'))
         }
       })
     return () => {
       current = false
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [previewUrl, t, toast, offline])
 

@@ -6,7 +6,6 @@ import { useToast } from '../shared/Toast'
 import type { TripFile } from '../../types'
 import { getAuthUrl } from '../../api/authUrl'
 import { openFile as openFileInTab } from '../../utils/fileDownload'
-import { getCachedFileObjectUrl } from '../../utils/offlineFile'
 import { AuthedImg } from '../Files/FileManagerAuthedImg'
 import { ImageLightbox } from '../Files/FileManagerImageLightbox'
 import { MarkdownPreviewModal } from '../Files/FileManagerMarkdownPreviewModal'
@@ -83,7 +82,6 @@ export default function ExpenseFilePicker({
 
   const previewUrl = previewFile?.url
   useEffect(() => {
-    let objectUrl = ''
     if (!previewUrl) {
       setPreviewFileUrl('')
       setPreviewError(false)
@@ -94,29 +92,22 @@ export default function ExpenseFilePicker({
     setPreviewFileUrl('')
     setPreviewError(false)
     setPreviewUnavailable(false)
-    const resolve = offline
-      ? getCachedFileObjectUrl(previewUrl)
-      : getAuthUrl(previewUrl, 'download')
+    if (offline) {
+      setPreviewUnavailable(true)
+      return () => { current = false }
+    }
+    const resolve = getAuthUrl(previewUrl, 'download')
     resolve
       .then(url => {
-        if (current) {
-          objectUrl = offline ? url : ''
-          setPreviewFileUrl(url)
-        } else if (offline) {
-          URL.revokeObjectURL(url)
-        }
+        if (current) setPreviewFileUrl(url)
       })
       .catch(() => {
         if (!current) return
-        if (offline) setPreviewUnavailable(true)
-        else {
-          setPreviewError(true)
-          toastRef.current.error(t('files.openError'))
-        }
+        setPreviewError(true)
+        toastRef.current.error(t('files.openError'))
       })
     return () => {
       current = false
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [previewUrl, t, offline])
 

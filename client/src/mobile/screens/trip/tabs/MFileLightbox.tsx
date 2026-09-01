@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, Download, ExternalLink, X } from 'lucide-react'
 import { getAuthUrl } from '../../../../api/authUrl'
 import { downloadFile, openFile } from '../../../../utils/fileDownload'
-import { getCachedFileObjectUrl } from '../../../../utils/offlineFile'
 import { lockBodyScroll } from '../../../../utils/bodyScrollLock'
 import { fileErrorMessage, isVideo } from '../../../../components/Files/FileManager.helpers'
 import { useNetworkMode } from '../../../../hooks/useNetworkMode'
@@ -46,28 +45,21 @@ export default function MFileLightbox({ files, index, onIndexChange, onClose, t 
     // Swiping is faster than the resource-token round trip, so a stale token must
     // not overwrite the file the user is looking at now.
     let cancelled = false
-    let objectUrl = ''
     setImgSrc('')
     setMediaError(false)
     if (!fileUrl) return
-    const resolve = offline
-      ? getCachedFileObjectUrl(fileUrl)
-      : isVideo(fileMimeType)
-        ? null
-        : getAuthUrl(fileUrl, 'download')
+    if (offline) {
+      setMediaError(true)
+      return () => { cancelled = true }
+    }
+    const resolve = isVideo(fileMimeType) ? null : getAuthUrl(fileUrl, 'download')
     resolve?.then(url => {
-      if (!cancelled) {
-        objectUrl = offline ? url : ''
-        setImgSrc(url)
-      } else if (offline) {
-        URL.revokeObjectURL(url)
-      }
+      if (!cancelled) setImgSrc(url)
     }).catch(() => {
-      if (!cancelled && offline) setMediaError(true)
+      if (!cancelled) setMediaError(true)
     })
     return () => {
       cancelled = true
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [fileUrl, fileMimeType, offline])
 
@@ -163,7 +155,7 @@ export default function MFileLightbox({ files, index, onIndexChange, onClose, t 
           <p role="alert" className="px-6 text-center font-geist text-[0.8125rem] text-m-muted">{t('files.offlineUnavailable')}</p>
         ) : fileIsVideo ? (
           <div role="presentation" onClick={e => e.stopPropagation()}>
-            <VideoPlayer src={offline ? imgSrc : file.url} style={{ maxWidth: '92vw', maxHeight: '78vh', borderRadius: 8 }} />
+            <VideoPlayer src={file.url} style={{ maxWidth: '92vw', maxHeight: '78vh', borderRadius: 8 }} />
           </div>
         ) : (
           imgSrc && (

@@ -10,7 +10,6 @@ import { useNetworkMode } from '../../hooks/useNetworkMode'
 import { getAuthUrl } from '../../api/authUrl'
 import { fileErrorMessage, isImage, isMedia, isWalletPass } from './FileManager.helpers'
 import { openFile as openFileInTab } from '../../utils/fileDownload'
-import { getCachedFileObjectUrl, isOfflineFileUnavailableError } from '../../utils/offlineFile'
 import { linkedExpenseCount } from '../Budget/expenseAttachmentUtils'
 
 export interface FileManagerProps {
@@ -207,35 +206,19 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
 
   const previewUrl = previewFile?.url
   useEffect(() => {
-    let objectUrl = ''
     if (previewUrl) {
       let current = true
       setPreviewFileUrl('')
       setPreviewUnavailable(false)
       if (offline) {
-        getCachedFileObjectUrl(previewUrl)
-          .then(url => {
-            if (current) {
-              objectUrl = url
-              setPreviewFileUrl(url)
-            } else {
-              URL.revokeObjectURL(url)
-            }
-          })
-          .catch(error => {
-            if (current && isOfflineFileUnavailableError(error)) setPreviewUnavailable(true)
-          })
-        return () => {
-          current = false
-          if (objectUrl) URL.revokeObjectURL(objectUrl)
-        }
+        setPreviewUnavailable(true)
+        return () => { current = false }
       }
       getAuthUrl(previewUrl, 'download')
         .then(url => { if (current) setPreviewFileUrl(url) })
         .catch(error => { if (current) toastRef.current.error(fileErrorMessage(t, error)) })
       return () => {
         current = false
-        if (objectUrl) URL.revokeObjectURL(objectUrl)
       }
     } else {
       setPreviewFileUrl('')

@@ -7,7 +7,6 @@ import { useNetworkMode } from '../../hooks/useNetworkMode'
 import type { TripFile } from '../../types'
 import { getAuthUrl } from '../../api/authUrl'
 import { openFile as openFileUrl } from '../../utils/fileDownload'
-import { getCachedFileObjectUrl } from '../../utils/offlineFile'
 import { fileErrorMessage, triggerDownload, isVideo } from './FileManager.helpers'
 import VideoPlayer from '../Journey/VideoPlayerLazy'
 
@@ -32,29 +31,23 @@ export function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxPro
 
   useEffect(() => {
     let current = true
-    let objectUrl = ''
     setImgSrc('')
     setMediaError(false)
     // Images use a one-shot signed URL; a video must use the plain same-origin
     // URL (cookie auth) so its many Range requests all authenticate (#823).
     if (!file) return
-    const resolve = offline || !isVideo(file.mime_type)
-      ? (offline ? getCachedFileObjectUrl(file.url) : getAuthUrl(file.url, 'download'))
-      : null
+    if (offline) {
+      setMediaError(true)
+      return () => { current = false }
+    }
+    const resolve = !isVideo(file.mime_type) ? getAuthUrl(file.url, 'download') : null
     resolve?.then(u => {
-      if (current) {
-        objectUrl = offline ? u : ''
-        setImgSrc(u)
-      } else if (offline) {
-        URL.revokeObjectURL(u)
-      }
+      if (current) setImgSrc(u)
     }).catch(error => {
-      if (current && offline) setMediaError(true)
-      else if (current) console.error('Failed to resolve image preview:', error)
+      if (current) console.error('Failed to resolve image preview:', error)
     })
     return () => {
       current = false
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [file?.url, file?.mime_type, offline])
 
@@ -181,26 +174,18 @@ function ThumbImg({ file, active, onClick }: { file: TripFile & { url: string };
   // Videos have no stored thumbnail and can't render as an <img>; show a play
   // placeholder and don't mint a download token for them (#823).
   useEffect(() => {
-    if (!visible || fileIsVideo) return
+    if (!visible || fileIsVideo || offline) return
     let current = true
-    let objectUrl = ''
-    const resolve = offline ? getCachedFileObjectUrl(file.url) : getAuthUrl(file.url, 'download')
-    resolve.then(u => {
-      if (current) {
-        objectUrl = offline ? u : ''
-        setSrc(u)
-      } else if (offline) {
-        URL.revokeObjectURL(u)
-      }
+    getAuthUrl(file.url, 'download').then(u => {
+      if (current) setSrc(u)
     }).catch(error => {
       if (current) {
         setSrc('')
-        if (!offline) console.error('Failed to resolve thumbnail:', error)
+        console.error('Failed to resolve thumbnail:', error)
       }
     })
     return () => {
       current = false
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [file.url, fileIsVideo, visible, offline])
 
