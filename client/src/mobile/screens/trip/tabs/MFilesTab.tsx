@@ -5,7 +5,6 @@ import { useTranslation, translateApiError } from '../../../../i18n'
 import { filesApi } from '../../../../api/client'
 import { openFile } from '../../../../utils/fileDownload'
 import { fileErrorMessage, formatSize, isMedia } from '../../../../components/Files/FileManager.helpers'
-import { useNetworkMode } from '../../../../hooks/useNetworkMode'
 import type { TripFile } from '../../../../types'
 import { TabScroller } from './tabChrome'
 import type { MTabScreenProps } from './tabModel'
@@ -33,7 +32,6 @@ const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 export default function MFilesTab({ planner, shell }: MTabScreenProps) {
   const { t } = planner
   const files = planner.files || []
-  const { offline } = useNetworkMode()
 
   const [filter, setFilter] = useState<FileFilterId>('all')
   const [menuFileId, setMenuFileId] = useState<number | null>(null)
@@ -51,17 +49,12 @@ export default function MFilesTab({ planner, shell }: MTabScreenProps) {
   const lastUploadSignal = useRef(shell.uploadFilesSignal)
   useEffect(() => {
     if (shell.uploadFilesSignal !== lastUploadSignal.current && shell.uploadFilesSignal > 0) {
-      if (offline) planner.toast.error(t('files.offlineReadOnly'))
-      else inputRef.current?.click()
+      inputRef.current?.click()
     }
     lastUploadSignal.current = shell.uploadFilesSignal
-  }, [shell.uploadFilesSignal, offline, planner.toast, t])
+  }, [shell.uploadFilesSignal])
 
   const uploadFiles = async (list: File[]) => {
-    if (offline) {
-      planner.toast.error(t('files.offlineReadOnly'))
-      return
-    }
     const tooBig = list.filter(f => f.size > MAX_UPLOAD_BYTES)
     const okFiles = list.filter(f => f.size <= MAX_UPLOAD_BYTES)
     if (tooBig.length > 0) planner.toast.error(t('files.uploadErrorSize'))
@@ -92,7 +85,7 @@ export default function MFilesTab({ planner, shell }: MTabScreenProps) {
   }
 
   const onPaste = (e: ClipboardEvent<HTMLDivElement>) => {
-    if (offline || !planner.canUploadFiles) return
+    if (!planner.canUploadFiles) return
     const items = e.clipboardData?.items
     if (!items) return
     const pasted: File[] = []
@@ -150,7 +143,7 @@ export default function MFilesTab({ planner, shell }: MTabScreenProps) {
   return (
     <TabScroller>
       <div onPaste={onPaste} tabIndex={-1} className="flex min-h-full flex-col">
-        <input ref={inputRef} type="file" multiple className="hidden" onChange={onPickFiles} disabled={offline} />
+        <input ref={inputRef} type="file" multiple className="hidden" onChange={onPickFiles} />
 
         {uploading && (
           <div className="mb-2 flex items-center justify-center gap-2 rounded-full bg-[color:var(--m-ic)] px-3 py-[6px] font-geist text-[0.6875rem] font-bold text-m-muted">

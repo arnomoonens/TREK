@@ -32,7 +32,6 @@ interface ExpenseFilePickerProps {
   onRetryAttachment?: (failure: ExpenseAttachmentFailure) => void
   retryingAttachmentKey?: string | null
   disabled?: boolean
-  offline?: boolean
 }
 
 type PickerTab = 'upload' | 'expense-files'
@@ -51,7 +50,6 @@ export default function ExpenseFilePicker({
   onRetryAttachment,
   retryingAttachmentKey = null,
   disabled = false,
-  offline = false,
 }: ExpenseFilePickerProps) {
   const { t } = useTranslation()
   const toast = useToast()
@@ -61,12 +59,11 @@ export default function ExpenseFilePicker({
   const [previewFile, setPreviewFile] = useState<TripFile | null>(null)
   const [previewFileUrl, setPreviewFileUrl] = useState('')
   const [previewError, setPreviewError] = useState(false)
-  const [previewUnavailable, setPreviewUnavailable] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const liveFiles = useMemo(() => files.filter(file => !file.deleted_at), [files])
   const mediaFiles = useMemo(() => liveFiles.filter(file => isMedia(file.mime_type)), [liveFiles])
-  const attachEnabled = canAttachFiles && !disabled && !offline
-  const uploadEnabled = attachEnabled && canUploadFiles && !offline
+  const attachEnabled = canAttachFiles && !disabled
+  const uploadEnabled = attachEnabled && canUploadFiles
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: onAddUploads,
     multiple: true,
@@ -85,17 +82,11 @@ export default function ExpenseFilePicker({
     if (!previewUrl) {
       setPreviewFileUrl('')
       setPreviewError(false)
-      setPreviewUnavailable(false)
       return
     }
     let current = true
     setPreviewFileUrl('')
     setPreviewError(false)
-    setPreviewUnavailable(false)
-    if (offline) {
-      setPreviewUnavailable(true)
-      return () => { current = false }
-    }
     const resolve = getAuthUrl(previewUrl, 'download')
     resolve
       .then(url => {
@@ -109,7 +100,7 @@ export default function ExpenseFilePicker({
     return () => {
       current = false
     }
-  }, [previewUrl, t, offline])
+  }, [previewUrl, t])
 
   const openFile = (file: TripFile) => {
     if (isMedia(file.mime_type)) {
@@ -128,7 +119,6 @@ export default function ExpenseFilePicker({
     previewFile,
     setPreviewFile,
     previewFileUrl: previewError ? '' : previewFileUrl,
-    previewUnavailable,
     toast,
     t,
   }
@@ -147,8 +137,6 @@ export default function ExpenseFilePicker({
           </div>
         </div>
       </div>
-
-      {offline && <div role="alert" className="text-content-muted" style={{ marginBottom: 10, fontSize: 'calc(12px * var(--fs-scale-body, 1))' }}>{t('files.offlineReadOnly')}</div>}
 
       {attachmentFailures.length > 0 && (
         <div
@@ -235,9 +223,9 @@ export default function ExpenseFilePicker({
                         type="button"
                         aria-label={retryLabel(failure)}
                         onClick={() => retry(failure)}
-                        disabled={disabled || offline || retrying}
+                        disabled={disabled || retrying}
                         className="text-content"
-                        style={{ border: 0, background: 'none', padding: '3px 0', fontFamily: 'inherit', fontSize: 'calc(11px * var(--fs-scale-body, 1))', fontWeight: 650, cursor: disabled || offline || retrying ? 'default' : 'pointer', flexShrink: 0 }}
+                        style={{ border: 0, background: 'none', padding: '3px 0', fontFamily: 'inherit', fontSize: 'calc(11px * var(--fs-scale-body, 1))', fontWeight: 650, cursor: disabled || retrying ? 'default' : 'pointer', flexShrink: 0 }}
                       >
                         {t('costs.retryAttachment')}
                       </button>
@@ -314,9 +302,9 @@ export default function ExpenseFilePicker({
                         type="button"
                         aria-label={retryLabel(failure)}
                         onClick={(event) => { event.preventDefault(); event.stopPropagation(); retry(failure) }}
-                        disabled={disabled || offline || retrying}
+                        disabled={disabled || retrying}
                         className="text-content"
-                        style={{ border: 0, background: 'none', padding: '3px 0', fontFamily: 'inherit', fontSize: 'calc(11px * var(--fs-scale-body, 1))', fontWeight: 650, cursor: disabled || offline || retrying ? 'default' : 'pointer', flexShrink: 0 }}
+                        style={{ border: 0, background: 'none', padding: '3px 0', fontFamily: 'inherit', fontSize: 'calc(11px * var(--fs-scale-body, 1))', fontWeight: 650, cursor: disabled || retrying ? 'default' : 'pointer', flexShrink: 0 }}
                       >
                         {t('costs.retryAttachment')}
                       </button>

@@ -11,7 +11,7 @@ import { linkedExpenseIds } from '../Budget/expenseAttachmentUtils'
 export function FileRow(p: FileManagerState & { file: TripFile; isTrash?: boolean }) {
   const {
     file, isTrash = false, places, reservations, expenses, t, locale, can, trip,
-    handleStar, handleRestore, handlePermanentDelete, handleDelete, openFile, setAssignFileId, toast, offline,
+    handleStar, handleRestore, handlePermanentDelete, handleDelete, openFile, setAssignFileId, toast,
   } = p
   const FileIcon = getFileIcon(file.mime_type)
   const allLinkedPlaceIds = new Set<number>()
@@ -124,7 +124,7 @@ export function FileRow(p: FileManagerState & { file: TripFile; isTrash?: boolea
               onMouseEnter={e => { if (!file.starred) e.currentTarget.style.color = '#facc15' }} onMouseLeave={e => { if (!file.starred) e.currentTarget.style.color = 'var(--text-faint)' }}>
               <Star size={14} fill={file.starred ? '#facc15' : 'none'} />
             </button>
-            {can('file_edit', trip) && <button type="button" disabled={offline} onClick={() => setAssignFileId(file.id)} title={t('files.assign') || 'Assign'} style={{ padding: 6, background: 'none', border: 'none', cursor: offline ? 'default' : 'pointer', color: 'var(--text-faint)', borderRadius: 6, display: 'flex', opacity: offline ? 0.55 : 1 }}
+            {can('file_edit', trip) && <button type="button" onClick={() => setAssignFileId(file.id)} title={t('files.assign') || 'Assign'} style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-faint)', borderRadius: 6, display: 'flex' }}
               onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-faint)'}>
               <Pencil size={14} />
             </button>}

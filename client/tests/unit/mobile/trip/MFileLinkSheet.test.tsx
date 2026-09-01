@@ -5,7 +5,6 @@ import type { TripPlanner } from '../../../../src/mobile/screens/trip/MTripShell
 import type { Place, Reservation, TripFile } from '../../../../src/types'
 import { buildPlanner } from '../../../helpers/mobileTrip'
 import { act, fireEvent, render, screen, waitFor } from '../../../helpers/render'
-import { setForcedOffline } from '../../../../src/sync/networkMode'
 
 // FE-MOB-FLINK-001 to FE-MOB-FLINK-018
 
@@ -47,7 +46,6 @@ describe('MFileLinkSheet', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    setForcedOffline(false)
   })
 
   it('FE-MOB-FLINK-001: stays closed without a file', () => {
@@ -193,23 +191,5 @@ describe('MFileLinkSheet', () => {
     const { rerender } = render(<MFileLinkSheet planner={planner} file={file()} onClose={vi.fn()} />)
     rerender(<MFileLinkSheet planner={planner} file={null} onClose={vi.fn()} />)
     expect(screen.getByText('ticket.pdf')).toBeInTheDocument()
-  })
-
-  it('FE-MOB-FLINK-019: disables all relationship rows while offline', () => {
-    setForcedOffline(true)
-    const planner = buildPlanner({
-      places: PLACES,
-      reservations: RESERVATIONS,
-      budgetItems: [{ id: 31, name: 'Dinner' }],
-    } as unknown as Partial<TripPlanner>)
-    render(<MFileLinkSheet planner={planner} file={file()} onClose={vi.fn()} />)
-
-    expect(screen.getByRole('alert')).toHaveTextContent('files.offlineReadOnly')
-    for (const name of ['Fushimi Inari', 'Hotel Granvia', 'Shinkansen Nozomi 21', 'Dinner']) {
-      expect(screen.getByRole('button', { name })).toBeDisabled()
-    }
-    fireEvent.click(screen.getByRole('button', { name: 'Dinner' }))
-    expect(planner.tripActions.attachExpenseFile).not.toHaveBeenCalled()
-    expect(planner.tripActions.detachExpenseFile).not.toHaveBeenCalled()
   })
 })

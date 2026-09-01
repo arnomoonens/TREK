@@ -8,7 +8,7 @@ import EmptyState from '../shared/EmptyState'
 export function FilesView(S: FileManagerState) {
   const {
     can, trip, getRootProps, getInputProps, isDragActive, uploading, t, allowedFileTypes,
-    files, filterType, setFilterType, filteredFiles, offline, filesAvailability,
+    files, filterType, setFilterType, filteredFiles, filesAvailability,
   } = S
   const contribFor = usePluginViewContributions('files', S.tripId)
   return (
@@ -18,12 +18,12 @@ export function FilesView(S: FileManagerState) {
         {...getRootProps()}
         style={{
           margin: '16px 28px 0', border: '2px dashed', borderRadius: 14, padding: '20px 16px',
-          textAlign: 'center', cursor: offline ? 'default' : 'pointer', transition: 'all 0.15s',
+          textAlign: 'center', cursor: 'pointer', transition: 'all 0.15s',
           borderColor: isDragActive ? 'var(--text-secondary)' : 'var(--border-primary)',
           background: isDragActive ? 'var(--bg-secondary)' : 'var(--bg-card)',
         }}
       >
-        <input {...getInputProps()} disabled={offline} />
+        <input {...getInputProps()} />
         <Upload size={24} style={{ margin: '0 auto 8px', color: isDragActive ? 'var(--text-secondary)' : 'var(--text-faint)', display: 'block' }} />
         {uploading ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 'calc(13px * var(--fs-scale-body, 1))', color: 'var(--text-secondary)' }}>
@@ -32,17 +32,11 @@ export function FilesView(S: FileManagerState) {
           </div>
         ) : (
           <>
-            {offline ? (
-              <p role="alert" style={{ fontSize: 'calc(12.5px * var(--fs-scale-body, 1))', color: 'var(--text-muted)', fontWeight: 500, margin: 0 }}>{t('files.offlineReadOnly')}</p>
-            ) : (
-              <>
-                <p style={{ fontSize: 'calc(13px * var(--fs-scale-body, 1))', color: 'var(--text-secondary)', fontWeight: 500, margin: 0 }}>{t('files.dropzone')}</p>
-                <p style={{ fontSize: 'calc(11.5px * var(--fs-scale-caption, 1))', color: 'var(--text-faint)', marginTop: 3 }}>{t('files.dropzoneHint')}</p>
-                <p style={{ fontSize: 'calc(10px * var(--fs-scale-caption, 1))', color: 'var(--text-faint)', marginTop: 6, opacity: 0.7 }}>
-                  {(allowedFileTypes || 'jpg,jpeg,png,gif,webp,heic,pdf,doc,docx,xls,xlsx,txt,csv').toUpperCase().split(',').join(', ')} · Max 50 MB
-                </p>
-              </>
-            )}
+            <p style={{ fontSize: 'calc(13px * var(--fs-scale-body, 1))', color: 'var(--text-secondary)', fontWeight: 500, margin: 0 }}>{t('files.dropzone')}</p>
+            <p style={{ fontSize: 'calc(11.5px * var(--fs-scale-caption, 1))', color: 'var(--text-faint)', marginTop: 3 }}>{t('files.dropzoneHint')}</p>
+            <p style={{ fontSize: 'calc(10px * var(--fs-scale-caption, 1))', color: 'var(--text-faint)', marginTop: 6, opacity: 0.7 }}>
+              {(allowedFileTypes || 'jpg,jpeg,png,gif,webp,heic,pdf,doc,docx,xls,xlsx,txt,csv').toUpperCase().split(',').join(', ')} · Max 50 MB
+            </p>
           </>
         )}
       </div>}

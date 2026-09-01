@@ -4,7 +4,6 @@ import { getAuthUrl } from '../../../../src/api/authUrl'
 import { downloadFile, openFile } from '../../../../src/utils/fileDownload'
 import type { TranslationFn, TripFile } from '../../../../src/types'
 import { fireEvent, render, screen, waitFor } from '../../../helpers/render'
-import { setForcedOffline } from '../../../../src/sync/networkMode'
 
 // FE-MOB-FLBOX-001 to FE-MOB-FLBOX-017
 
@@ -48,11 +47,9 @@ function renderBox(index: number, overrides: { files?: TripFile[] } = {}) {
 describe('MFileLightbox', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    setForcedOffline(false)
   })
 
   afterEach(() => {
-    setForcedOffline(false)
     document.body.style.overflow = ''
     document.getElementById('m-sheet-root')?.remove()
   })
@@ -232,15 +229,5 @@ describe('MFileLightbox', () => {
     await waitFor(() =>
       expect(screen.getByAltText('castle.png')).toHaveAttribute('src', '/api/trips/1/files/2/download?token=t1'),
     )
-  })
-
-  it('FE-MOB-FLBOX-019: reports an image unavailable while offline', async () => {
-    setForcedOffline(true)
-
-    renderBox(0)
-
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('files.offlineUnavailable'))
-    expect(screen.queryByAltText('beach.jpg')).not.toBeInTheDocument()
-    expect(getAuthUrl).not.toHaveBeenCalled()
   })
 })

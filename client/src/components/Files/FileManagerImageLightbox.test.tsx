@@ -1,8 +1,7 @@
 // FE-W4LBX-001 to FE-W4LBX-021
-import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { TripFile } from '../../types'
 import { render, screen, fireEvent, waitFor, act } from '../../../tests/helpers/render'
-import { setForcedOffline } from '../../sync/networkMode'
 
 const getAuthUrl = vi.fn(async (url: string, _kind: string) => `${url}?token=abc`)
 const openFile = vi.fn(async (_url: string, _name: string) => {})
@@ -42,11 +41,6 @@ beforeEach(() => {
   openFile.mockResolvedValue(undefined)
   downloadFile.mockReset()
   downloadFile.mockResolvedValue(undefined)
-  setForcedOffline(false)
-})
-
-afterEach(() => {
-  setForcedOffline(false)
 })
 
 describe('ImageLightbox', () => {
@@ -272,15 +266,5 @@ describe('ImageLightbox', () => {
     } finally {
       globalThis.IntersectionObserver = original
     }
-  })
-
-  it('FE-W4LBX-021: clearly reports an image unavailable while offline', async () => {
-    setForcedOffline(true)
-
-    render(<ImageLightbox files={[IMAGES[0]]} initialIndex={0} onClose={() => {}} />)
-
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/offline/i))
-    expect(lightboxRoot().querySelector('img[alt="a.jpg"]')).toBeNull()
-    expect(getAuthUrl).not.toHaveBeenCalled()
   })
 })

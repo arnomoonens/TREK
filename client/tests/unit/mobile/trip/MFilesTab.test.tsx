@@ -6,7 +6,6 @@ import type { MTripShellApi, TripPlanner } from '../../../../src/mobile/screens/
 import type { Place, TripFile } from '../../../../src/types'
 import { buildPlanner, buildShell, buildTripActions } from '../../../helpers/mobileTrip'
 import { act, fireEvent, render, screen, waitFor } from '../../../helpers/render'
-import { setForcedOffline } from '../../../../src/sync/networkMode'
 
 // FE-MOB-FTAB-001 to FE-MOB-FTAB-025
 
@@ -125,7 +124,6 @@ describe('MFilesTab', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    setForcedOffline(false)
   })
 
   it('FE-MOB-FTAB-001: shows the mascot empty state and no filter grid without files', () => {
@@ -388,15 +386,5 @@ describe('MFilesTab', () => {
     expect(screen.getByTestId('trash-sheet')).toBeInTheDocument()
     fireEvent.click(screen.getByText('trash-close'))
     expect(screen.queryByTestId('trash-sheet')).not.toBeInTheDocument()
-  })
-
-  it('FE-MOB-FTAB-026: offline keeps cached rows readable and disables upload', () => {
-    setForcedOffline(true)
-    const { container, planner } = renderTab({ filesAvailability: 'available' } as unknown as Partial<TripPlanner>)
-
-    expect(screen.getByText('guide.pdf')).toBeInTheDocument()
-    expect(hiddenInput(container)).toBeDisabled()
-    fireEvent.change(hiddenInput(container), { target: { files: [makeFile('blocked.pdf', 'application/pdf')] } })
-    expect(planner.tripActions.addFile).not.toHaveBeenCalled()
   })
 })

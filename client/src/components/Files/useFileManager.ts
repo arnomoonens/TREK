@@ -6,7 +6,6 @@ import { filesApi } from '../../api/client'
 import type { BudgetItem, Place, Reservation, Trip, TripFile, Day, AssignmentsMap } from '../../types'
 import { useCanDo } from '../../store/permissionsStore'
 import { useTripStore } from '../../store/tripStore'
-import { useNetworkMode } from '../../hooks/useNetworkMode'
 import { getAuthUrl } from '../../api/authUrl'
 import { fileErrorMessage, isImage, isMedia, isWalletPass } from './FileManager.helpers'
 import { openFile as openFileInTab } from '../../utils/fileDownload'
@@ -44,17 +43,12 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
   const toastRef = useRef(toast)
   toastRef.current = toast
   const can = useCanDo()
-  const { offline } = useNetworkMode()
   const filesAvailability = useTripStore((s) => s.filesAvailability)
   const attachExpenseFile = useTripStore((s) => s.attachExpenseFile)
   const detachExpenseFile = useTripStore((s) => s.detachExpenseFile)
   const { t, locale } = useTranslation()
 
   const loadTrash = useCallback(async () => {
-    if (offline) {
-      toast.error(t('files.offlineListUnavailable'))
-      return
-    }
     setLoadingTrash(true)
     try {
       const data = await filesApi.list(tripId, true)
@@ -63,7 +57,7 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
       toast.error(t('files.toast.deleteError'))
     }
     setLoadingTrash(false)
-  }, [tripId, t, toast, offline])
+  }, [tripId, t, toast])
 
   const toggleTrash = useCallback(() => {
     if (!showTrash) void loadTrash()
@@ -124,15 +118,10 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
 
   const [previewFile, setPreviewFile] = useState<TripFile | null>(null)
   const [previewFileUrl, setPreviewFileUrl] = useState('')
-  const [previewUnavailable, setPreviewUnavailable] = useState(false)
   const [assignFileId, setAssignFileId] = useState<number | null>(null)
 
   const onDrop = useCallback(async (acceptedFiles) => {
     if (acceptedFiles.length === 0) return
-    if (offline) {
-      toast.error(t('files.offlineReadOnly'))
-      return
-    }
     setUploading(true)
     const uploadedIds: number[] = []
     try {
@@ -154,17 +143,16 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
     } finally {
       setUploading(false)
     }
-  }, [onUpload, toast, t, places, reservations, expenses, offline])
+  }, [onUpload, toast, t, places, reservations, expenses])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     maxSize: 50 * 1024 * 1024,
     noClick: false,
-    disabled: offline,
   })
 
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
-    if (offline || !can('file_upload', trip)) return
+    if (!can('file_upload', trip)) return
     const items = e.clipboardData?.items
     if (!items) return
     const pastedFiles: File[] = []
@@ -178,7 +166,7 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
       e.preventDefault()
       void onDrop(pastedFiles)
     }
-  }, [onDrop, can, trip, offline])
+  }, [onDrop, can, trip])
 
   const filteredFiles = files.filter(f => {
     if (filterType === 'starred') return !!f.starred
@@ -209,11 +197,6 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
     if (previewUrl) {
       let current = true
       setPreviewFileUrl('')
-      setPreviewUnavailable(false)
-      if (offline) {
-        setPreviewUnavailable(true)
-        return () => { current = false }
-      }
       getAuthUrl(previewUrl, 'download')
         .then(url => { if (current) setPreviewFileUrl(url) })
         .catch(error => { if (current) toastRef.current.error(fileErrorMessage(t, error)) })
@@ -222,12 +205,10 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
       }
     } else {
       setPreviewFileUrl('')
-      setPreviewUnavailable(false)
     }
-  }, [previewUrl, t, offline])
+  }, [previewUrl, t])
 
   const handleAssign = async (fileId: number, data: { place_id?: number | null; reservation_id?: number | null }) => {
-    if (offline) return
     try {
       await filesApi.update(tripId, fileId, data)
       await refreshFiles()
@@ -258,15 +239,13 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
     showTrash, trashFiles, loadingTrash, toast, can, trip, t, locale,
     attachExpenseFile, detachExpenseFile,
     toggleTrash, refreshFiles, handleStar, handleRestore, handlePermanentDelete, handleEmptyTrash,
-    previewFile, setPreviewFile, previewFileUrl, previewUnavailable, assignFileId, setAssignFileId,
+    previewFile, setPreviewFile, previewFileUrl, assignFileId, setAssignFileId,
     getRootProps, getInputProps, isDragActive, handlePaste, filteredFiles, handleDelete,
-    handleAssign, mediaFiles, openFile, offline, filesAvailability,
+    handleAssign, mediaFiles, openFile, filesAvailability,
   }
 }
 
 export type FileManagerState = ReturnType<typeof useFileManager>
 
 /** The small state surface shared by the Files previews and read-only viewers. */
-export type FilePreviewState = Pick<FileManagerState, 'previewFile' | 'setPreviewFile' | 'previewFileUrl' | 'toast' | 't'> & {
-  previewUnavailable?: boolean
-}
+export type FilePreviewState = Pick<FileManagerState, 'previewFile' | 'setPreviewFile' | 'previewFileUrl' | 'toast' | 't'>

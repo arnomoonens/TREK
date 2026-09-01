@@ -5,7 +5,7 @@ import type { FilePreviewState } from './useFileManager'
 import { fileErrorMessage, triggerDownload } from './FileManager.helpers'
 
 export function PdfPreviewModal(S: FilePreviewState) {
-  const { previewFile, setPreviewFile, previewFileUrl, previewUnavailable, toast, t } = S
+  const { previewFile, setPreviewFile, previewFileUrl, toast, t } = S
   if (!previewFile) return null
 
   return createPortal(
@@ -44,20 +44,16 @@ export function PdfPreviewModal(S: FilePreviewState) {
             </button>
           </div>
         </div>
-        {previewUnavailable ? (
-          <p role="alert" style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>{t('files.offlineUnavailable')}</p>
-        ) : (
-          <object
-            data={previewFileUrl ? `${previewFileUrl}#view=FitH` : undefined}
-            type="application/pdf"
-            style={{ flex: 1, width: '100%', border: 'none' }}
-            title={previewFile.original_name}
-          >
-            <p style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
-              <button type="button" onClick={() => openFileUrl(previewFile.url, previewFile.original_name).catch(error => toast.error(fileErrorMessage(t, error)))} style={{ color: 'var(--text-primary)', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', font: 'inherit' }}>{t('files.downloadPdf')}</button>
-            </p>
-          </object>
-        )}
+        <object
+          data={previewFileUrl ? `${previewFileUrl}#view=FitH` : undefined}
+          type="application/pdf"
+          style={{ flex: 1, width: '100%', border: 'none' }}
+          title={previewFile.original_name}
+        >
+          <p style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
+            <button type="button" onClick={() => openFileUrl(previewFile.url, previewFile.original_name).catch(error => toast.error(fileErrorMessage(t, error)))} style={{ color: 'var(--text-primary)', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', font: 'inherit' }}>{t('files.downloadPdf')}</button>
+          </p>
+        </object>
       </div>
     </div>,
     document.body

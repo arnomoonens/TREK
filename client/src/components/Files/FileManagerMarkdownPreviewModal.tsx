@@ -16,12 +16,12 @@ import { fileErrorMessage, triggerDownload } from './FileManager.helpers'
  * react-markdown v10 already drops raw HTML, so no script can execute.
  */
 export function MarkdownPreviewModal(S: FilePreviewState) {
-  const { previewFile, setPreviewFile, previewFileUrl, previewUnavailable, toast, t } = S
+  const { previewFile, setPreviewFile, previewFileUrl, toast, t } = S
   const [text, setText] = useState('')
   const [err, setErr] = useState(false)
 
   useEffect(() => {
-    if (!previewFileUrl || previewUnavailable) return
+    if (!previewFileUrl) return
     let cancelled = false
     setErr(false)
     setText('')
@@ -30,7 +30,7 @@ export function MarkdownPreviewModal(S: FilePreviewState) {
       .then(body => { if (!cancelled) setText(body) })
       .catch(() => { if (!cancelled) setErr(true) })
     return () => { cancelled = true }
-  }, [previewFileUrl, previewUnavailable])
+  }, [previewFileUrl])
 
   if (!previewFile) return null
 
@@ -65,9 +65,7 @@ export function MarkdownPreviewModal(S: FilePreviewState) {
           </div>
         </div>
         <div className="collab-note-md" style={{ flex: 1, overflowY: 'auto', padding: '20px 28px', color: 'var(--text-primary)', lineHeight: 1.6, wordBreak: 'break-word' }}>
-          {previewUnavailable
-            ? <p role="alert" style={{ color: 'var(--text-muted)' }}>{t('files.offlineUnavailable')}</p>
-            : err
+          {err
             ? <p style={{ color: 'var(--text-muted)' }}>{t('files.openError')}</p>
             : <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} rehypePlugins={[rehypeSanitize]}>{text}</Markdown>}
         </div>

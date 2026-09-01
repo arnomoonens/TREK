@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom'
 import { ExternalLink, Download, X, ChevronLeft, ChevronRight, Play } from 'lucide-react'
 import { useTranslation } from '../../i18n'
 import { useToast } from '../shared/Toast'
-import { useNetworkMode } from '../../hooks/useNetworkMode'
 import type { TripFile } from '../../types'
 import { getAuthUrl } from '../../api/authUrl'
 import { openFile as openFileUrl } from '../../utils/fileDownload'
@@ -20,10 +19,8 @@ interface ImageLightboxProps {
 export function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
   const { t } = useTranslation()
   const toast = useToast()
-  const { offline } = useNetworkMode()
   const [index, setIndex] = useState(initialIndex)
   const [imgSrc, setImgSrc] = useState('')
-  const [mediaError, setMediaError] = useState(false)
   const [touchStart, setTouchStart] = useState<number | null>(null)
   const file = files[index]
 
@@ -32,14 +29,9 @@ export function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxPro
   useEffect(() => {
     let current = true
     setImgSrc('')
-    setMediaError(false)
     // Images use a one-shot signed URL; a video must use the plain same-origin
     // URL (cookie auth) so its many Range requests all authenticate (#823).
     if (!file) return
-    if (offline) {
-      setMediaError(true)
-      return () => { current = false }
-    }
     const resolve = !isVideo(file.mime_type) ? getAuthUrl(file.url, 'download') : null
     resolve?.then(u => {
       if (current) setImgSrc(u)
@@ -49,7 +41,7 @@ export function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxPro
     return () => {
       current = false
     }
-  }, [file?.url, file?.mime_type, offline])
+  }, [file?.url, file?.mime_type])
 
   const goPrev = () => setIndex(i => Math.max(0, i - 1))
   const goNext = () => setIndex(i => Math.min(files.length - 1, i + 1))
@@ -129,11 +121,9 @@ export function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxPro
       <div role="presentation" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: 0 }}
         onClick={e => { if (e.target === e.currentTarget) onClose() }}>
         {navBtn('left', goPrev, hasPrev)}
-        {mediaError ? (
-          <p role="alert" style={{ color: 'rgba(255,255,255,0.75)', fontSize: 'calc(13px * var(--fs-scale-body, 1))', textAlign: 'center', padding: 24 }}>{t('files.offlineUnavailable')}</p>
-        ) : fileIsVideo ? (
+        {fileIsVideo ? (
           <div>
-            <VideoPlayer src={offline ? imgSrc : file.url} style={{ maxWidth: '85vw', maxHeight: '80vh', borderRadius: 8 }} />
+            <VideoPlayer src={file.url} style={{ maxWidth: '85vw', maxHeight: '80vh', borderRadius: 8 }} />
           </div>
         ) : (
           imgSrc && <img src={imgSrc} alt={file.original_name} style={{ maxWidth: '85vw', maxHeight: '80vh', objectFit: 'contain', borderRadius: 8, display: 'block' }} />
@@ -157,7 +147,6 @@ export function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxPro
 function ThumbImg({ file, active, onClick }: { file: TripFile & { url: string }; active: boolean; onClick: () => void }) {
   const fileIsVideo = isVideo(file.mime_type)
   const [src, setSrc] = useState('')
-  const { offline } = useNetworkMode()
   const [visible, setVisible] = useState(false)
   const ref = useRef<HTMLButtonElement>(null)
 
@@ -174,7 +163,7 @@ function ThumbImg({ file, active, onClick }: { file: TripFile & { url: string };
   // Videos have no stored thumbnail and can't render as an <img>; show a play
   // placeholder and don't mint a download token for them (#823).
   useEffect(() => {
-    if (!visible || fileIsVideo || offline) return
+    if (!visible || fileIsVideo) return
     let current = true
     getAuthUrl(file.url, 'download').then(u => {
       if (current) setSrc(u)
@@ -187,7 +176,7 @@ function ThumbImg({ file, active, onClick }: { file: TripFile & { url: string };
     return () => {
       current = false
     }
-  }, [file.url, fileIsVideo, visible, offline])
+  }, [file.url, fileIsVideo, visible])
 
   return (
     <button type="button" ref={ref} onClick={onClick} style={{

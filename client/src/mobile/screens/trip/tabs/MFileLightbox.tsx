@@ -5,7 +5,6 @@ import { getAuthUrl } from '../../../../api/authUrl'
 import { downloadFile, openFile } from '../../../../utils/fileDownload'
 import { lockBodyScroll } from '../../../../utils/bodyScrollLock'
 import { fileErrorMessage, isVideo } from '../../../../components/Files/FileManager.helpers'
-import { useNetworkMode } from '../../../../hooks/useNetworkMode'
 import { useToast } from '../../../../components/shared/Toast'
 import VideoPlayer from '../../../../components/Journey/VideoPlayerLazy'
 import type { TranslationFn, TripFile } from '../../../../types'
@@ -33,9 +32,7 @@ function sheetRoot(): HTMLElement {
 export default function MFileLightbox({ files, index, onIndexChange, onClose, t }: MFileLightboxProps) {
   const file = files[index]
   const [imgSrc, setImgSrc] = useState('')
-  const [mediaError, setMediaError] = useState(false)
   const touchStartRef = useRef<number | null>(null)
-  const { offline } = useNetworkMode()
   const toast = useToast()
   const fileIsVideo = isVideo(file?.mime_type)
   const fileUrl = file?.url
@@ -46,22 +43,17 @@ export default function MFileLightbox({ files, index, onIndexChange, onClose, t 
     // not overwrite the file the user is looking at now.
     let cancelled = false
     setImgSrc('')
-    setMediaError(false)
     if (!fileUrl) return
-    if (offline) {
-      setMediaError(true)
-      return () => { cancelled = true }
-    }
     const resolve = isVideo(fileMimeType) ? null : getAuthUrl(fileUrl, 'download')
     resolve?.then(url => {
       if (!cancelled) setImgSrc(url)
-    }).catch(() => {
-      if (!cancelled) setMediaError(true)
+    }).catch(error => {
+      if (!cancelled) console.error('Failed to resolve image preview:', error)
     })
     return () => {
       cancelled = true
     }
-  }, [fileUrl, fileMimeType, offline])
+  }, [fileUrl, fileMimeType])
 
   const hasPrev = index > 0
   const hasNext = index < files.length - 1
@@ -151,9 +143,7 @@ export default function MFileLightbox({ files, index, onIndexChange, onClose, t 
             <ChevronLeft size={22} strokeWidth={2} />
           </button>
         )}
-        {mediaError ? (
-          <p role="alert" className="px-6 text-center font-geist text-[0.8125rem] text-m-muted">{t('files.offlineUnavailable')}</p>
-        ) : fileIsVideo ? (
+        {fileIsVideo ? (
           <div role="presentation" onClick={e => e.stopPropagation()}>
             <VideoPlayer src={file.url} style={{ maxWidth: '92vw', maxHeight: '78vh', borderRadius: 8 }} />
           </div>

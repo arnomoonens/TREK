@@ -22,14 +22,12 @@ function renderPicker({
   files = [],
   canAttachFiles = true,
   canUploadFiles = false,
-  offline = false,
   onAddUploads = vi.fn(),
   onToggleFile = vi.fn(),
 }: {
   files?: ReturnType<typeof buildTripFile>[]
   canAttachFiles?: boolean
   canUploadFiles?: boolean
-  offline?: boolean
   onAddUploads?: (files: File[]) => void
   onToggleFile?: (fileId: number) => void
 } = {}) {
@@ -44,7 +42,6 @@ function renderPicker({
       onRemoveUpload={vi.fn()}
       canAttachFiles={canAttachFiles}
       canUploadFiles={canUploadFiles}
-      offline={offline}
     />,
   )
 }
@@ -150,16 +147,6 @@ describe('ExpenseFilePicker', () => {
     })
 
     expect(screen.getByRole('checkbox', { name: 'saved.pdf' })).toBeDisabled()
-    await userEvent.click(screen.getByRole('tab', { name: 'Upload' }))
-    expect(screen.getByTestId('expense-upload-input')).toBeDisabled()
-  })
-
-  it('disables both sources while offline and explains the read-only state', async () => {
-    const file = buildTripFile({ id: 43, original_name: 'saved-offline.pdf' })
-    renderPicker({ files: [file], canUploadFiles: true, offline: true })
-
-    expect(screen.getByRole('alert')).toHaveTextContent('File relationships cannot be changed while offline.')
-    expect(screen.getByRole('checkbox', { name: 'saved-offline.pdf' })).toBeDisabled()
     await userEvent.click(screen.getByRole('tab', { name: 'Upload' }))
     expect(screen.getByTestId('expense-upload-input')).toBeDisabled()
   })

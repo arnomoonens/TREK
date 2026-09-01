@@ -10,7 +10,6 @@ import { useTranslation } from '../../i18n'
 import { budgetApi } from '../../api/client'
 import { useExchangeRates } from '../../hooks/useExchangeRates'
 import { useIsMobile } from '../../hooks/useIsMobile'
-import { useNetworkMode } from '../../hooks/useNetworkMode'
 import { formatMoney, currencyDecimals, currencyLocale, localizeAmountInput, cleanAmount } from '../../utils/formatters'
 import { downloadBlob } from '../../utils/fileDownload'
 import Modal from '../shared/Modal'
@@ -1095,10 +1094,7 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAt
   const { t, locale } = useTranslation()
   const toast = useToast()
   const isMobile = useIsMobile()
-  const { offline } = useNetworkMode()
   const { addBudgetItem, updateBudgetItem, addFile, files, loadFiles, attachExpenseFile, detachExpenseFile } = useTripStore()
-  const attachmentEditingEnabled = canAttachFiles && !offline
-  const uploadEnabled = canUploadFiles && !offline
   const { convert } = useExchangeRates(base)
   const sym = (c: string) => SYMBOLS[c] || (c + ' ')
 
@@ -1170,7 +1166,7 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAt
   const [selectedFileIds, setSelectedFileIds] = useState<Set<number>>(() =>
     editing ? new Set(filesForExpense(files, editing.id).map(file => file.id)) : new Set()
   )
-  const { stagedUploads, addStagedUploads, removeStagedUpload, markStagedUpload, removeStagedUploadFile } = useExpenseFileStaging(attachmentEditingEnabled, uploadEnabled)
+  const { stagedUploads, addStagedUploads, removeStagedUpload, markStagedUpload, removeStagedUploadFile } = useExpenseFileStaging(canAttachFiles, canUploadFiles)
   const { attachmentFailures, recordResult, forgetStagedUpload } = useExpenseAttachmentRecovery()
   const [retryingAttachmentKey, setRetryingAttachmentKey] = useState<string | null>(null)
 
@@ -1311,7 +1307,7 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAt
   }
 
   const toggleExpenseFile = (fileId: number) => {
-    if (!attachmentEditingEnabled) return
+    if (!canAttachFiles) return
     setAttachmentSelectionTouched(true)
     setSelectedFileIds(previous => {
       const next = new Set(previous)
@@ -1347,8 +1343,8 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAt
       files,
       selectedFileIds,
       stagedUploads,
-      canAttachFiles: attachmentEditingEnabled,
-      canUploadFiles: uploadEnabled,
+      canAttachFiles,
+      canUploadFiles,
       addFile,
       attachExpenseFile,
       detachExpenseFile,
@@ -1362,7 +1358,7 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAt
   }
 
   const retryAttachment = async (failure: ExpenseAttachmentFailure) => {
-    if (saving || offline) return
+    if (saving) return
     const expenseId = editing?.id ?? savedExpenseId
     if (!expenseId) return
     setSaving(true)
@@ -1553,13 +1549,12 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAt
           stagedUploads={stagedUploads}
           onAddUploads={addStagedUploads}
           onRemoveUpload={removeExpenseStagedUpload}
-          canAttachFiles={attachmentEditingEnabled}
-          canUploadFiles={uploadEnabled}
+          canAttachFiles={canAttachFiles}
+          canUploadFiles={canUploadFiles}
           attachmentFailures={attachmentFailures}
           onRetryAttachment={retryAttachment}
           retryingAttachmentKey={retryingAttachmentKey}
           disabled={saving}
-          offline={offline}
         />
 
         </div>
