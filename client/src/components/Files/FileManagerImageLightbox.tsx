@@ -2,10 +2,11 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { ExternalLink, Download, X, ChevronLeft, ChevronRight, Play } from 'lucide-react'
 import { useTranslation } from '../../i18n'
+import { useToast } from '../shared/Toast'
 import type { TripFile } from '../../types'
 import { getAuthUrl } from '../../api/authUrl'
 import { openFile as openFileUrl } from '../../utils/fileDownload'
-import { triggerDownload, isVideo } from './FileManager.helpers'
+import { fileErrorMessage, triggerDownload, isVideo } from './FileManager.helpers'
 import VideoPlayer from '../Journey/VideoPlayerLazy'
 
 // Image lightbox with gallery navigation
@@ -17,6 +18,7 @@ interface ImageLightboxProps {
 
 export function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
   const { t } = useTranslation()
+  const toast = useToast()
   const [index, setIndex] = useState(initialIndex)
   const [imgSrc, setImgSrc] = useState('')
   const [touchStart, setTouchStart] = useState<number | null>(null)
@@ -25,15 +27,20 @@ export function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxPro
   const fileIsVideo = isVideo(file?.mime_type)
 
   useEffect(() => {
+    let current = true
     setImgSrc('')
     // Images use a one-shot signed URL; a video must use the plain same-origin
     // URL (cookie auth) so its many Range requests all authenticate (#823).
-    if (!file || isVideo(file.mime_type)) return
-    // Arrowing through the gallery leaves several mints in flight; only the one for
-    // the file still on screen may paint.
-    let current = true
-    getAuthUrl(file.url, 'download').then(u => { if (current) setImgSrc(u) }).catch(() => {})
-    return () => { current = false }
+    if (!file) return
+    const resolve = !isVideo(file.mime_type) ? getAuthUrl(file.url, 'download') : null
+    resolve?.then(u => {
+      if (current) setImgSrc(u)
+    }).catch(error => {
+      if (current) console.error('Failed to resolve image preview:', error)
+    })
+    return () => {
+      current = false
+    }
   }, [file?.url, file?.mime_type])
 
   const goPrev = () => setIndex(i => Math.max(0, i - 1))
@@ -93,13 +100,13 @@ export function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxPro
         </span>
         <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
           <button type="button"
-            onClick={() => openFileUrl(file.url, file.original_name).catch(() => {})}
+            onClick={() => openFileUrl(file.url, file.original_name).catch(error => toast.error(fileErrorMessage(t, error)))}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', display: 'flex', padding: 4 }}
             title={t('files.openTab')}>
             <ExternalLink size={16} />
           </button>
           <button type="button"
-            onClick={() => triggerDownload(file.url, file.original_name)}
+            onClick={() => triggerDownload(file.url, file.original_name, error => toast.error(fileErrorMessage(t, error)))}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', display: 'flex', padding: 4 }}
             title={t('files.download') || 'Download'}>
             <Download size={16} />
@@ -158,8 +165,17 @@ function ThumbImg({ file, active, onClick }: { file: TripFile & { url: string };
   useEffect(() => {
     if (!visible || fileIsVideo) return
     let current = true
-    getAuthUrl(file.url, 'download').then(u => { if (current) setSrc(u) })
-    return () => { current = false }
+    getAuthUrl(file.url, 'download').then(u => {
+      if (current) setSrc(u)
+    }).catch(error => {
+      if (current) {
+        setSrc('')
+        console.error('Failed to resolve thumbnail:', error)
+      }
+    })
+    return () => {
+      current = false
+    }
   }, [file.url, fileIsVideo, visible])
 
   return (
