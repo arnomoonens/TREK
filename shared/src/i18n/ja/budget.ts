@@ -164,5 +164,6 @@ const budget: TranslationStrings = {
   'costs.confirm.deleteBodyWithFiles': '「{name}」は完全に削除されます。添付ファイル{count}件は残ります。',
   'costs.attachmentsUnavailable': '添付ファイルの詳細はまだオフラインでは利用できません。接続して読み込んでください。',
   'costs.expensesUnavailable': '支出はまだオフラインでは利用できません。接続して読み込んでください。',
+  'costs.toggleSign': '支出と返金を切り替える',
 };
 export default budget;

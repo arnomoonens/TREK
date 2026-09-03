@@ -164,5 +164,6 @@ const budget: TranslationStrings = {
   'costs.confirm.deleteBodyWithFiles': '„{name}” zostanie trwale usunięte. Pozostaną {count} załączone pliki.',
   'costs.attachmentsUnavailable': 'Szczegóły załączników nie są jeszcze dostępne offline. Połącz się, aby je wczytać.',
   'costs.expensesUnavailable': 'Wydatki nie są jeszcze dostępne offline. Połącz się, aby je wczytać.',
+  'costs.toggleSign': 'Przełącz między wydatkiem a zwrotem',
 };
 export default budget;

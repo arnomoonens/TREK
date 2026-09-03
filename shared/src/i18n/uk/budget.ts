@@ -164,5 +164,6 @@ const budget: TranslationStrings = {
   'costs.confirm.deleteBodyWithFiles': '«{name}» буде видалено безповоротно. Залишаться прикріплені файли: {count}.',
   'costs.attachmentsUnavailable': 'Деталі вкладень ще недоступні офлайн. Підключіться, щоб завантажити їх.',
   'costs.expensesUnavailable': 'Витрати ще недоступні офлайн. Підключіться, щоб завантажити їх.',
+  'costs.toggleSign': 'Перемкнути між витратою та поверненням',
 };
 export default budget;

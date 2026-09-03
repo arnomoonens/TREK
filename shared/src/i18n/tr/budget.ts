@@ -164,5 +164,6 @@ const budget: TranslationStrings = {
   'costs.confirm.deleteBodyWithFiles': '"{name}" kalıcı olarak silinecek. {count} ekli dosya kalacak.',
   'costs.attachmentsUnavailable': 'Ek ayrıntıları henüz çevrimdışı kullanılamıyor. Yüklemek için bağlanın.',
   'costs.expensesUnavailable': 'Harcamalar henüz çevrimdışı kullanılamıyor. Yüklemek için bağlanın.',
+  'costs.toggleSign': 'Gider ve iade arasında geçiş yap',
 };
 export default budget;

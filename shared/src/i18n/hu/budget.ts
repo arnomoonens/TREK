@@ -164,5 +164,6 @@ const budget: TranslationStrings = {
   'costs.confirm.deleteBodyWithFiles': 'A(z) „{name}” véglegesen törlődik. {count} csatolt fájl megmarad.',
   'costs.attachmentsUnavailable': 'A mellékletek részletei offline még nem érhetők el. Csatlakozz a betöltésükhöz.',
   'costs.expensesUnavailable': 'A kiadások offline még nem érhetők el. Csatlakozz a betöltésükhöz.',
+  'costs.toggleSign': 'Váltás kiadás és visszatérítés között',
 };
 export default budget;

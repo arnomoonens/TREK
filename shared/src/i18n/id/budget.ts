@@ -164,5 +164,6 @@ const budget: TranslationStrings = {
   'costs.confirm.deleteBodyWithFiles': '"{name}" akan dihapus secara permanen. {count} file terlampir akan tetap ada.',
   'costs.attachmentsUnavailable': 'Detail lampiran belum tersedia saat offline. Sambungkan ke internet untuk memuatnya.',
   'costs.expensesUnavailable': 'Pengeluaran belum tersedia saat offline. Sambungkan ke internet untuk memuatnya.',
+  'costs.toggleSign': 'Beralih antara pengeluaran dan pengembalian dana',
 };
 export default budget;

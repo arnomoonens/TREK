@@ -164,5 +164,6 @@ const budget: TranslationStrings = {
   'costs.confirm.deleteBodyWithFiles': 'سيتم حذف "{name}" نهائيًا. ستبقى {count} ملفات مرفقة.',
   'costs.attachmentsUnavailable': 'تفاصيل المرفقات غير متاحة دون اتصال بعد. اتصل بالإنترنت لتحميلها.',
   'costs.expensesUnavailable': 'المصروفات غير متاحة دون اتصال بعد. اتصل بالإنترنت لتحميلها.',
+  'costs.toggleSign': 'التبديل بين المصروف والاسترداد',
 };
 export default budget;

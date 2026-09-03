@@ -165,5 +165,6 @@ const budget: TranslationStrings = {
   'costs.confirm.deleteBodyWithFiles': 'Το «{name}» θα διαγραφεί οριστικά. Θα παραμείνουν {count} συνημμένα αρχεία.',
   'costs.attachmentsUnavailable': 'Οι λεπτομέρειες των συνημμένων δεν είναι ακόμη διαθέσιμες εκτός σύνδεσης. Συνδεθείτε για να τις φορτώσετε.',
   'costs.expensesUnavailable': 'Οι δαπάνες δεν είναι ακόμη διαθέσιμες εκτός σύνδεσης. Συνδεθείτε για να τις φορτώσετε.',
+  'costs.toggleSign': 'Εναλλαγή μεταξύ εξόδου και επιστροφής',
 };
 export default budget;

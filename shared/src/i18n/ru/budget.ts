@@ -164,5 +164,6 @@ const budget: TranslationStrings = {
   'costs.confirm.deleteBodyWithFiles': '«{name}» будет удалено безвозвратно. Останутся прикреплённые файлы: {count}.',
   'costs.attachmentsUnavailable': 'Детали вложений пока недоступны офлайн. Подключитесь к интернету, чтобы загрузить их.',
   'costs.expensesUnavailable': 'Расходы пока недоступны офлайн. Подключитесь к интернету, чтобы загрузить их.',
+  'costs.toggleSign': 'Переключить между расходом и возвратом',
 };
 export default budget;

@@ -164,5 +164,6 @@ const budget: TranslationStrings = {
   'costs.confirm.deleteBodyWithFiles': '"{name}" tas bort permanent. {count} bifogade filer finns kvar.',
   'costs.attachmentsUnavailable': 'Bilagedetaljer är ännu inte tillgängliga offline. Anslut för att läsa in dem.',
   'costs.expensesUnavailable': 'Utgifter är ännu inte tillgängliga offline. Anslut för att läsa in dem.',
+  'costs.toggleSign': 'Växla mellan utgift och återbetalning',
 };
 export default budget;

@@ -164,5 +164,6 @@ const budget: TranslationStrings = {
   'costs.confirm.deleteBodyWithFiles': '„{name}“ bude trvale smazáno. Zůstanou připojené soubory: {count}.',
   'costs.attachmentsUnavailable': 'Podrobnosti příloh zatím nejsou offline dostupné. Připojte se k internetu a načtěte je.',
   'costs.expensesUnavailable': 'Výdaje zatím nejsou offline dostupné. Připojte se k internetu a načtěte je.',
+  'costs.toggleSign': 'Přepnout mezi výdajem a vratkou',
 };
 export default budget;

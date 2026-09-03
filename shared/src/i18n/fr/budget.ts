@@ -164,5 +164,6 @@ const budget: TranslationStrings = {
   'costs.confirm.deleteBodyWithFiles': '« {name} » sera définitivement supprimé. {count} fichiers joints resteront disponibles.',
   'costs.attachmentsUnavailable': 'Les détails des pièces jointes ne sont pas encore disponibles hors connexion. Connectez-vous pour les charger.',
   'costs.expensesUnavailable': 'Les dépenses ne sont pas encore disponibles hors connexion. Connectez-vous pour les charger.',
+  'costs.toggleSign': 'Basculer entre dépense et remboursement',
 };
 export default budget;

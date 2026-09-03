@@ -163,5 +163,6 @@ const budget: TranslationStrings = {
   'costs.confirm.deleteBodyWithFiles': '「{name}」將被永久刪除。{count} 個附件會保留。',
   'costs.attachmentsUnavailable': '附件詳細資訊尚未提供離線使用。請連線後載入。',
   'costs.expensesUnavailable': '支出尚未提供離線使用。請連線後載入。',
+  'costs.toggleSign': '在支出與退款之間切換',
 };
 export default budget;

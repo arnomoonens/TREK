@@ -164,5 +164,6 @@ const budget: TranslationStrings = {
   'costs.confirm.deleteBodyWithFiles': '"{name}" se eliminará permanentemente. Quedarán {count} archivos adjuntos.',
   'costs.attachmentsUnavailable': 'Los detalles de los archivos adjuntos aún no están disponibles sin conexión. Conéctate para cargarlos.',
   'costs.expensesUnavailable': 'Los gastos aún no están disponibles sin conexión. Conéctate para cargarlos.',
+  'costs.toggleSign': 'Cambiar entre gasto y reembolso',
 };
 export default budget;
