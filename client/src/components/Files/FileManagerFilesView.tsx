@@ -8,7 +8,7 @@ import EmptyState from '../shared/EmptyState'
 export function FilesView(S: FileManagerState) {
   const {
     can, trip, getRootProps, getInputProps, isDragActive, uploading, t, allowedFileTypes,
-    files, filterType, setFilterType, filteredFiles, filesAvailability,
+    files, filterType, setFilterType, filteredFiles,
   } = S
   const contribFor = usePluginViewContributions('files', S.tripId)
   return (
@@ -66,9 +66,7 @@ export function FilesView(S: FileManagerState) {
 
       {/* File list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 28px 16px' }} className="max-md:!px-4">
-        {filesAvailability === 'unavailable' ? (
-          <p role="alert" style={{ margin: 0, padding: '60px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'calc(13px * var(--fs-scale-body, 1))' }}>{t('files.offlineListUnavailable')}</p>
-        ) : filteredFiles.length === 0 ? (
+        {filteredFiles.length === 0 ? (
           <EmptyState scene="files" title={t('files.empty')} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
