@@ -11,13 +11,14 @@ import type { MTabScreenProps } from './tabModel'
 import MFileMenuSheet from './MFileMenuSheet'
 import MFileLinkSheet from './MFileLinkSheet'
 import MFileTrashSheet from './MFileTrashSheet'
+import MDocSyncSheet from './MDocSyncSheet'
+import { canManageDocSync } from '../../../../components/Files/docsync/useDocSync'
+import { useAuthStore } from '../../../../store/authStore'
 import MFileLightbox from './MFileLightbox'
 import {
   FILE_FILTERS, buildFileLinkLabels, formatFileDate, getFileTypeMeta,
   matchesFileFilter, sortFilesStarredFirst, type FileFilterId,
 } from './filesModel'
-
-const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 /**
  * Tab 5 — Dateien. Real `planner.files` (already non-deleted, §7.2), the
@@ -36,7 +37,10 @@ export default function MFilesTab({ planner, shell }: MTabScreenProps) {
   const [filter, setFilter] = useState<FileFilterId>('all')
   const [menuFileId, setMenuFileId] = useState<number | null>(null)
   const [linkFileId, setLinkFileId] = useState<number | null>(null)
+  const currentUser = useAuthStore(st => st.user)
+  const maxUploadMb = useAuthStore(st => st.maxUploadMb)
   const [trashOpen, setTrashOpen] = useState(false)
+  const [docSyncOpen, setDocSyncOpen] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [uploading, setUploading] = useState(false)
 
@@ -55,9 +59,10 @@ export default function MFilesTab({ planner, shell }: MTabScreenProps) {
   }, [shell.uploadFilesSignal])
 
   const uploadFiles = async (list: File[]) => {
-    const tooBig = list.filter(f => f.size > MAX_UPLOAD_BYTES)
-    const okFiles = list.filter(f => f.size <= MAX_UPLOAD_BYTES)
-    if (tooBig.length > 0) planner.toast.error(t('files.uploadErrorSize'))
+    const maxBytes = maxUploadMb * 1024 * 1024
+    const tooBig = list.filter(f => f.size > maxBytes)
+    const okFiles = list.filter(f => f.size <= maxBytes)
+    if (tooBig.length > 0) planner.toast.error(t('files.uploadErrorSize', { max: maxUploadMb }))
     if (okFiles.length === 0) return
     setUploading(true)
     let uploaded = 0
@@ -109,6 +114,15 @@ export default function MFilesTab({ planner, shell }: MTabScreenProps) {
     }
     lastTrashSignal.current = shell.openFilesTrashSignal
   }, [shell.openFilesTrashSignal])
+
+  // ── Document sync: same signal pattern again. ──
+  const lastDocSyncSignal = useRef(shell.openDocSyncSignal)
+  useEffect(() => {
+    if (shell.openDocSyncSignal !== lastDocSyncSignal.current && shell.openDocSyncSignal > 0) {
+      setDocSyncOpen(true)
+    }
+    lastDocSyncSignal.current = shell.openDocSyncSignal
+  }, [shell.openDocSyncSignal])
 
   // ── Star toggle (ungated, §7.6) — direct filesApi call + store refresh, same as §7.3. ──
   const toggleStar = async (file: TripFile) => {
@@ -215,6 +229,13 @@ export default function MFilesTab({ planner, shell }: MTabScreenProps) {
       />
       <MFileLinkSheet planner={planner} file={linkFile} onClose={() => setLinkFileId(null)} />
       <MFileTrashSheet planner={planner} open={trashOpen} onClose={() => setTrashOpen(false)} />
+      <MDocSyncSheet
+        tripId={planner.tripId}
+        tripTitle={planner.trip?.title}
+        canManage={canManageDocSync(currentUser, planner.trip)}
+        open={docSyncOpen}
+        onClose={() => setDocSyncOpen(false)}
+      />
       {lightboxIndex != null && mediaFiles.length > 0 && (
         <MFileLightbox
           files={mediaFiles}

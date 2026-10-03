@@ -6,6 +6,13 @@ import { server } from '../../tests/helpers/msw/server';
 import { resetAllStores } from '../../tests/helpers/store';
 import LoginPage from './LoginPage';
 
+// The takeoff overlay renders the animated dot world, which starts three
+// requestAnimationFrame loops the moment it mounts. Nothing here asserts on the
+// animation (LoginWorld has its own tests), but under the load of the full suite
+// those loops pushed the overlay assertions past waitFor's default timeout and
+// made FE-PAGE-LOGIN-014 fail intermittently in CI while passing in isolation.
+vi.mock('./login/LoginWorld', () => ({ default: () => null }));
+
 // LoginPage uses inline styles for labels (no htmlFor/id pairing).
 // We find inputs by placeholder text.
 const EMAIL_PLACEHOLDER = 'your@email.com';
@@ -147,6 +154,50 @@ describe('LoginPage', () => {
     });
   });
 
+  describe('FE-PAGE-LOGIN-007: Remember me sends remember_me to the API', () => {
+    it('renders an off toggle and forwards remember_me: true when toggled on', async () => {
+      let capturedBody: Record<string, unknown> | null = null;
+      server.use(
+        http.post('/api/auth/login', async ({ request }) => {
+          capturedBody = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ user: { id: 1, username: 'test', email: 'test@example.com', role: 'user' } });
+        }),
+      );
+
+      const user = userEvent.setup();
+      render(<LoginPage />);
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(EMAIL_PLACEHOLDER)).toBeInTheDocument();
+      });
+
+      const toggle = screen.getByRole('button', { name: /remember me/i });
+      expect(toggle).toHaveAttribute('aria-pressed', 'false');
+
+      await user.type(screen.getByPlaceholderText(EMAIL_PLACEHOLDER), 'user@example.com');
+      await user.type(screen.getByPlaceholderText(PASSWORD_PLACEHOLDER), 'password123');
+      await user.click(toggle);
+      expect(toggle).toHaveAttribute('aria-pressed', 'true');
+      await user.click(screen.getByRole('button', { name: /sign in/i }));
+
+      await waitFor(() => {
+        expect(capturedBody).toEqual(expect.objectContaining({ remember_me: true }));
+      });
+    });
+  });
+
+  describe('FE-PAGE-LOGIN-005: Registration toggle visible', () => {
+    it('shows a Register button to switch to registration mode', async () => {
+      // Default appConfig has allow_registration: true, has_users: true
+      render(<LoginPage />);
+
+      await waitFor(() => {
+        // The register toggle link text appears
+        expect(screen.getByRole('button', { name: /^register$/i })).toBeInTheDocument();
+      });
+    });
+  });
+
   describe('FE-PAGE-LOGIN-006: Register creates account', () => {
     it('switches to register mode and submits registration form', async () => {
       const user = userEvent.setup();
@@ -165,7 +216,7 @@ describe('LoginPage', () => {
 
       await user.type(screen.getByPlaceholderText('admin'), 'newuser');
       await user.type(screen.getByPlaceholderText(EMAIL_PLACEHOLDER), 'new@example.com');
-      await user.type(screen.getByPlaceholderText(PASSWORD_PLACEHOLDER), 'password123');
+      await user.type(screen.getByPlaceholderText(PASSWORD_PLACEHOLDER), 'Passw0rd!23');
 
       await user.click(screen.getByRole('button', { name: /create account/i }));
 
@@ -337,7 +388,8 @@ describe('LoginPage', () => {
       await user.click(screen.getByRole('button', { name: /update password/i }));
 
       await waitFor(() => {
-        expect(screen.getByText(/at least 8/i)).toBeInTheDocument();
+        // The error, not the checklist line under the field that says the same rule.
+        expect(screen.getByText('Password must be at least 8 characters')).toBeInTheDocument();
       });
     });
   });
@@ -367,8 +419,8 @@ describe('LoginPage', () => {
         expect(screen.getByPlaceholderText('New password')).toBeInTheDocument();
       });
 
-      await user.type(screen.getByPlaceholderText('New password'), 'newpassword123');
-      await user.type(screen.getByPlaceholderText('Confirm new password'), 'differentpassword123');
+      await user.type(screen.getByPlaceholderText('New password'), 'NewPassw0rd!23');
+      await user.type(screen.getByPlaceholderText('Confirm new password'), 'DifferentPassw0rd!23');
       await user.click(screen.getByRole('button', { name: /update password/i }));
 
       await waitFor(() => {
@@ -405,8 +457,8 @@ describe('LoginPage', () => {
         expect(screen.getByPlaceholderText('New password')).toBeInTheDocument();
       });
 
-      await user.type(screen.getByPlaceholderText('New password'), 'newpassword123');
-      await user.type(screen.getByPlaceholderText('Confirm new password'), 'newpassword123');
+      await user.type(screen.getByPlaceholderText('New password'), 'NewPassw0rd!23');
+      await user.type(screen.getByPlaceholderText('Confirm new password'), 'NewPassw0rd!23');
       await user.click(screen.getByRole('button', { name: /update password/i }));
 
       await waitFor(() => {
@@ -590,7 +642,8 @@ describe('LoginPage', () => {
       await user.click(screen.getByRole('button', { name: /create account/i }));
 
       await waitFor(() => {
-        expect(screen.getByText(/at least 8/i)).toBeInTheDocument();
+        // The error, not the checklist line under the field that says the same rule.
+        expect(screen.getByText('Password must be at least 8 characters')).toBeInTheDocument();
       });
     });
   });

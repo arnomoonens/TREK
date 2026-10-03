@@ -127,8 +127,13 @@ describe('MJourneyEntrySheet quick capture', () => {
     });
     setup();
 
-    expect(screen.queryByPlaceholderText('Give this moment a name...')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Add details' }));
+    // Quick capture asks for a name now: without one every entry caught on the
+    // move arrived nameless and the day read as a column of placeholders
+    // (discussion #2299). The story field is what Add details still unlocks.
+    expect(screen.getByPlaceholderText('Give this moment a name...')).toBeInTheDocument();
+    // Shortened to "+ Details": the old label wrapped onto two lines in the
+    // sheet's footer beside Cancel and Save (discussion #2299).
+    fireEvent.click(screen.getByRole('button', { name: '+ Details' }));
     expect(screen.getByPlaceholderText('Give this moment a name...')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Write your story...')).toBeInTheDocument();
     await waitFor(() => expect(mapsApi.reverse).toHaveBeenCalled());
@@ -284,7 +289,20 @@ function mountSheet(sheetEntry: JourneyEntry, opts: MountOptions = {}) {
 }
 
 const multiFileInput = () => document.querySelector('input[type="file"][multiple]') as HTMLInputElement;
-const dateField = () => document.querySelector('input[type="date"]') as HTMLInputElement;
+/**
+ * The date is TREK's own picker (#2067 follow-up): a trigger button whose
+ * accessible name is the date it shows, plus a keyboard button that swaps it for
+ * a DD.MM.YYYY input. `input[type="date"]` is gone — it painted itself from the
+ * OS locale and took no theme.
+ */
+const dateTrigger = () =>
+  document.querySelector('[aria-haspopup="dialog"]') as HTMLButtonElement;
+
+/** What the trigger shows, as the picker formats it: "18 Mar 2026". */
+const shownDate = (iso: string) =>
+  new Date(iso + 'T00:00:00Z').toLocaleDateString('en', {
+    day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
+  });
 // The time field is CustomTimePicker's text input, not a native time input — a
 // native one paints 12h/24h from the browser locale and ignored the setting (#2067).
 const timeField = () => document.querySelector('input[placeholder="00:00"], input[placeholder="2:30 PM"]') as HTMLInputElement;
@@ -330,7 +348,7 @@ describe('MJourneyEntrySheet full editor', () => {
     expect(screen.getByText('Weather')).toBeInTheDocument();
     expect(screen.getByText('Tags')).toBeInTheDocument();
     // An empty entry_date falls back to today (the LOCAL date), an empty gallery locks the picker.
-    expect(dateField().value).toBe(localIsoDate());
+    expect(dateTrigger()).toHaveAccessibleName(shownDate(localIsoDate()));
     expect(timeField()).toHaveValue('');
     expect(screen.getByRole('button', { name: 'From Gallery' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Upload photos' })).toBeEnabled();
@@ -372,7 +390,14 @@ describe('MJourneyEntrySheet full editor', () => {
 
     await user.type(screen.getByPlaceholderText('Give this moment a name...'), 'Rome');
     await user.type(screen.getByPlaceholderText('Write your story...'), 'Great day');
-    fireEvent.change(dateField(), { target: { value: '2026-03-18' } });
+    // Through the picker's manual entry — the calendar's own path would depend
+    // on which month it opens on.
+    // The keyboard button and the input it opens share a name — they never
+    // exist at the same time, so the same query reaches first one, then the other.
+    fireEvent.click(screen.getByLabelText('Enter date manually'));
+    const manual = screen.getByLabelText('Enter date manually');
+    fireEvent.change(manual, { target: { value: '18.03.2026' } });
+    fireEvent.keyDown(manual, { key: 'Enter' });
     fireEvent.change(timeField(), { target: { value: '18:45' } });
 
     const [addPro, addCon] = screen.getAllByRole('button', { name: /Add another/ });
@@ -406,6 +431,8 @@ describe('MJourneyEntrySheet full editor', () => {
       tags: ['food', 'city'],
       pros_cons: { pros: ['Gelato'], cons: ['Crowds'] },
       type: undefined,
+      is_draft: false,
+      stats_excluded: undefined,
     }, undefined);
   });
 
@@ -653,46 +680,43 @@ describe('MJourneyEntrySheet full editor', () => {
   });
 
   it('FE-MOB-JENTRY-020: promoting a photo to first persists the new sort order', async () => {
-    const patched: Array<{ id: string; body: unknown }> = [];
-    server.use(http.patch('/api/journeys/photos/:id', async ({ params, request }) => {
-      patched.push({ id: String(params.id), body: await request.json() });
-      return HttpResponse.json({ ok: true });
+    const sent: Array<{ id: string; body: unknown }> = [];
+    server.use(http.put('/api/journeys/entries/:id/photos/reorder', async ({ params, request }) => {
+      sent.push({ id: String(params.id), body: await request.json() });
+      return HttpResponse.json({ success: true });
     }));
     const user = userEvent.setup();
     mountSheet(buildEntry({ id: 5, photos: [buildPhoto(100), buildPhoto(101)] }));
 
     await user.click(screen.getByRole('button', { name: '1st' }));
 
-    await waitFor(() => expect(patched).toHaveLength(2));
-    expect(patched).toEqual([
-      { id: '101', body: { sort_order: 0 } },
-      { id: '100', body: { sort_order: 1 } },
-    ]);
+    // The whole order goes out in one request, not one PATCH per photo.
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toEqual({ id: '5', body: { orderedIds: [101, 100] } });
     const order = Array.from(document.querySelectorAll('.h-16 img')).map(i => i.getAttribute('src'));
     expect(order[0]).toBe('/api/photos/101/thumbnail');
   });
 
-  it('FE-MOB-JENTRY-049: promoting a photo under StrictMode still patches each photo once', async () => {
-    const patched: Array<{ id: string; body: unknown }> = [];
-    server.use(http.patch('/api/journeys/photos/:id', async ({ params, request }) => {
-      patched.push({ id: String(params.id), body: await request.json() });
-      return HttpResponse.json({ ok: true });
+  it('FE-MOB-JENTRY-049: promoting a photo under StrictMode still sends the order once', async () => {
+    const sent: unknown[] = [];
+    server.use(http.put('/api/journeys/entries/:id/photos/reorder', async ({ request }) => {
+      sent.push(await request.json());
+      return HttpResponse.json({ success: true });
     }));
     const user = userEvent.setup();
     mountSheet(buildEntry({ id: 5, photos: [buildPhoto(100), buildPhoto(101)] }), { strict: true });
 
     await user.click(screen.getByRole('button', { name: '1st' }));
 
-    await waitFor(() => expect(patched.length).toBeGreaterThanOrEqual(2));
-    // Let a doubled batch land before counting, otherwise the extra PATCHes slip in
-    // after the assertion.
+    await waitFor(() => expect(sent.length).toBeGreaterThanOrEqual(1));
+    // Let a doubled request land before counting, otherwise it slips in after the assertion.
     await act(async () => { await new Promise(r => setTimeout(r, 20)); });
-    expect(patched.map(p => p.id)).toEqual(['101', '100']);
+    expect(sent).toEqual([{ orderedIds: [101, 100] }]);
   });
 
   it('FE-MOB-JENTRY-050: a refused reorder snaps the strip back and says so', async () => {
     let attempts = 0;
-    server.use(http.patch('/api/journeys/photos/:id', () => {
+    server.use(http.put('/api/journeys/entries/:id/photos/reorder', () => {
       attempts += 1;
       return HttpResponse.json({ error: 'sort rejected' }, { status: 500 });
     }));
@@ -701,8 +725,8 @@ describe('MJourneyEntrySheet full editor', () => {
 
     await user.click(screen.getByRole('button', { name: '1st' }));
 
-    await waitFor(() => expect(attempts).toBe(2));
     await waitFor(() => expect(toastSpy).toHaveBeenCalledWith('sort rejected', 'error', undefined));
+    expect(attempts).toBe(1);
     const order = Array.from(document.querySelectorAll('.h-16 img')).map(i => i.getAttribute('src'));
     expect(order).toEqual(['/api/photos/100/thumbnail', '/api/photos/101/thumbnail']);
   });
@@ -803,23 +827,25 @@ describe('MJourneyEntrySheet full editor', () => {
     expect(screen.queryByText('All photos already added')).not.toBeInTheDocument();
   });
 
-  it('FE-MOB-JENTRY-037: a partly accepted order keeps what the server took', async () => {
+  it('FE-MOB-JENTRY-037: the server takes the whole order or none of it, so a refusal never leaves a half order', async () => {
     const patched: number[] = [];
-    server.use(http.patch('/api/journeys/photos/:id', ({ params }) => {
-      const id = Number(params.id);
-      patched.push(id);
-      if (id === 100) return new HttpResponse(null, { status: 500 });
-      return HttpResponse.json({ ok: true });
-    }));
+    server.use(
+      http.patch('/api/journeys/photos/:id', ({ params }) => {
+        patched.push(Number(params.id));
+        return HttpResponse.json({ ok: true });
+      }),
+      http.put('/api/journeys/entries/:id/photos/reorder', () => new HttpResponse(null, { status: 409 })),
+    );
     const user = userEvent.setup();
     mountSheet(buildEntry({ id: 5, photos: [buildPhoto(100), buildPhoto(101)] }));
 
     await user.click(screen.getByRole('button', { name: '1st' }));
 
-    await waitFor(() => expect(patched).toEqual([101, 100]));
-    // 101 is first on the server now; snapping the strip back would hide that.
+    await waitFor(() => expect(toastSpy).toHaveBeenCalled());
+    // No per-photo writes any more, and the strip shows the order the server kept.
+    expect(patched).toEqual([]);
     const order = Array.from(document.querySelectorAll('.h-16 img')).map(i => i.getAttribute('src'));
-    expect(order).toEqual(['/api/photos/101/thumbnail', '/api/photos/100/thumbnail']);
+    expect(order).toEqual(['/api/photos/100/thumbnail', '/api/photos/101/thumbnail']);
   });
 
   it('FE-MOB-JENTRY-024: shows no suggestions when the location search fails', async () => {
@@ -905,7 +931,7 @@ describe('MJourneyEntrySheet read-only', () => {
     expect(screen.getByDisplayValue('Gelato')).toHaveAttribute('readonly');
     expect(screen.getByDisplayValue('Queues')).toHaveAttribute('readonly');
     expect(screen.getByDisplayValue('Rome')).toHaveAttribute('readonly');
-    expect(dateField()).toBeDisabled();
+    expect(dateTrigger()).toBeDisabled();
     expect(timeField()).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Good' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Sunny' })).toBeDisabled();
@@ -1279,5 +1305,31 @@ describe('MJourneyEntrySheet external photos', () => {
 
     await waitFor(() => expect(onSave).toHaveBeenCalled());
     expect(onSave.mock.calls[0][0]).toMatchObject({ type: 'entry' });
+  });
+});
+
+// FE-MOB-JENTRY-055 to FE-MOB-JENTRY-056: the phone half of the desktop editor's
+// play badge for a clip that came up without a poster (#2341).
+
+describe('MJourneyEntrySheet clips', () => {
+  it('FE-MOB-JENTRY-055: a linked clip without a poster is a play badge, not a request for its thumbnail', () => {
+    const clip = { ...buildPhoto(100), media_type: 'video', provider: 'local', thumbnail_path: null };
+    mountSheet(buildEntry({ id: 5, photos: [clip] }));
+
+    expect(document.querySelector('img[src="/api/photos/100/thumbnail"]')).not.toBeInTheDocument();
+    expect(document.querySelector('.h-16 svg.lucide-play')).toBeInTheDocument();
+  });
+
+  it('FE-MOB-JENTRY-056: the gallery picker draws the same badge, and a clip with a poster its poster', async () => {
+    const user = userEvent.setup();
+    const bare = { ...buildGalleryPhoto(200), media_type: 'video', provider: 'local', thumbnail_path: null };
+    const withPoster = { ...buildGalleryPhoto(201), media_type: 'video', provider: 'local', thumbnail_path: 'journey/poster.jpg' };
+    mountSheet(buildEntry(), { galleryPhotos: [bare, withPoster] });
+
+    await user.click(screen.getByRole('button', { name: 'From Gallery' }));
+
+    expect(document.querySelector('img[src="/api/photos/200/thumbnail"]')).not.toBeInTheDocument();
+    expect(document.querySelector('img[src="/api/photos/201/thumbnail"]')).toBeInTheDocument();
+    expect(document.querySelectorAll('svg.lucide-play')).toHaveLength(1);
   });
 });

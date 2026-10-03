@@ -103,10 +103,16 @@ export const PUBLIC_ROUTE_ALLOW_LIST: string[] = [
   'ConfigController.getConfig',
   // OAuth/OIDC discovery documents + the JSON 404 catchalls that keep
   // /.well-known probes from ever seeing SPA HTML.
+  'DiscoveryController.authorizationServerForMcp',
   'DiscoveryController.openidConfiguration',
   'DiscoveryController.protectedResource',
   'DiscoveryController.wellKnownFallback',
   'DiscoveryController.wellKnownRoot',
+  // A document provider cannot hold a TREK session. The per-binding token in
+  // the path is the credential, a shared secret is checked on top where the
+  // provider can send one, and the handler's only effect is to schedule a sync
+  // run. It never reads the request body as data.
+  'DocSyncWebhookController.nudge',
   'FeaturesController.features',
   // The container/uptime probe.
   'FeaturesController.health',
@@ -119,11 +125,18 @@ export const PUBLIC_ROUTE_ALLOW_LIST: string[] = [
   'HelpController.asset',
   'HelpController.index',
   'HelpController.page',
+  'HelpController.search',
   // Share-token validated.
   'JourneyPublicController.get',
   'JourneyPublicController.legacyPhoto',
   'JourneyPublicController.photo',
   // The MCP transport — bearer tokens are verified inside the handler.
+  // The same documents under the resource URL, for clients that append the
+  // well-known path to the server address they were handed.
+  'McpResourceDiscoveryController.authorizationServer',
+  'McpResourceDiscoveryController.fallback',
+  'McpResourceDiscoveryController.openidConfiguration',
+  'McpResourceDiscoveryController.protectedResource',
   'McpTransportController.delete',
   'McpTransportController.get',
   'McpTransportController.post',

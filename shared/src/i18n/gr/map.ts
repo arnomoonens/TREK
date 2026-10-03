@@ -13,6 +13,7 @@ const map: TranslationStrings = {
   'poi.cat.museums': 'Μουσεία & πολιτισμός',
   'poi.cat.nature': 'Φύση & πάρκα',
   'poi.cat.activities': 'Δραστηριότητες',
+  'poi.pluginCategories': 'Κατηγορίες από πρόσθετα',
   'map.showAllConnections': 'Εμφάνιση όλων των διαδρομών κρατήσεων',
   'map.hideAllConnections': 'Απόκρυψη όλων των διαδρομών κρατήσεων',
   'map.baseLayer.default': 'Χάρτης',
@@ -22,5 +23,13 @@ const map: TranslationStrings = {
   'map.location.denied': 'Η πρόσβαση στην τοποθεσία είναι αποκλεισμένη. Ελέγξτε τις ρυθμίσεις της συσκευής. Μια εγκατεστημένη εφαρμογή έχει δική της άδεια τοποθεσίας, ξεχωριστή από το πρόγραμμα περιήγησης.',
   'map.location.unavailable': 'Δεν ήταν δυνατός ο προσδιορισμός της τοποθεσίας σας.',
   'map.location.timeout': 'Ο εντοπισμός της θέσης σας άργησε πολύ. Δοκιμάστε ξανά με καθαρή θέα στον ουρανό.',
+  'map.overview.show': 'Εμφάνιση όλου του ταξιδιού',
+  'map.lock.lock': 'Κλείδωμα προβολής χάρτη',
+  'map.lock.unlock': 'Ο χάρτης να ακολουθεί την επιλογή',
+  'map.overview.hide': 'Απόκρυψη όλου του ταξιδιού',
+  'map.overview.total': 'Συνολική απόσταση',
+  'map.attribution': 'Πηγές χάρτη',
+  'map.overview.unrouted': '{count} σκέλος/η δεν μπόρεσαν να υπολογιστούν, οι αποστάσεις είναι ελλιπείς.',
+  'map.overview.dayUnrouted': '{count} σκέλος/η αυτής της ημέρας δεν μπόρεσαν να υπολογιστούν',
 };
 export default map;

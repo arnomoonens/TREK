@@ -108,7 +108,7 @@ describe('Expense attachment plugin RPC production harness', () => {
     const remaining = await rpc.dispatch(req('costs.listFiles', { tripId: trip.id, expenseId: second.id }), user.id);
     expect(remaining).toMatchObject({ ok: true });
     expect((remaining as { result: Array<{ id: number }> }).result.map((file) => file.id)).toEqual([fileId]);
-    expect(testDb.prepare('SELECT COUNT(*) AS count FROM expense_attachments').get()).toEqual({ count: 1 });
+    expect(testDb.prepare('SELECT COUNT(*) AS count FROM file_links').get()).toEqual({ count: 1 });
     expect(socketBroadcast).toHaveBeenCalledTimes(3);
     expect(socketBroadcast.mock.calls.every(([tripId, event]) => tripId === String(trip.id) && event === 'file:updated')).toBe(true);
   });

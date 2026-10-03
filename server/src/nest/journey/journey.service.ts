@@ -44,6 +44,7 @@ export class JourneyService {
   getSuggestions(userId: number) { return this.journey.getSuggestions(userId); }
   listUserTrips(userId: number) { return this.journey.listUserTrips(userId); }
   updateJourneyPreferences(id: number, userId: number, data: Parameters<typeof this.journey.updateJourneyPreferences>[2]) { return this.journey.updateJourneyPreferences(id, userId, data); }
+  restoreDismissedSuggestions(id: number, userId: number) { return this.journey.restoreDismissedSuggestions(id, userId); }
 
   // Trips
   addTripToJourney(id: number, tripId: number, userId: number) { return this.journey.addTripToJourney(id, tripId, userId); }
@@ -59,9 +60,10 @@ export class JourneyService {
   updateEntry(entryId: number, userId: number, data: Parameters<typeof this.journey.updateEntry>[2], sid?: string) { return this.journey.updateEntry(entryId, userId, data, sid); }
   deleteEntry(entryId: number, userId: number, sid?: string) { return this.journey.deleteEntry(entryId, userId, sid); }
   reorderEntries(id: number, userId: number, orderedIds: number[], sid?: string) { return this.journey.reorderEntries(id, userId, orderedIds, sid); }
+  reorderEntryPhotos(entryId: number, userId: number, orderedIds: number[], sid?: string) { return this.journey.reorderEntryPhotos(entryId, userId, orderedIds, sid); }
 
   // Photos
-  addPhoto(entryId: number, userId: number, filePath: string, thumbnailPath: string | undefined, caption: string | undefined) { return this.journey.addPhoto(entryId, userId, filePath, thumbnailPath, caption); }
+  addPhoto(entryId: number, userId: number, filePath: string, thumbnailPath: string | undefined, caption: string | undefined, media?: { mediaType?: string; durationMs?: number | null }) { return this.journey.addPhoto(entryId, userId, filePath, thumbnailPath, caption, media); }
   setPhotoProvider(photoId: number, provider: string, assetId: string, ownerId: number) { return this.journey.setPhotoProvider(photoId, provider, assetId, ownerId); }
   addProviderPhoto(entryId: number, userId: number, provider: string, assetId: string, caption?: string, passphrase?: string, mediaType?: string) { return this.journey.addProviderPhoto(entryId, userId, provider, assetId, caption, passphrase, mediaType); }
   linkPhotoToEntry(entryId: number, journeyPhotoId: number, userId: number) { return this.journey.linkPhotoToEntry(entryId, journeyPhotoId, userId); }

@@ -7,8 +7,8 @@ import {
 
 describe('saveExpenseFileAttachments', () => {
   it('isolates direct detach and attach operations and returns both outcomes', async () => {
-    const attached = buildTripFile({ id: 1, original_name: 'old.pdf', linked_expense_ids: [10] })
-    const available = buildTripFile({ id: 2, original_name: 'new.pdf', linked_expense_ids: [] })
+    const attached = buildTripFile({ id: 1, original_name: 'old.pdf', linked_budget_item_ids: [10] })
+    const available = buildTripFile({ id: 2, original_name: 'new.pdf', linked_budget_item_ids: [] })
     let detachAttempts = 0
     const detachExpenseFile = vi.fn(async () => {
       detachAttempts += 1
@@ -42,7 +42,7 @@ describe('saveExpenseFileAttachments', () => {
     const retry = await saveExpenseFileAttachments({
       tripId: 1,
       expenseId: 10,
-      files: [attached, { ...available, linked_expense_ids: [10] }],
+      files: [attached, { ...available, linked_budget_item_ids: [10] }],
       selectedFileIds: new Set([available.id]),
       stagedUploads: [],
       canAttachFiles: true,
@@ -75,7 +75,7 @@ describe('saveExpenseFileAttachments', () => {
       return buildTripFile({ id: nextId++, original_name: file.name })
     })
     const attachExpenseFile = vi.fn(async (_tripId: number, _expenseId: number, fileId: number) =>
-      buildTripFile({ id: fileId, linked_expense_ids: [10] }))
+      buildTripFile({ id: fileId, linked_budget_item_ids: [10] }))
 
     const result = await saveExpenseFileAttachments({
       tripId: 1,
@@ -128,7 +128,7 @@ describe('saveExpenseFileAttachments', () => {
     const attachExpenseFile = vi.fn(async () => {
       attachAttempts += 1
       if (attachAttempts === 1) throw new Error('attach failed')
-      return { ...uploaded, linked_expense_ids: [10] }
+      return { ...uploaded, linked_budget_item_ids: [10] }
     })
 
     const result = await saveExpenseFileAttachments({

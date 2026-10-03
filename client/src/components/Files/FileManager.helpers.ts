@@ -1,4 +1,4 @@
-import { FileText, FileImage, File, FileVideo, Plane, Train, Car, Ship, Bus, Sailboat, Bike, CarTaxiFront, Route } from 'lucide-react'
+import { FileText, FileImage, File, FileVideo, Plane, Train, Car, Ship, Bus, Sailboat, CableCar, Bike, CarTaxiFront, Route } from 'lucide-react'
 import { downloadFile } from '../../utils/fileDownload'
 import { isEffectivelyOffline } from '../../sync/networkMode'
 
@@ -77,6 +77,7 @@ export function transportIcon(type: string) {
   if (type === 'bicycle') return Bike
   if (type === 'cruise') return Ship
   if (type === 'ferry') return Sailboat
+  if (type === 'cable_car') return CableCar
   if (type === 'transport_other') return Route
   return Plane
 }

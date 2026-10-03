@@ -150,6 +150,48 @@ describe('Settings e2e (real auth guard + temp SQLite)', () => {
         .toEqual({ value: 'anthropic' });
     });
 
+    it('PUT 403 for a non-admin naming a routing engine (#1797)', async () => {
+      // Same class for a different reason: this origin has to appear in the CSP
+      // connect-src the server emits at boot, and that list is built from the
+      // admin default. A value on a personal row is read by the route
+      // calculator and then refused by the browser, so the app stops routing
+      // with no error it could report. Refusing tells the caller instead.
+      const res = await request(server).put('/api/settings').set('Cookie', sessionCookie(1))
+        .send({ key: 'routing_base_url', value: 'https://osrm.example.org' });
+      expect(res.status).toBe(403);
+      expect(res.body).toEqual({ error: 'Admin access required' });
+      expect(countRows()).toBe(0);
+    });
+
+    it('PUT lets a non-admin clear a routing engine somebody set before the rule', async () => {
+      expect((await request(server).put('/api/settings').set('Cookie', sessionCookie(1))
+        .send({ key: 'routing_base_url', value: '' })).status).toBe(200);
+    });
+
+    it('POST bulk refuses a routing engine from a non-admin', async () => {
+      const res = await request(server).post('/api/settings/bulk').set('Cookie', sessionCookie(1))
+        .send({ settings: { routing_base_url: 'https://osrm.example.org' } });
+      expect(res.status).toBe(403);
+      expect(countRows()).toBe(0);
+    });
+
+    it('PUT 403 for a non-admin naming the second routing engine', async () => {
+      // The Valhalla is the same class as the OSRM above and fails the same way: its
+      // origin has to be in the boot-time connect-src, which is assembled from the
+      // admin default alone. A personal row would be read by the route calculator and
+      // then refused by the browser, so "other ways" would quietly stop offering any.
+      const res = await request(server).put('/api/settings').set('Cookie', sessionCookie(1))
+        .send({ key: 'valhalla_base_url', value: 'https://valhalla.example.org' });
+      expect(res.status).toBe(403);
+      expect(res.body).toEqual({ error: 'Admin access required' });
+      expect(countRows()).toBe(0);
+    });
+
+    it('PUT lets a non-admin clear the second routing engine', async () => {
+      expect((await request(server).put('/api/settings').set('Cookie', sessionCookie(1))
+        .send({ key: 'valhalla_base_url', value: '' })).status).toBe(200);
+    });
+
     it('PUT is unaffected for a non-LLM key with the same value', async () => {
       const res = await request(server).put('/api/settings').set('Cookie', sessionCookie(1))
         .send({ key: 'start_page', value: 'local' });
@@ -188,6 +230,24 @@ describe('Settings e2e (real auth guard + temp SQLite)', () => {
       expect(res.status).toBe(200);
       expect(db.prepare("SELECT value FROM settings WHERE user_id = 2 AND key = 'llm_provider'").get())
         .toEqual({ value: 'openai' });
+    });
+  });
+
+  describe('week_start (#2029)', () => {
+    it('an admin default reaches a user who never picked a first weekday', async () => {
+      const put = await request(server).put('/api/admin/default-user-settings').set('Cookie', sessionCookie(2))
+        .send({ week_start: 'sunday' });
+      expect(put.status).toBe(200);
+      const res = await request(server).get('/api/settings').set('Cookie', sessionCookie(1));
+      expect(res.status).toBe(200);
+      expect(res.body.settings.week_start).toBe('sunday');
+    });
+
+    it('PUT /api/admin/default-user-settings 400 for a weekday the pickers do not offer', async () => {
+      const res = await request(server).put('/api/admin/default-user-settings').set('Cookie', sessionCookie(2))
+        .send({ week_start: 'friday' });
+      expect(res.status).toBe(400);
+      expect(db.prepare("SELECT value FROM app_settings WHERE key = 'default_user_setting_week_start'").get()).toBeUndefined();
     });
   });
 });

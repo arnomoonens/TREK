@@ -183,7 +183,7 @@ describe('filesModel — link labels', () => {
 
   it('FE-MOB-FILM-018: labels unique linked Expenses and hides deleted Expense ids', () => {
     const labels = buildFileLinkLabels(
-      file({ linked_expense_ids: [30, 30, 99] }),
+      file({ linked_budget_item_ids: [30, 30, 99] }),
       [],
       [],
       transportTypes,

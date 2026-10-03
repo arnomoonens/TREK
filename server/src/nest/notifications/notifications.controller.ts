@@ -14,6 +14,7 @@ import {
 import type { ChannelTestResult, UnreadCountResult } from '@trek/shared';
 import type { User } from '../../types';
 import { NotificationsService } from './notifications.service';
+import { resolveNtfyToken } from './transports/ntfy.service';
 import {
   PreferencesUpdateDto,
   TestSmtpDto,
@@ -24,7 +25,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
 import { NotificationPreferencesService } from './notification-preferences.service';
-import { AdminNotificationPreferencesDto } from '../admin/admin.dto';
+import { AdminNotificationPreferencesDto, NotificationDefaultsUpdateDto } from '../admin/admin.dto';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { ManagedForbidden } from '../common/managed';
 
@@ -102,9 +103,14 @@ export class NotificationsController {
     const resolvedTopic = topic || userCfg?.topic || undefined;
     const resolvedServer = server || userCfg?.server || adminCfg.server || undefined;
     // Reuse the saved token when the request sends null, empty, or the masked placeholder.
+    // Not `?? adminCfg.token`: the caller picks `server`, so that handed the
+    // operator's decrypted token to any host an authenticated user named
+    // (GHSA-7pqc-fj3c-9346). Same rule as the live send path, and target-based
+    // rather than role-based on purpose — an admin-only gate here would take a
+    // working button away from every user with their own ntfy config.
     const resolvedToken = (token && token !== MASKED)
       ? token
-      : (userCfg?.token ?? adminCfg.token ?? null);
+      : resolveNtfyToken(adminCfg, userCfg, resolvedServer ?? null);
 
     if (!resolvedTopic) {
       throw new HttpException({ error: 'No ntfy topic configured' }, 400);
@@ -221,6 +227,18 @@ export class AdminNotificationPreferencesController {
   @Get()
   get(@CurrentUser() user: User) {
     return this.prefs.getPreferencesMatrix(user.id, user.role, 'admin');
+  }
+
+  /** What every user's notification cells start as, and which the admin blocked (#1536). */
+  @Get('defaults')
+  getDefaults(@CurrentUser() user: User) {
+    return this.prefs.getInstanceDefaults(user.id);
+  }
+
+  @Put('defaults')
+  setDefaults(@CurrentUser() user: User, @Body() body: NotificationDefaultsUpdateDto) {
+    this.prefs.setInstanceDefaults(body.defaults);
+    return this.prefs.getInstanceDefaults(user.id);
   }
 
   @Put()

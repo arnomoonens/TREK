@@ -10,9 +10,12 @@
  * every case uses its own coordinates/query to stay isolated.
  */
 import { deriveTransitStats, type TransitLeg } from '../../../src/nest/transit/transit.helpers';
+import { GoogleTransitProvider } from '../../../src/nest/transit/google-transit.provider';
 import { TransitService } from '../../../src/nest/transit/transit.service';
+import type { DatabaseService } from '../../../src/nest/database/database.service';
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { noGoogleQuota } from '../../helpers/google-quota';
 
 vi.mock('../../../src/app-config', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../src/app-config')>();
@@ -21,7 +24,10 @@ vi.mock('../../../src/app-config', async (importOriginal) => {
 vi.mock('../../../src/nest/maps/maps.helpers', () => ({ buildUserAgent: () => 'TREK-Test-UA' }));
 
 const fetchMock = vi.fn();
-const svc = new TransitService();
+// No `transit_provider` row means Transitous, so every case below keeps
+// exercising the MOTIS path — the Google branch has its own suite.
+const db = { get: () => undefined, run: () => undefined } as unknown as DatabaseService;
+const svc = new TransitService(new GoogleTransitProvider(db, noGoogleQuota));
 
 beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);

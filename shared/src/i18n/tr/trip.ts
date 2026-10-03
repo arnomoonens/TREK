@@ -1,7 +1,7 @@
 import type { TranslationStrings } from '../types';
 
 const trip: TranslationStrings = {
-  'trip.tabs.plan': 'Planı',
+  'trip.tabs.plan': 'Plan',
   'trip.tabs.transports': 'Ulaşım',
   'trip.tabs.reservations': 'Rezervasyonlar',
   'trip.tabs.reservationsShort': 'Rezerv.',
@@ -16,14 +16,16 @@ const trip: TranslationStrings = {
   'trip.loadingSteps.pack': 'Bavullar toplanıyor...',
   'trip.loadingSteps.road': 'Yola çıkılıyor...',
   'trip.loadingSteps.arrive': 'Az kaldı...',
-  'trip.mobilePlan': 'Planı',
+  'trip.mobilePlan': 'Plan',
   'trip.mobilePlaces': 'Yerler',
+  'trip.panelWidth': 'Panel genişliği',
   'trip.toast.placeUpdated': 'Yer güncellendi',
   'trip.toast.tripUpdated': 'Gezi güncellendi',
   'trip.toast.placeAdded': 'Yer eklendi',
   'trip.toast.placeDeleted': 'Yer silindi',
   'trip.toast.selectDay': 'Lütfen önce bir gün seçin',
   'trip.toast.assignedToDay': 'Yer güne atandı',
+  'trip.toast.loadError': 'Gezi yüklenemedi',
   'trip.toast.reorderError': 'Sıralama yapılamadı',
   'trip.toast.reservationUpdated': 'Rezervasyon güncellendi',
   'trip.toast.reservationAdded': 'Rezervasyon eklendi',
@@ -63,6 +65,7 @@ const trip: TranslationStrings = {
   'transit.search': 'Ara',
   'transit.searching': 'Aranıyor…',
   'transit.searchError': 'Rota araması başarısız oldu. Lütfen tekrar deneyin.',
+  'transit.noResultsVia': '{provider} üzerinden bağlantı bulunamadı. Farklı bir saat veya filtre deneyin.',
   'transit.noResults': 'Bağlantı bulunamadı. Farklı bir saat veya filtre deneyin.',
   'transit.direct': 'Aktarmasız',
   'transit.transfers': '{count} aktarma',
@@ -87,5 +90,10 @@ const trip: TranslationStrings = {
   'transit.transfersLabel': 'Aktarma',
   'transit.walkLabel': 'Yürüyüş',
   'transit.searchHint': 'Gerçek bağlantıları ara ve doğrudan güne ekle — veriler Transitous üzerinden.',
+  'trip.confirm.deletePlaceNight': '“{name}” için ayrılan konaklama da silinir.',
+  'trip.confirm.deletePlaceBooked':
+    '“{name}” için ayrılan konaklama, “{booking}” rezervasyonu ve ona bağlı tüm harcamalar da silinir.',
+  'trip.confirm.deletePlaceBookedSame':
+    '“{name}” için ayrılan konaklama, rezervasyonu ve ona bağlı tüm harcamalar da silinir.',
 };
 export default trip;

@@ -57,6 +57,7 @@ describe('Maps e2e (real auth guard + temp SQLite)', () => {
     const maps = app.get(MapsService);
     vi.spyOn(maps, 'searchPlaces').mockResolvedValue({ places: [{ name: 'Berlin' }], source: 'osm' });
     vi.spyOn(maps, 'reverseGeocode').mockResolvedValue({ name: 'Spot', address: 'Street 1' });
+    vi.spyOn(maps, 'nearbyPlaces').mockResolvedValue({ places: [{ name: 'Cafe', distance_m: 40 }], source: 'trek-places' });
   });
 
   afterAll(async () => {
@@ -84,6 +85,19 @@ describe('Maps e2e (real auth guard + temp SQLite)', () => {
     expect(res.body).toEqual({ places: [{ name: 'Berlin' }], source: 'osm' });
   });
 
+  it('200 with the places near a point (POST stays 200, not 201)', async () => {
+    const res = await request(server).post('/api/maps/nearby?lang=de').set('Cookie', sessionCookie(1)).send({ lat: 52.5, lng: 13.4 });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ places: [{ name: 'Cafe', distance_m: 40 }], source: 'trek-places' });
+  });
+
+  it('400 on nearby with a circle wider than the contract allows, 401 without a session', async () => {
+    const wide = await request(server).post('/api/maps/nearby').set('Cookie', sessionCookie(1)).send({ lat: 52.5, lng: 13.4, radius: 9000 });
+    expect(wide.status).toBe(400);
+    const anon = await request(server).post('/api/maps/nearby').send({ lat: 52.5, lng: 13.4 });
+    expect(anon.status).toBe(401);
+  });
+
   it('200 on reverse geocode', async () => {
     const res = await request(server).get('/api/maps/reverse').set('Cookie', sessionCookie(1)).query({ lat: '52.5', lng: '13.4' });
     expect(res.status).toBe(200);
@@ -94,5 +108,22 @@ describe('Maps e2e (real auth guard + temp SQLite)', () => {
     const res = await request(server).get('/api/maps/reverse').set('Cookie', sessionCookie(1)).query({ lat: '52.5' });
     expect(res.status).toBe(400);
     expect(res.body).toEqual({ error: 'lat and lng required' });
+  });
+
+  it('200 with no place for an OSM id that carries more than a number, and nothing goes out', async () => {
+    // The path segment reaches the service as it is, and the id used to be
+    // written into an Overpass query as it was: this one would have run a
+    // global scan on the mirror under TREK's shared user agent.
+    const fetchMock = vi.fn(async () => { throw new Error('nothing may leave for this id'); });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const injected = encodeURIComponent('node:1);nwr["amenity"](-90,-180,90,180');
+      const res = await request(server).get(`/api/maps/details/${injected}`).set('Cookie', sessionCookie(1));
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ place: null });
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

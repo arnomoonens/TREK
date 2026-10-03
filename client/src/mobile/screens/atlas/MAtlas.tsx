@@ -10,7 +10,11 @@ import MAtlasSearch from './MAtlasSearch'
 import MAtlasCountryPopup from './MAtlasCountryPopup'
 import MAtlasBucketSheet from './MAtlasBucketSheet'
 import MToggle from '../../components/MToggle'
+import DawarichIcon from '../../../components/shared/DawarichIcon'
+import DawarichAtlasDialog from '../../../components/Dawarich/DawarichAtlasDialog'
+import { useAddonStore } from '../../../store/addonStore'
 import { countryStatus } from '../../../pages/atlas/atlasModel'
+import AtlasCountryPlaces from '../../../components/Atlas/AtlasCountryPlaces'
 
 const removeBtnCls = 'mt-4 w-full rounded-full bg-[rgba(214,39,59,.12)] py-[11px] text-center text-[0.8125rem] font-bold text-[color:var(--m-st-danger)]' // theme-lint-disable — fixed status-danger tint
 
@@ -44,6 +48,8 @@ export default function MAtlas() {
   const plannedCount = stats.totalCountriesPlanned || 0
   const [searchOpen, setSearchOpen] = useState(false)
   const [bucketOpen, setBucketOpen] = useState(false)
+  const [dawarichOpen, setDawarichOpen] = useState(false)
+  const dawarichEnabled = useAddonStore(state => state.isEnabled)('dawarich')
   const [detailOpen, setDetailOpen] = useState(false)
 
   // The dock FAB is the search button on this screen (demo Z. 1099) and hands
@@ -115,10 +121,27 @@ export default function MAtlas() {
         <button
           type="button"
           onClick={() => setBucketOpen(true)}
-          className="flex h-[38px] flex-1 items-center justify-center rounded-full border border-[color:var(--m-gbr)] bg-[color:var(--m-sheet)] px-4 text-[0.78125rem] font-bold text-m-ink shadow-[0_5px_12px_-8px_rgba(0,0,0,.18)]"
+          className="flex h-[38px] min-w-0 flex-1 items-center justify-center rounded-full border border-[color:var(--m-gbr)] bg-[color:var(--m-sheet)] px-4 text-[0.78125rem] font-bold text-m-ink shadow-[0_5px_12px_-8px_rgba(0,0,0,.18)]"
         >
           {t('atlas.bucketTab')}
         </button>
+        {/* Dawarich answers two questions about this map, so it opens from the
+            map — not from inside the wishlist sheet, where it was one card deep
+            and looked like part of the list it is only asking about. Renders
+            nothing when the addon is off. */}
+        {dawarichEnabled && (
+          <button
+            type="button"
+            onClick={() => setDawarichOpen(true)}
+            aria-label={t('dawarich.title')}
+            className="flex h-[38px] min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-[color:var(--m-gbr)] bg-[color:var(--m-sheet)] px-3 shadow-[0_5px_12px_-8px_rgba(0,0,0,.18)]"
+          >
+            <span className="flex h-[26px] w-[26px] flex-none overflow-hidden rounded-full">
+              <DawarichIcon size={26} />
+            </span>
+            <span className="truncate text-[0.78125rem] font-bold text-m-ink">{t('dawarich.title')}</span>
+          </button>
+        )}
         {/* Only worth the space once there is something planned to reveal. */}
         {plannedCount > 0 && (
           <div className="flex h-[38px] shrink-0 items-center gap-2 rounded-full border border-[color:var(--m-gbr)] bg-[color:var(--m-sheet)] px-3 shadow-[0_5px_12px_-8px_rgba(0,0,0,.18)]">
@@ -127,6 +150,14 @@ export default function MAtlas() {
           </div>
         )}
       </div>
+
+      {dawarichOpen && (
+        <DawarichAtlasDialog
+          isOpen
+          onClose={() => setDawarichOpen(false)}
+          onChanged={atlas.reloadAfterDawarich}
+        />
+      )}
 
       <MAtlasStatsCard stats={stats} />
 
@@ -161,8 +192,12 @@ export default function MAtlas() {
               />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[1.0625rem] font-extrabold text-m-ink">{resolveName(selectedCountry)}</div>
-                <div className="mt-[2px] font-geist text-[0.6875rem] text-m-muted">
-                  {countryDetail.places.length} {t('atlas.places')} · {countryDetail.trips.length} {t('atlas.trips')}
+                <div className="mt-[4px] flex flex-wrap gap-1">
+                  {[[countryDetail.places.length, t('atlas.places')], [countryDetail.trips.length, t('atlas.trips')]].map(([n, label]) => (
+                    <span key={label} className="rounded-full bg-[color:var(--m-ic)] px-2 py-[1px] font-geist text-[0.625rem] font-bold tabular-nums text-m-muted">
+                      {n} {label}
+                    </span>
+                  ))}
                 </div>
               </div>
               <MIconBtn variant="neutral" size={34} onClick={() => setDetailOpen(false)} ariaLabel={t('common.close')}>
@@ -176,6 +211,12 @@ export default function MAtlas() {
                     {trip.title}
                   </MChip>
                 ))}
+              </div>
+            )}
+            {/* Every place counted for the country, by trip (#2174). */}
+            {countryDetail.places.length > 0 && (
+              <div className="mt-4 max-h-[46vh] overflow-y-auto">
+                <AtlasCountryPlaces variant="mobile" detail={countryDetail} onOpenTrip={id => navigate(`/trips/${id}`)} />
               </div>
             )}
             {countryDetail.manually_marked && (

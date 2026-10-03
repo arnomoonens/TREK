@@ -11,6 +11,7 @@ import { GlobalAuthGuard } from './auth/global-auth.guard';
 import { MfaPolicyGuard } from './auth/mfa-policy.guard';
 import { ManagedGuard } from './common/managed.guard';
 import { WeatherModule } from './weather/weather.module';
+import { RoadtripModule } from './roadtrip/roadtrip.module';
 import { PublicApiModule } from './public-api/public-api.module';
 import { HelpModule } from './help/help.module';
 import { AirportsModule } from './airports/airports.module';
@@ -18,12 +19,16 @@ import { ConfigModule } from './config/config.module';
 import { SystemNoticesModule } from './system-notices/system-notices.module';
 import { ManagedExtModule } from './managed/managed-ext.module';
 import { MapsModule } from './maps/maps.module';
+import { GoogleQuotaModule } from './google-quota/google-quota.module';
 import { GeoModule } from './geo/geo.module';
 import { PlaceEnrichmentModule } from './place-enrichment/place-enrichment.module';
+import { PlaceShadowModule } from './place-shadow/place-shadow.module';
+import { RouteUsageModule } from './route-usage/route-usage.module';
 import { CategoriesModule } from './categories/categories.module';
 import { TagsModule } from './tags/tags.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AtlasModule } from './atlas/atlas.module';
+import { SchoolHolidaysModule } from './school-holidays/school-holidays.module';
 import { VacayModule } from './vacay/vacay.module';
 import { PackingModule } from './packing/packing.module';
 import { BudgetModule } from './budget/budget.module';
@@ -41,6 +46,8 @@ import { ExpenseAttachmentsModule } from './expense-attachments/expense-attachme
 import { PhotosModule } from './photos/photos.module';
 import { MemoriesModule } from './memories/memories.module';
 import { AirtrailModule } from './integrations/airtrail.module';
+import { DawarichModule } from './integrations/dawarich.module';
+import { DocSyncModule } from './doc-sync/doc-sync.module';
 import { JourneyModule } from './journey/journey.module';
 import { CollectionsModule } from './collections/collections.module';
 import { ShareModule } from './share/share.module';
@@ -52,6 +59,7 @@ import { StorageModule } from './storage/storage.module';
 import { BackupModule } from './backup/backup.module';
 import { BookingImportModule } from './booking-import/booking-import.module';
 import { ReservationImportModule } from './reservation-import/reservation-import.module';
+import { ReceiptScanModule } from './receipt-scan/receipt-scan.module';
 import { LlmParseModule } from './llm-parse/llm-parse.module';
 import { AuthModule } from './auth/auth.module';
 import { OidcModule } from './oidc/oidc.module';
@@ -77,7 +85,7 @@ import { RealtimeGatewayModule } from './realtime/realtime-gateway.module';
  * migrated.
  */
 @Module({
-  imports: [AppConfigModule, DatabaseModule, RealtimeModule, RealtimeGatewayModule, SchedulingModule, McpModule.forRoot({ accessPolicy: trekMcpAccessPolicy, validateAccess: trekMcpValidateAccess }), HealthModule, PlatformModule, McpTransportModule, WeatherModule, PublicApiModule, HelpModule, AirportsModule, ConfigModule, SystemNoticesModule, GeoModule, MapsModule, PlaceEnrichmentModule, CategoriesModule, TagsModule, NotificationsModule, AtlasModule, VacayModule, PackingModule, TodoModule, BudgetModule, ReservationsModule, DaysModule, DayNotesModule, AccommodationsModule, AssignmentsModule, PlacesModule, TripsModule, CollabModule, FilesModule, ExpenseAttachmentsModule, PhotosModule, MemoriesModule, AirtrailModule, JourneyModule, CollectionsModule, ShareModule, TripInviteModule, TransitModule, FeedsModule, SettingsModule, StorageModule, BackupModule, AuthModule, OidcModule, OauthModule, AdminModule, AddonsModule, AuditModule, PermissionsModule, PluginsModule, BookingImportModule, ReservationImportModule, LlmParseModule, ManagedExtModule],
+  imports: [AppConfigModule, DatabaseModule, RealtimeModule, RealtimeGatewayModule, SchedulingModule, McpModule.forRoot({ accessPolicy: trekMcpAccessPolicy, validateAccess: trekMcpValidateAccess }), HealthModule, PlatformModule, McpTransportModule, WeatherModule, PublicApiModule, HelpModule, AirportsModule, ConfigModule, SystemNoticesModule, GeoModule, MapsModule, GoogleQuotaModule, PlaceEnrichmentModule, PlaceShadowModule, RouteUsageModule, CategoriesModule, TagsModule, NotificationsModule, AtlasModule, VacayModule, SchoolHolidaysModule, PackingModule, TodoModule, BudgetModule, ReservationsModule, DaysModule, DayNotesModule, AccommodationsModule, AssignmentsModule, PlacesModule, RoadtripModule, TripsModule, CollabModule, FilesModule, ExpenseAttachmentsModule, DocSyncModule, PhotosModule, MemoriesModule, AirtrailModule, DawarichModule, JourneyModule, CollectionsModule, ShareModule, TripInviteModule, TransitModule, FeedsModule, SettingsModule, StorageModule, BackupModule, AuthModule, OidcModule, OauthModule, AdminModule, AddonsModule, AuditModule, PermissionsModule, PluginsModule, BookingImportModule, ReservationImportModule, ReceiptScanModule, LlmParseModule, ManagedExtModule],
   providers: [
     // Default-deny: a route is authenticated unless it carries @Public() or
     // @OptionalAuth(), or declares its own @UseGuards chain. Protection used to

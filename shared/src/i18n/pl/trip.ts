@@ -14,12 +14,14 @@ const trip: TranslationStrings = {
   'trip.loading': 'Ładowanie podróży...',
   'trip.mobilePlan': 'Plan',
   'trip.mobilePlaces': 'Miejsca',
+  'trip.panelWidth': 'Szerokość panelu',
   'trip.toast.placeUpdated': 'Miejsce zostało zaktualizowane',
   'trip.toast.tripUpdated': 'Podróż zaktualizowana',
   'trip.toast.placeAdded': 'Miejsce zostało dodane',
   'trip.toast.placeDeleted': 'Miejsce zostało usunięte',
   'trip.toast.selectDay': 'Proszę najpierw wybrać dzień',
   'trip.toast.assignedToDay': 'Miejsce przypisane do dnia',
+  'trip.toast.loadError': 'Nie udało się wczytać podróży',
   'trip.toast.reorderError': 'Nie udało się zmienić kolejności',
   'trip.toast.reservationUpdated': 'Rezerwacja została zaktualizowana',
   'trip.toast.reservationAdded': 'Rezerwacja została dodana',
@@ -63,6 +65,7 @@ const trip: TranslationStrings = {
   'transit.search': 'Szukaj',
   'transit.searching': 'Wyszukiwanie…',
   'transit.searchError': 'Wyszukiwanie trasy nie powiodło się. Spróbuj ponownie.',
+  'transit.noResultsVia': 'Nie znaleziono połączeń przez {provider}. Spróbuj innej godziny lub innych filtrów.',
   'transit.noResults': 'Nie znaleziono połączeń. Zmień godzinę lub filtry.',
   'transit.direct': 'Bezpośrednio',
   'transit.transfers': 'Przesiadki: {count}',
@@ -86,5 +89,10 @@ const trip: TranslationStrings = {
   'transit.transfersLabel': 'Przesiadki',
   'transit.walkLabel': 'Pieszo',
   'transit.searchHint': 'Wyszukaj prawdziwe połączenia i dodaj je od razu do dnia — dane z Transitous.',
+  'trip.confirm.deletePlaceNight': 'Zostanie też usunięty nocleg zarezerwowany w „{name}”.',
+  'trip.confirm.deletePlaceBooked':
+    'Zostaną też usunięte nocleg zarezerwowany w „{name}”, rezerwacja „{booking}” i powiązane wydatki.',
+  'trip.confirm.deletePlaceBookedSame':
+    'Zostaną też usunięte nocleg zarezerwowany w „{name}”, jego rezerwacja i powiązane wydatki.',
 };
 export default trip;

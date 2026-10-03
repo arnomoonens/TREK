@@ -19,7 +19,8 @@ It cannot write anything. An integration that reads your itinerary needs no abil
 
 1. Open **Settings → Integrations**
 2. Under **API Keys**, click **Create key** and give it a name you will recognise later (the name is only for you — "Dawarich", "home assistant", "laptop script")
-3. **Copy the key immediately.** It is shown once. TREK stores only a hash of it, so it cannot be shown again — if you lose it, delete the key and make a new one.
+3. Choose **what the key may read.** Everything is selected by default. Anything you switch off is refused for that key.
+4. **Copy the key immediately.** It is shown once. TREK stores only a hash of it, so it cannot be shown again — if you lose it, delete the key and make a new one.
 
 Keys look like `trek_` followed by 48 characters. You can hold ten at a time.
 
@@ -44,6 +45,23 @@ curl -H "X-API-Key: trek_your_key_here" \
 ```
 
 Both are equivalent. Use whichever the other side offers.
+
+## What a key may read
+
+A key can be narrowed when you create it, to any subset of:
+
+`trips` · `days` · `places` · `notes` · `reservations` · `accommodations` · `travellers` · `bucket-list` · `stats`
+
+This is **not** the same as `include`. `include` chooses which sections a response carries and any key may ask for any of them; this decides what the key may see at all, and the server refuses the rest with a `403`. `trips` is the entry ticket for both trip endpoints: without it, every call to `/api/v1/trips` and `/api/v1/trips/{id}` is a `403` with `required_scope: "trips"`, whatever else the key was given. The other areas only trim what a trip brings along. A key given `trips`, `days` and `notes` reads exactly that, however it asks.
+
+Two rules make it predictable:
+
+- **A section you named but may not read is a `403`**, with the missing one in `required_scope`. Silently dropping what you explicitly asked for would send you debugging your own correct code.
+- **A section you did not name is simply left out.** `include` defaults to everything, so a narrow key that omits `include` gets what it may have rather than an error for wanting sections it never mentioned.
+
+A key without `days` still receives the day skeleton when it asks for `places`, `notes` or `reservations`, because those are reported on days; each day then carries its `date` and `day_number`, and its `title` and `notes` are `null`.
+
+Keys created before this existed, and keys created with everything selected, read all of it — nothing that worked before stops working.
 
 ## Endpoints
 
@@ -90,7 +108,7 @@ Two sections come back at trip level rather than on a day, because that is where
 | Field | Comes with | What it is |
 |---|---|---|
 | `unplanned_places` | `places` | places collected but not scheduled yet. On a real instance these are routinely **half** of a trip's places, and they carry coordinates. A hotel is not listed here; it is under `accommodations`. |
-| `unscheduled_reservations` | `reservations` | bookings with no day. Deleting a day detaches its bookings rather than deleting them, so these exist in the wild. |
+| `unscheduled_reservations` | `reservations` | bookings with no day. Deleting a day or shortening a trip detaches the bookings on the days that go rather than deleting them, so these exist in the wild. |
 
 Asking for `places`, `notes` or `reservations` brings `days` along automatically, since that is where they are reported. `?include=notes` returns the day skeleton with its notes and empty place lists, not an empty trip.
 
@@ -175,6 +193,14 @@ Totals for a dashboard. Built for widgets like Homepage's `customapi`, which ren
     "end_date": "2026-02-14",
     "country": "JP",
     "countries": ["JP"]
+  },
+  "next_trip": {
+    "title": "Lisbon long weekend",
+    "start_date": "2026-11-12",
+    "end_date": "2026-11-16",
+    "days_until": 42,
+    "country": "PT",
+    "countries": ["PT"]
   }
 }
 ```
@@ -182,6 +208,8 @@ Totals for a dashboard. Built for widgets like Homepage's `customapi`, which ren
 These are the same figures TREK's own dashboard shows, computed from the same source — a widget cannot disagree with the passport card next to it. In particular `total_countries` follows TREK's notion of *visited*: countries reached only by a flight or train count, layovers do not, and countries hidden by hand in Atlas stay hidden.
 
 `last_trip` is the most recent trip that has **started** — a trip booked for next year is not one you have been on — and is `null` when every trip is still ahead. `country` is the country most of its places sit in, and is the head of `countries`, which lists them all for a trip that crossed a border. Both are empty or `null` for a trip whose places were never geocoded.
+
+`next_trip` is its counterpart: the trip with the nearest start date that has **not started yet**, with the same `country` and `countries`, and `null` when nothing is planned. A trip that is under way is still `last_trip`, so the two never name the same trip. `days_until` counts whole days from today to the start date, so `1` means tomorrow.
 
 A Homepage widget then needs no scripting:
 
@@ -202,6 +230,8 @@ A Homepage widget then needs no scripting:
           label: Cities
         - field: last_trip.country
           label: Last
+        - field: next_trip.days_until
+          label: Days to go
 ```
 
 ## Notes for integrators
@@ -220,14 +250,17 @@ A Homepage widget then needs no scripting:
 |---|---|
 | `400` | malformed trip id, or an unknown `include` section |
 | `401` | missing, malformed or unknown key — also what you get for a key of the wrong kind |
+| `403` | the key is valid but not allowed to read what was asked for (`code: "API_SCOPE_FORBIDDEN"`, with the missing section in `required_scope`) |
 | `404` | no such trip, or not one of yours |
 | `429` | rate limit exceeded |
+
+**Which TREK is running.** To check the running version, for example against the latest GitHub release, call `GET /api/auth/app-config`. It needs no key and no login, and the `version` field holds the running version (such as `4.3.3`). It is not part of `/api/v1`, so it follows the app's own release rather than the promise below.
 
 **Versioning.** `/api/v1` may gain fields; it will not lose them or change their types. A breaking change ships as `/api/v2` and both run side by side for a transition period. Write your client to ignore fields it does not know.
 
 ## What is not here yet
 
-- **Writing.** Read-only for now. Write access needs per-scope enforcement that this surface does not implement, and a key that only reads is a much safer thing to hand out.
+- **Writing.** Read-only. A key that can only read is a very different thing to hand to third-party software, and every integration asking for this surface so far wants to read.
 - **Incremental sync.** There is no `?since=` filter, because TREK cannot yet answer it truthfully — child records carry no modification timestamp, so a filter on `updated_at` would silently hide trips whose itinerary changed. Fetch the list and compare.
 - **Webhooks.** Nothing pushes; poll at a sensible interval.
 

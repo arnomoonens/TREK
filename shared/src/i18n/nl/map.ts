@@ -13,6 +13,7 @@ const map: TranslationStrings = {
   'poi.cat.museums': 'Musea & cultuur',
   'poi.cat.nature': 'Natuur & parken',
   'poi.cat.activities': 'Activiteiten',
+  'poi.pluginCategories': 'Categorieën uit plugins',
   'map.showAllConnections': 'Alle boekingsroutes tonen',
   'map.hideAllConnections': 'Alle boekingsroutes verbergen',
   'map.baseLayer.default': 'Kaart',
@@ -22,5 +23,13 @@ const map: TranslationStrings = {
   'map.location.denied': 'Locatietoegang is geblokkeerd. Controleer de apparaatinstellingen; een geïnstalleerde app heeft een eigen locatiemachtiging, los van de browser.',
   'map.location.unavailable': 'Je locatie kon niet worden bepaald.',
   'map.location.timeout': 'Het bepalen van je locatie duurde te lang. Probeer het opnieuw met vrij zicht op de lucht.',
+  'map.overview.show': 'Hele reis tonen',
+  'map.lock.lock': 'Kaartweergave vergrendelen',
+  'map.lock.unlock': 'Kaart de selectie laten volgen',
+  'map.overview.hide': 'Hele reis verbergen',
+  'map.overview.total': 'Totale afstand',
+  'map.attribution': 'Kaartvermeldingen',
+  'map.overview.unrouted': '{count} etappe(s) konden niet worden berekend, de afstanden zijn onvolledig.',
+  'map.overview.dayUnrouted': '{count} etappe(s) van deze dag konden niet worden berekend',
 };
 export default map;

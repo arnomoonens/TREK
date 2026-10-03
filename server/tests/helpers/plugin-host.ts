@@ -21,6 +21,7 @@ import { TodoService } from '../../src/nest/todo/todo.service';
 import { PackingService } from '../../src/nest/packing/packing.service';
 import { DayNotesService } from '../../src/nest/day-notes/day-notes.service';
 import { DaysService } from '../../src/nest/days/days.service';
+import { DayRemovalService } from '../../src/nest/days/day-removal.service';
 import { AssignmentsService } from '../../src/nest/assignments/assignments.service';
 import { LlmConfigResolver } from '../../src/nest/llm-parse/llm-config.resolver';
 import { SettingsService } from '../../src/nest/settings/settings.service';
@@ -74,6 +75,7 @@ import { PlacePhotoCacheService } from '../../src/nest/place-photos/place-photo-
 import { TrekPhotosRepository } from '../../src/nest/photos/trek-photos.repository';
 import { RuntimeEnvService } from '../../src/nest/app-config/runtime-env.service';
 import { makeStorageFixture } from './storage-fixture';
+import { noGoogleQuota } from './google-quota';
 
 /**
  * Hand-wired counterpart of the PluginsModule DI graph for no-Nest tests
@@ -96,14 +98,12 @@ export function createPluginRpcHostFactory(dbs: DatabaseService): PluginRpcHostF
   const todos = new TodoService(dbs, permissions, realtime);
   const packing = new PackingService(dbs, permissions, realtime, notificationsStub());
   const files = new FilesService(dbs, permissions, realtime, new EphemeralTokenService(), generalStorage);
-  const reservations = new ReservationsService(dbs, permissions, budget, realtime, notificationsStub(), new ReservationsReadRepository(dbs));
   const collab = new CollabService(dbs, permissions, realtime, notificationsStub(), generalStorage, new RateLimitService());
   const vacay = new VacayService(dbs, realtime, notificationsStub());
   const days = new DaysService(dbs, permissions, realtime, queryHelpers);
   const photoCache = new PlacePhotoCacheService(dbs, makeStorageFixture('photos/google/').storage);
   const unsplash = new UnsplashService(dbs, new RuntimeEnvService(), generalStorage);
   const journey = new JourneyDomainService(dbs, realtime, new TrekPhotosRepository(dbs));
-  const places = new PlacesService(dbs, permissions, realtime, new MapsService(dbs, photoCache), queryHelpers, unsplash, photoCache, journey, generalStorage);
   const collections = new CollectionsService(dbs, permissions, realtime, notificationsStub(), generalStorage);
   const atlas = new AtlasService(dbs);
   const dayNotes = new DayNotesService(dbs, permissions, realtime);
@@ -112,8 +112,12 @@ export function createPluginRpcHostFactory(dbs: DatabaseService): PluginRpcHostF
   const notifications = makeNotificationsService(dbs, realtime);
   const llmConfig = new LlmConfigResolver(new SettingsService(dbs), dbs, addons);
   const oauth = new PluginOAuthService(dbs);
-  const accommodations = new AccommodationsService(dbs, permissions, realtime);
-  const trips = new TripsService(dbs, reservations, days, permissions, budget, vacay, realtime, unsplash, generalStorage);
+  const accommodations = new AccommodationsService(dbs, permissions, realtime, assignments);
+  // After it: deleting a place cancels the nights booked at it through this one.
+  const places = new PlacesService(dbs, permissions, realtime, new MapsService(dbs, photoCache, noGoogleQuota), queryHelpers, unsplash, photoCache, journey, generalStorage, accommodations);
+  // After accommodations: a hotel booking writes the stay's day stop through it.
+  const reservations = new ReservationsService(dbs, permissions, budget, realtime, notificationsStub(), new ReservationsReadRepository(dbs), accommodations);
+  const trips = new TripsService(dbs, reservations, days, permissions, budget, vacay, realtime, unsplash, generalStorage, new SettingsService(dbs));
   const members = new TripMembersService(dbs, budget, new UserCleanupService(dbs, budget), permissions, realtime, notificationsStub());
   const guards = new PluginGuards(dbs, permissions, addons);
   const expenseAttachments = new ExpenseAttachmentsService(dbs, files, permissions);
@@ -128,7 +132,7 @@ export function createPluginRpcHostFactory(dbs: DatabaseService): PluginRpcHostF
     new PackingRpc(packing, realtime, guards),
     new FilesRpc(files, realtime, dbs, guards, generalStorage),
     new PlacesRpc(places, journey, realtime, guards),
-    new DaysRpc(days, realtime, guards),
+    new DaysRpc(days, realtime, guards, new DayRemovalService(dbs, days, accommodations, assignments)),
     new AccommodationsRpc(accommodations, realtime, guards),
     new ItineraryRpc(assignments, realtime, guards),
     new TripsRpc(trips, reservations, days, membership, dbs, realtime, guards, accommodations, members),
@@ -140,7 +144,7 @@ export function createPluginRpcHostFactory(dbs: DatabaseService): PluginRpcHostF
     new VacayRpc(vacay, guards),
     // The photo half needs storage plus the allowed-types setting and the EXIF
     // backfill; none of the tests on this harness write bytes, so they are stubs.
-    new JournalRpc(journey, guards, generalStorage, { get: () => '*' } as never, { schedule: () => {} } as never, dbs),
+    new JournalRpc(journey, guards, generalStorage, { get: () => '*' } as never, { scheduleUpload: () => {} } as never, dbs),
     new CollectionsRpc(collections, guards),
     new DbRpc(new PluginUserSettingsService(dbs)),
     new MetaRpc(dbs, guards),

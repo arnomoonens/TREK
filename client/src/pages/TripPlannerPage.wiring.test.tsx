@@ -1,4 +1,4 @@
-// FE-PAGE-TPW-001 to FE-PAGE-TPW-061
+// FE-PAGE-TPW-001 to FE-PAGE-TPW-074
 //
 // The planner page is a wiring container: everything stateful lives in
 // useTripPlanner (covered in src/pages/tripPlanner/useTripPlanner.test.tsx).
@@ -44,9 +44,19 @@ function props(name: string): Record<string, AnyProp> {
 
 vi.mock('../components/Map/MapViewAuto', () => ({ MapViewAuto: stub('map', 'map-view') }))
 vi.mock('../components/Map/MapCompassPill', () => ({ MapCompassPill: stub('compass', 'compass-pill') }))
-vi.mock('../components/Map/PoiCategoryPill', () => ({ default: stub('poiPill', 'poi-pill') }))
+// Every pill mount records its props here, so a test can check each one of them.
+const poiPillMounts = vi.hoisted(() => [] as Record<string, unknown>[])
+const poiCategories = vi.hoisted(() => ({ core: [], plugin: [] }))
+vi.mock('../components/Map/PoiCategoryPill', () => ({
+  default: (props: Record<string, unknown>) => {
+    captured.poiPill = props
+    poiPillMounts.push(props)
+    return React.createElement('div', { 'data-testid': 'poi-pill' })
+  },
+}))
 vi.mock('../components/Map/usePoiExplore', () => ({
   usePoiExplore: () => ({
+    categories: poiCategories,
     active: [], pois: [], loadingKeys: [], errorKeys: [], moved: false,
     toggle: vi.fn(), searchArea: vi.fn(), onViewportChange: vi.fn(),
   }),
@@ -71,6 +81,7 @@ vi.mock('../components/Planner/PlaceFormModal', () => ({ default: stub('placeFor
 vi.mock('../components/Planner/ReservationModal', () => ({ ReservationModal: stub('reservationModal') }))
 vi.mock('../components/Planner/TransportModal', () => ({ TransportModal: stub('transportModal', 'transport-modal') }))
 vi.mock('../components/Planner/TransitJourneyModal', () => ({ default: stub('transitModal', 'transit-modal') }))
+vi.mock('../components/Planner/bookings/BookingDetailHost', () => ({ BookingDetailPopup: stub('bookingDetail', 'booking-detail') }))
 vi.mock('../components/Planner/BookingImportModal', () => ({ default: stub('bookingImport') }))
 vi.mock('../components/Planner/AirTrailImportModal', () => ({ default: stub('airtrailImport') }))
 vi.mock('../components/Planner/ReservationsPanel', () => ({ default: stub('reservationsPanel', 'reservations-panel') }))
@@ -80,6 +91,7 @@ vi.mock('../components/Trips/TripFormModal', () => ({ default: stub('tripForm') 
 vi.mock('../components/Trips/TripMembersModal', () => ({ default: stub('membersModal') }))
 vi.mock('../components/Packing/PackingListPanel', () => ({ default: stub('packingPanel', 'packing-list-panel') }))
 vi.mock('../components/Packing/ApplyTemplateButton', () => ({ default: stub('applyTemplate', 'apply-template') }))
+vi.mock('../components/Packing/PackingExportMenu', () => ({ default: stub('exportMenu', 'export-menu') }))
 vi.mock('../components/Todo/TodoListPanel', () => ({ default: stub('todoPanel', 'todo-list-panel') }))
 vi.mock('../components/Files/FileManager', () => ({ default: stub('fileManager', 'file-manager') }))
 vi.mock('../components/Budget/CostsPanel', () => ({
@@ -141,6 +153,49 @@ function baseState(): HookState {
     collabFeatures: { chat: true, notes: true, polls: true, whatsnext: true },
     tripAccommodations: [],
     setTripAccommodations: vi.fn(),
+    // Road trip mode off, which is the state every assertion below reads: the page keeps
+    // its ordinary map, sidebar and route wiring, and the road-trip branches stay unmounted.
+    // The shapes still have to be here, because the page reaches into routeAlternatives.open,
+    // roadtripRoutes.lines and roadtripVias.byDay before it ever checks whether the mode is on.
+    roadtripMode: false,
+    toggleRoadtripMode: vi.fn(),
+    roadtripActive: false,
+    roadtripRoutes: { lines: [], segments: [], days: [], loading: false, totalStops: 0 },
+    roadtripCorridor: { visible: [], day: null, dayId: '', setDayId: vi.fn(), categories: [], toggleCategory: vi.fn(), widthKm: 5, setWidthKm: vi.fn(), search: vi.fn(), nameFilter: '', setNameFilter: vi.fn(), insertIndexFor: vi.fn() },
+    refuel: { openFor: null, loading: false, outcome: null, results: [], offered: [], ask: vi.fn(), close: vi.fn() },
+    askRefuel: vi.fn(),
+    acceptRefuel: vi.fn(),
+    followTrack: { dayId: null, open: vi.fn(), close: vi.fn(), tracks: [], busy: false, round: 0, error: null, outcome: null, apply: vi.fn(), clear: vi.fn(), viaCount: 0, available: false },
+    // The recorded-route overlay (#2279). Off and empty: the page reads
+    // `dawarichTrail.track` unconditionally, so the fixture has to carry the
+    // shape the hook returns even when the addon is not in play.
+    dawarichEnabled: false,
+    dawarichTrailShown: false,
+    toggleDawarichTrail: vi.fn(),
+    dawarichTrail: { track: null, status: 'idle', reload: vi.fn() },
+    roadtripViaCounts: {},
+    stopDraft: null,
+    setStopDraft: vi.fn(),
+    saveStopDraft: vi.fn(async () => undefined),
+    stopDraftToForm: vi.fn(),
+    stopDraftDuplicate: null,
+    reorderRoadtripStop: vi.fn(async () => undefined),
+    roadtripVias: { byDay: {}, refresh: vi.fn(async () => undefined) },
+    addRoadtripVia: vi.fn(async () => undefined),
+    moveRoadtripVia: vi.fn(async () => undefined),
+    removeRoadtripVia: vi.fn(async () => undefined),
+    routeAlternatives: { open: null, close: vi.fn(), loading: false, ask: vi.fn(async () => undefined) },
+    askRouteAlternatives: vi.fn(async () => undefined),
+    chooseRouteAlternative: vi.fn(async () => undefined),
+    alternativeOverlays: [],
+    alternativeFocusPoints: [],
+    stayDraft: null,
+    setStayDraft: vi.fn(),
+    setRoadtripStay: vi.fn(async () => undefined),
+    highlightedAlternative: null,
+    setHighlightedAlternative: vi.fn(),
+    moveRoadtripStopToDay: vi.fn(async () => undefined),
+    dropPoiOnRoute: vi.fn(async () => undefined),
     allowedFileTypes: 'pdf',
     tripMembers: [],
     setTripMembers: vi.fn(),
@@ -165,8 +220,17 @@ function baseState(): HookState {
     rightCollapsed: false,
     setLeftCollapsed: vi.fn(),
     setRightCollapsed: vi.fn(),
+    leftHidden: false,
+    rightHidden: false,
+    toggleLeft: vi.fn(),
+    toggleRight: vi.fn(),
+    narrowPanels: false,
     startResizeLeft: vi.fn(),
     startResizeRight: vi.fn(),
+    nudgeLeft: vi.fn(),
+    nudgeRight: vi.fn(),
+    resizeMin: 200,
+    resizeMax: 520,
     selectedPlaceId: null,
     selectedAssignmentId: null,
     setSelectedPlaceId: vi.fn(),
@@ -177,12 +241,16 @@ function baseState(): HookState {
     setDayDetailCollapsed: vi.fn(),
     showPlaceForm: false,
     setShowPlaceForm: vi.fn(),
+    setPlaceFormDayId: vi.fn(),
     editingPlace: null,
     setEditingPlace: vi.fn(),
     prefillCoords: null,
     setPrefillCoords: vi.fn(),
     editingAssignmentId: null,
     setEditingAssignmentId: vi.fn(),
+    serviceStopMode: null,
+    setServiceStopForm: vi.fn(),
+    openManualRoadtripStop: vi.fn(),
     showTripForm: false,
     setShowTripForm: vi.fn(),
     showMembersModal: false,
@@ -213,6 +281,16 @@ function baseState(): HookState {
     setTransitPrefill: vi.fn(),
     transitJourney: null,
     setTransitJourney: vi.fn(),
+    openTransportEditor: vi.fn(),
+    changeTransitRoute: vi.fn(),
+    bookingDetail: null,
+    openBookingDetail: vi.fn(),
+    openBookingFromDayList: vi.fn(),
+    closeBookingDetail: vi.fn(),
+    bookingDetailEditor: undefined,
+    bookingDetailChangeRoute: undefined,
+    showBookingOnMap: vi.fn(),
+    isBookingOnMap: vi.fn(() => false),
     reservationPrefill: null,
     transportPrefill: null,
     importReviewActive: false,
@@ -233,6 +311,9 @@ function baseState(): HookState {
     setDeletePlaceId: vi.fn(),
     deletePlaceIds: null,
     setDeletePlaceIds: vi.fn(),
+    stayRelease: null,
+    setStayRelease: vi.fn(),
+    confirmStayRelease: vi.fn(async () => undefined),
     visibleConnections: [],
     toggleConnection: vi.fn(),
     allConnectionsShown: false,
@@ -337,9 +418,11 @@ describe('TripPlannerPage — shell', () => {
   it('FE-PAGE-TPW-006: the tab bar renders every tab and forwards a switch to the hook', () => {
     renderPage()
 
-    const tabs = props('tabs').tabs as unknown as Array<{ id: string; title: string }>
+    const tabs = props('tabs').tabs as unknown as Array<{ id: string; title?: string }>
     expect(tabs.map(t => t.id)).toContain('collab')
-    expect(tabs.find(t => t.id === 'buchungen')?.title).toBe('Bookings')
+    // No native tooltip on any of them: the label is right there, so a title
+    // would only repeat it under the cursor.
+    expect(tabs.every(t => t.title === undefined)).toBe(true)
 
     act(() => { props('tabs').onChange('dateien') })
     expect(hookState.handleTabChange).toHaveBeenCalledWith('dateien')
@@ -371,18 +454,31 @@ describe('TripPlannerPage — plan tab', () => {
   })
 
   it('FE-PAGE-TPW-009: collapsed panels report a zero width to the map', () => {
-    renderPage({ leftCollapsed: true, rightCollapsed: true })
+    renderPage({ leftHidden: true, rightHidden: true })
 
     expect(props('map').leftWidth).toBe(0)
     expect(props('map').rightWidth).toBe(0)
   })
 
-  it('FE-PAGE-TPW-010: clicking a booking route on the map opens its transport detail', () => {
+  it('FE-PAGE-TPW-010: clicking a booking route on the map opens its booking detail', () => {
     const reservation = buildReservation({ id: 3, type: 'train' })
     renderPage({ reservations: [reservation] })
 
     act(() => { props('map').onReservationClick(3) })
+    expect(hookState.openBookingDetail).toHaveBeenCalledWith(reservation)
+    expect(hookState.setMapTransportDetail).not.toHaveBeenCalled()
+
+    act(() => { props('map').onReservationClick(999) })
+    expect(hookState.openBookingDetail).toHaveBeenCalledTimes(1)
+  })
+
+  it("FE-PAGE-TPW-065: the narrow layout keeps sending a map booking to the day list's transport view", () => {
+    const reservation = buildReservation({ id: 3, type: 'train' })
+    renderPage({ reservations: [reservation], isMobile: true })
+
+    act(() => { props('map').onReservationClick(3) })
     expect(hookState.setMapTransportDetail).toHaveBeenCalledWith(reservation)
+    expect(hookState.openBookingDetail).not.toHaveBeenCalled()
 
     act(() => { props('map').onReservationClick(999) })
     expect(hookState.setMapTransportDetail).toHaveBeenCalledTimes(1)
@@ -408,21 +504,74 @@ describe('TripPlannerPage — plan tab', () => {
   it('FE-PAGE-TPW-013: the collapse buttons toggle each side panel', () => {
     renderPage()
 
-    const [leftBtn, rightBtn] = screen.getAllByRole('button')
+    // By name, not by position: the map layer carries controls of its own, so the
+    // tabs are not simply the first two buttons on the page.
+    const [leftBtn, rightBtn] = screen.getAllByLabelText('common.collapse')
     fireEvent.click(leftBtn)
-    expect(updaterOf<boolean>(hookState.setLeftCollapsed)(false)).toBe(true)
+    expect(hookState.toggleLeft).toHaveBeenCalled()
 
     fireEvent.mouseEnter(leftBtn)
     fireEvent.mouseLeave(leftBtn)
 
     fireEvent.click(rightBtn)
-    expect(updaterOf<boolean>(hookState.setRightCollapsed)(false)).toBe(true)
+    expect(hookState.toggleRight).toHaveBeenCalled()
     fireEvent.mouseEnter(rightBtn)
     fireEvent.mouseLeave(rightBtn)
   })
 
+  // The tabs are the only way back to a panel on a touch device, and they used to
+  // announce themselves with nothing but a hover colour (#2247).
+  it('FE-PAGE-TPW-013b: each collapse tab is named for what it does', () => {
+    renderPage({ leftHidden: true, rightHidden: false })
+    expect(screen.getByLabelText('trip.mobilePlan')).toBeInTheDocument()
+    expect(screen.getByLabelText('common.collapse')).toBeInTheDocument()
+  })
+
+  // At a foldable's ~860px the viewport centre sits under the Places panel, so the
+  // floating POI/compass cluster covered both tabs and the Add Place button (#2247).
+  it('FE-PAGE-TPW-013c: the floating map controls centre on the map corridor, not the viewport', () => {
+    const { container } = renderPage({ leftWidth: 340, rightWidth: 300 })
+    const cluster = container.querySelector('div[style*="translateX(-50%)"][style*="z-index: 25"]') as HTMLElement
+    expect(cluster.style.left).toBe('calc(350px + 0.5 * (100% - 350px - 310px))')
+  })
+
+  // Plugins can add POI categories (#1781), so the pill may outgrow the corridor; bounded
+  // to it, the pill scrolls there instead of running on under a panel.
+  it('FE-PAGE-TPW-063: the floating map controls are no wider than the corridor', () => {
+    const { container } = renderPage({ leftWidth: 340, rightWidth: 300 })
+    const cluster = container.querySelector('div[style*="translateX(-50%)"][style*="z-index: 25"]') as HTMLElement
+    // The two panel insets (350 and 310) and a 12px margin on either side.
+    expect(cluster.style.maxWidth).toBe('calc(100% - 684px)')
+  })
+
+  it('FE-PAGE-TPW-064: both pill mounts offer the categories the explore hook merged', () => {
+    poiPillMounts.length = 0
+    renderPage()
+    // The floating desktop pill and the portal the narrow layout uses.
+    expect(poiPillMounts.length).toBeGreaterThanOrEqual(2)
+    expect(poiPillMounts.every(mount => mount.categories === poiCategories)).toBe(true)
+    expect(screen.getByTestId('mobile-poi-category-pill')).toContainElement(screen.getAllByTestId('poi-pill')[1])
+  })
+
+  it('FE-PAGE-TPW-013d: a hidden panel takes no corridor away from the map controls', () => {
+    const { container } = renderPage({ leftWidth: 340, rightWidth: 300, rightHidden: true })
+    const cluster = container.querySelector('div[style*="translateX(-50%)"][style*="z-index: 25"]') as HTMLElement
+    expect(cluster.style.left).toBe('calc(350px + 0.5 * (100% - 350px - 0px))')
+  })
+
+  // Leaflet's base-layer switcher owns the bottom-LEFT corner at z-index 1000, so an
+  // overview control placed there is simply covered by it (#1736).
+  it('FE-PAGE-TPW-013d: the trip-overview control hugs the right edge, clear of the layer switcher', () => {
+    renderPage()
+
+    const stack = screen.getByTestId('trip-overview-pill').closest('[style*="position: absolute"]') as HTMLElement
+    expect(stack).not.toBeNull()
+    expect(stack.style.right).not.toBe('')
+    expect(stack.style.left).toBe('')
+  })
+
   it('FE-PAGE-TPW-014: a collapsed panel keeps its toggle but drops the hover highlight', () => {
-    renderPage({ leftCollapsed: true, rightCollapsed: true })
+    renderPage({ leftHidden: true, rightHidden: true })
 
     const [leftBtn, rightBtn] = screen.getAllByRole('button')
     fireEvent.mouseEnter(leftBtn)
@@ -431,6 +580,30 @@ describe('TripPlannerPage — plan tab', () => {
     fireEvent.mouseLeave(rightBtn)
 
     expect(screen.getByTestId('day-plan-sidebar')).toBeInTheDocument()
+  })
+
+  // The handles take a finger now, with a visible grip on touch screens, so the
+  // tablet band keeps the one it shows (#1012); before, a 4px mouse-only strip there
+  // was a trap for a fat finger (#2247).
+  it('FE-PAGE-TPW-015b: the narrow layout keeps a touch-ready handle on the panel it shows', () => {
+    const { container } = renderPage({ narrowPanels: true, rightHidden: true })
+    const handles = container.querySelectorAll<HTMLElement>('div[role="separator"]')
+    expect(handles).toHaveLength(1)
+    expect(handles[0].style.touchAction).toBe('none')
+    fireEvent.touchStart(handles[0])
+    expect(hookState.startResizeLeft).toHaveBeenCalled()
+  })
+
+  it('FE-PAGE-TPW-015c: the arrow keys move a handle like a separator (#1012)', () => {
+    const { container } = renderPage()
+    const [left, right] = container.querySelectorAll<HTMLElement>('div[role="separator"]')
+    expect(left).toHaveAttribute('aria-valuenow')
+    fireEvent.keyDown(left, { key: 'ArrowRight' })
+    expect(hookState.nudgeLeft).toHaveBeenCalledWith(16)
+    fireEvent.keyDown(right, { key: 'ArrowLeft' })
+    expect(hookState.nudgeRight).toHaveBeenCalledWith(16)
+    fireEvent.keyDown(right, { key: 'ArrowRight' })
+    expect(hookState.nudgeRight).toHaveBeenCalledWith(-16)
   })
 
   it('FE-PAGE-TPW-015: the resize handles start a drag on mouse-down and highlight on hover', () => {
@@ -803,18 +976,91 @@ describe('TripPlannerPage — mobile drawers', () => {
   })
 })
 
+describe("TripPlannerPage — the plan's booking detail", () => {
+  it("FE-PAGE-TPW-066: the desktop day list and the inspector open a booking's detail", () => {
+    renderPage({ selectedPlace: place })
+
+    // The day list's own opener: its rows asked for day_edit before the editor.
+    expect(props('dayPlan').onOpenBooking).toBe(hookState.openBookingFromDayList)
+    expect(props('inspector').onOpenBooking).toBe(hookState.openBookingDetail)
+    // The inspector keeps its editors: the detail's Edit goes on to them.
+    expect(props('inspector').onEditReservation).toBeTypeOf('function')
+  })
+
+  it("FE-PAGE-TPW-067: the day card opens a booking's detail on the desktop only", () => {
+    renderPage({ showDayDetail: day })
+    expect(props('dayDetail').onOpenBooking).toBe(hookState.openBookingDetail)
+    cleanup()
+
+    renderPage({ showDayDetail: day, isMobile: true })
+    expect(props('dayDetail').onOpenBooking).toBeUndefined()
+  })
+
+  it('FE-PAGE-TPW-068: the narrow layout keeps its day list paths, in the panel and in the drawer', () => {
+    renderPage({ isMobile: true })
+    expect(props('dayPlan').onOpenBooking).toBeUndefined()
+    cleanup()
+
+    renderPage({ mobileSidebarOpen: 'left' })
+    // The drawer's copy renders last; it never gets the detail.
+    expect(props('dayPlan').onOpenTransit).toBeTypeOf('function')
+    expect(props('dayPlan').onOpenBooking).toBeUndefined()
+  })
+
+  it('FE-PAGE-TPW-069: nothing is mounted while no booking is open', () => {
+    renderPage()
+    expect(screen.queryByTestId('booking-detail')).not.toBeInTheDocument()
+  })
+
+  it("FE-PAGE-TPW-070: the open booking's detail gets its rights and hands every way out to the planner", async () => {
+    const train = buildReservation({ id: 3, type: 'train', title: 'Shinkansen' })
+    const editor = vi.fn()
+    const changeRoute = vi.fn()
+    renderPage({ bookingDetail: train, bookingDetailEditor: editor, bookingDetailChangeRoute: changeRoute })
+
+    expect(screen.getByTestId('booking-detail')).toBeInTheDocument()
+    const d = props('bookingDetail')
+    expect(d.r).toBe(train)
+    expect(d.tripId).toBe(42)
+    expect(d.canEdit).toBe(true)
+    expect(d.onEdit).toBe(editor)
+    expect(d.onChangeRoute).toBe(changeRoute)
+    expect(d.onClose).toBe(hookState.closeBookingDetail)
+    expect(d.onDelete).toBe(hookState.handleDeleteReservation)
+    expect(d.onShowOnMap).toBe(hookState.showBookingOnMap)
+    expect(d.isOnMap).toBe(hookState.isBookingOnMap)
+
+    act(() => { d.onNavigateToFiles() })
+    expect(hookState.handleTabChange).toHaveBeenCalledWith('dateien')
+
+    act(() => { d.onEditExpense({ id: 12, name: 'Ticket' }) })
+    await waitFor(() => expect(screen.getByTestId('expense-modal')).toBeInTheDocument())
+    expect(props('expenseModal').editing).toEqual({ id: 12, name: 'Ticket' })
+  })
+
+  it('FE-PAGE-TPW-071: without the booking right the detail stays read-only', () => {
+    const can = vi.fn((action: string) => action !== 'reservation_edit')
+    renderPage({ bookingDetail: buildReservation({ id: 3 }), can })
+    expect(props('bookingDetail').canEdit).toBe(false)
+  })
+})
+
 describe('TripPlannerPage — other tabs', () => {
   const flight = buildReservation({ id: 1, type: 'flight' })
   const hotel = buildReservation({ id: 2, type: 'hotel' })
   const transit = buildReservation({ id: 3, type: 'train' })
 
   it('FE-PAGE-TPW-034: the transports tab lists only transport bookings and wires its actions', async () => {
-    renderPage({ activeTab: 'transports', reservations: [flight, hotel, transit] })
+    const dinner = buildReservation({ id: 4, type: 'restaurant' })
+    renderPage({ activeTab: 'transports', reservations: [flight, hotel, transit, dinner] })
     // The panel loads on demand now; its props only exist once the chunk is in.
     await screen.findByTestId('reservations-panel')
 
     const listed = props('reservationsPanel').reservations as unknown as Reservation[]
     expect(listed.map(r => r.id)).toEqual([1, 3])
+    // The timeline's "other tab" lane gets every booking of the Book tab, not only the stays.
+    const context = props('reservationsPanel').contextReservations as unknown as Reservation[]
+    expect(context.map(r => r.id)).toEqual([2, 4])
 
     act(() => { props('reservationsPanel').onAdd() })
     expect(hookState.setTransportModalAutomated).toHaveBeenCalledWith(false)
@@ -826,7 +1072,7 @@ describe('TripPlannerPage — other tabs', () => {
     expect(hookState.setShowAirTrailImport).toHaveBeenCalledWith(true)
 
     act(() => { props('reservationsPanel').onEdit(transit) })
-    expect(hookState.setEditingTransport).toHaveBeenCalledWith(transit)
+    expect(hookState.openTransportEditor).toHaveBeenCalledWith(transit)
 
     act(() => { props('reservationsPanel').onDelete(1) })
     expect(hookState.handleDeleteReservation).toHaveBeenCalledWith(1)
@@ -835,14 +1081,34 @@ describe('TripPlannerPage — other tabs', () => {
     expect(hookState.handleTabChange).toHaveBeenCalledWith('dateien')
   })
 
-  it('FE-PAGE-TPW-035: a saved transit journey opens the journey view instead of the editor', async () => {
+  it("FE-PAGE-TPW-035: the Transports tab edits a transit journey in the full editor and changes its route under the plan's right", async () => {
     const journey = buildReservation({ id: 9, type: 'transit' })
-    renderPage({ activeTab: 'transports', reservations: [journey] })
+    const changeRoute = vi.fn()
+    renderPage({ activeTab: 'transports', reservations: [journey], bookingDetailChangeRoute: changeRoute })
     await screen.findByTestId('reservations-panel')
 
     act(() => { props('reservationsPanel').onEdit(journey) })
-    expect(hookState.setTransitJourney).toHaveBeenCalledWith(journey)
-    expect(hookState.setShowTransportModal).not.toHaveBeenCalled()
+    expect(hookState.openTransportEditor).toHaveBeenCalledWith(journey)
+    expect(hookState.setTransitJourney).not.toHaveBeenCalled()
+
+    // The same day_edit-gated handler the plan's detail gets.
+    expect(props('reservationsPanel').onChangeRoute).toBe(changeRoute)
+    cleanup()
+
+    // Without day_edit the hook hands over none, and the tab offers none.
+    renderPage({ activeTab: 'transports', reservations: [journey], bookingDetailChangeRoute: undefined })
+    await screen.findByTestId('reservations-panel')
+    expect(props('reservationsPanel').onChangeRoute).toBeUndefined()
+  })
+
+  it('FE-PAGE-TPW-072: both booking tabs show a booking on the map the way the plan does', async () => {
+    for (const activeTab of ['transports', 'buchungen']) {
+      renderPage({ activeTab, reservations: [flight, hotel] })
+      await screen.findByTestId('reservations-panel')
+      expect(props('reservationsPanel').onShowOnMap).toBe(hookState.showBookingOnMap)
+      expect(props('reservationsPanel').isOnMap).toBe(hookState.isBookingOnMap)
+      cleanup()
+    }
   })
 
   it('FE-PAGE-TPW-036: the bookings tab lists everything that is not transport', async () => {
@@ -918,13 +1184,14 @@ describe('TripPlannerPage — lists tab', () => {
     expect(props('todoPanel').addItemSignal).toBe(1)
   })
 
-  it('FE-PAGE-TPW-041: the clear-checked action only appears once something is checked', async () => {
+  it('FE-PAGE-TPW-041: Add list in the bar opens the list name field in the panel', async () => {
     renderPage({ activeTab: 'listen', packingItems: [buildPackingItem({ checked: 1 })] })
     await screen.findByTestId('packing-list-panel')
 
-    const clear = screen.getByRole('button', { name: /Remove 1 checked/i })
-    fireEvent.click(clear)
-    expect(props('packingPanel').clearCheckedSignal).toBe(1)
+    // Removing checked items moved into the panel's progress card.
+    expect(screen.queryByRole('button', { name: /Remove 1 checked/i })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Add list/i }))
+    expect(props('packingPanel').addCategorySignal).toBe(1)
   })
 
   it('FE-PAGE-TPW-042: an admin can save the current list as a template', async () => {
@@ -953,6 +1220,21 @@ describe('TripPlannerPage — lists tab', () => {
     act(() => { props('packingPanel').onViewChange('personal') })
     expect(props('applyTemplate').visibility).toBe('personal')
   })
+
+  it('FE-PAGE-TPW-044b: export and import sit in the header as icons, export following the open view (#875, #1420)', async () => {
+    renderPage({ activeTab: 'listen', packingItems: [buildPackingItem({ checked: 0 })] })
+    await screen.findByTestId('packing-list-panel')
+
+    expect(screen.getByTestId('export-menu')).toBeInTheDocument()
+    expect(props('exportMenu').tripId).toBe(42)
+    expect(props('exportMenu').view).toBe('common')
+    act(() => { props('packingPanel').onViewChange('personal') })
+    expect(props('exportMenu').view).toBe('personal')
+
+    const importButton = screen.getByRole('button', { name: 'Import' })
+    expect(importButton).toHaveAttribute('title', 'Import')
+    expect(importButton).toHaveTextContent('')
+  })
 })
 
 describe('TripPlannerPage — modals', () => {
@@ -963,6 +1245,9 @@ describe('TripPlannerPage — modals', () => {
     expect(hookState.setShowPlaceForm).toHaveBeenCalledWith(false)
     expect(hookState.setEditingPlace).toHaveBeenCalledWith(null)
     expect(hookState.setPrefillCoords).toHaveBeenCalledWith(null)
+    // The road trip's manual add is one of the ways this form opens; closing it has to
+    // put the form back to the one every other caller gets.
+    expect(hookState.setServiceStopForm).toHaveBeenCalledWith(false)
 
     act(() => { props('placeForm').onCategoryCreated({ id: 3, name: 'Food' }) })
     const tripActions = hookState.tripActions as Record<string, ReturnType<typeof vi.fn>>
@@ -1068,6 +1353,27 @@ describe('TripPlannerPage — modals', () => {
     expect(tripActions.deleteFile).toHaveBeenCalledWith(42, 2)
   })
 
+  it('FE-PAGE-TPW-053b: the transport edit window deletes the booking when the user may edit reservations', async () => {
+    const res = buildReservation({ id: 55, type: 'flight', title: 'LH 400' })
+    renderPage({ showTransportModal: true, editingTransport: res })
+
+    await act(async () => { await props('transportModal').onDelete() })
+    expect(hookState.handleDeleteReservation).toHaveBeenCalledWith(55)
+  })
+
+  it('FE-PAGE-TPW-053c: no transport delete without an edited booking or permission', () => {
+    renderPage({ showTransportModal: true })
+    expect(props('transportModal').onDelete).toBeUndefined()
+
+    cleanup()
+    renderPage({
+      showTransportModal: true,
+      editingTransport: buildReservation({ id: 55, type: 'flight' }),
+      can: vi.fn((action: string) => action !== 'reservation_edit'),
+    })
+    expect(props('transportModal').onDelete).toBeUndefined()
+  })
+
   it('FE-PAGE-TPW-054: during a review the transport modal exits advance the queue too', async () => {
     renderPage({ showTransportModal: true, importReviewActive: true })
 
@@ -1097,24 +1403,10 @@ describe('TripPlannerPage — modals', () => {
     expect(hookState.handleDeleteReservation).toHaveBeenCalledWith(9)
 
     act(() => { props('transitModal').onChangeRoute() })
-    expect(hookState.setTransitPrefill).toHaveBeenCalledWith({
-      from: { name: 'Kyoto', lat: 34.9, lng: 135.7 },
-      to: { name: 'Osaka', lat: 34.7, lng: 135.5 },
-    })
-    expect(hookState.setEditingTransport).toHaveBeenCalledWith(journey)
-    expect(hookState.setTransportModalAutomated).toHaveBeenCalledWith(true)
+    expect(hookState.changeTransitRoute).toHaveBeenCalledWith(journey)
 
     act(() => { props('transitModal').onClose() })
     expect(hookState.setTransitJourney).toHaveBeenLastCalledWith(null)
-  })
-
-  it('FE-PAGE-TPW-056: a journey without endpoints seeds an empty search', () => {
-    const journey = buildReservation({ id: 9, type: 'transit', day_id: null })
-    renderPage({ transitJourney: journey, reservations: [] })
-
-    act(() => { props('transitModal').onChangeRoute() })
-    expect(hookState.setTransitPrefill).toHaveBeenCalledWith({ from: null, to: null })
-    expect(hookState.setTransportModalDayId).toHaveBeenCalledWith(null)
   })
 
   it('FE-PAGE-TPW-061: edit details hands the fresh reservation to the full transport editor', () => {
@@ -1125,12 +1417,7 @@ describe('TripPlannerPage — modals', () => {
     renderPage({ transitJourney: stale, reservations: [fresh] })
 
     act(() => { props('transitModal').onEditDetails() })
-    expect(hookState.setEditingTransport).toHaveBeenCalledWith(fresh)
-    expect(hookState.setTransportModalDayId).toHaveBeenCalledWith(7)
-    expect(hookState.setTransportModalAutomated).toHaveBeenCalledWith(false)
-    expect(hookState.setTransitPrefill).toHaveBeenCalledWith(null)
-    expect(hookState.setTransitJourney).toHaveBeenCalledWith(null)
-    expect(hookState.setShowTransportModal).toHaveBeenCalledWith(true)
+    expect(hookState.openTransportEditor).toHaveBeenCalledWith(fresh)
   })
 
   it('FE-PAGE-TPW-057: a booking opens the expense editor, prefilled or on an existing item', async () => {
@@ -1191,5 +1478,46 @@ describe('TripPlannerPage — modals', () => {
     act(() => { bulk.onConfirm() })
     expect(hookState.setDeletePlaceIds).toHaveBeenCalledWith(null)
     expect(hookState.confirmDeletePlaces).toHaveBeenCalled()
+  })
+
+  it('FE-PAGE-TPW-062: the question before a booked night becomes a pause answers through the hook', () => {
+    renderPage({ stayRelease: { stop: { stopType: null, dwellMinutes: 30 }, name: 'Hotel Fjord', booking: 'Booking 4711' } })
+
+    // Found by its handler rather than its place: the delete-day question sits in front of it now.
+    const release = (confirmDialogs as unknown as Array<Record<string, () => unknown> & { isOpen: boolean }>)
+      .find(dialog => dialog.onConfirm === hookState.confirmStayRelease)!
+    expect(release.isOpen).toBe(true)
+
+    act(() => { release.onClose() })
+    expect(hookState.setStayRelease).toHaveBeenCalledWith(null)
+
+    act(() => { release.onConfirm() })
+    expect(hookState.confirmStayRelease).toHaveBeenCalled()
+  })
+
+  it('FE-PAGE-TPW-073: adding a stay from a day opens its panel with the stay picker, which reports back once open', () => {
+    const setStayPickerDayId = vi.fn()
+    renderPage({ stayPickerDayId: null, setStayPickerDayId })
+    act(() => { props('dayPlan').onAddAccommodation(day) })
+    expect(hookState.handleSelectDay).toHaveBeenCalledWith(7)
+    expect(hookState.setShowDayDetail).toHaveBeenCalledWith(day)
+    expect(hookState.selectAssignment).toHaveBeenCalledWith(null)
+    expect(setStayPickerDayId).toHaveBeenCalledWith(7)
+    cleanup()
+
+    renderPage({ showDayDetail: day, stayPickerDayId: 7, setStayPickerDayId })
+    expect(props('dayDetail').openStayPicker).toBe(true)
+    act(() => { props('dayDetail').onStayPickerOpened() })
+    expect(setStayPickerDayId).toHaveBeenLastCalledWith(null)
+  })
+
+  it('FE-PAGE-TPW-074: a linked expense in either booking tab opens the expense editor on that item', async () => {
+    for (const activeTab of ['transports', 'buchungen']) {
+      renderPage({ activeTab })
+      await screen.findByTestId('reservations-panel')
+      act(() => { props('reservationsPanel').onEditExpense({ id: 12 }) })
+      await waitFor(() => expect(props('expenseModal').editing).toEqual({ id: 12 }))
+      cleanup()
+    }
   })
 })

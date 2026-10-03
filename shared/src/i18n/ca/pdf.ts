@@ -7,5 +7,9 @@ const pdf: TranslationStrings = {
   'pdf.preview': 'Vista prèvia del PDF',
   'pdf.saveAsPdf': 'Desa com a PDF',
   'pdf.pageBreakPerDay': 'Salt de pàgina per dia',
+  'pdf.transportNotes': 'Notes del transport',
+  'pdf.mapTitle': 'Resum de la ruta',
+  'pdf.distanceLabel': 'Distància',
+  'pdf.mapCredit': 'Contorns dels països: geoBoundaries (CC BY 4.0)',
 };
 export default pdf;

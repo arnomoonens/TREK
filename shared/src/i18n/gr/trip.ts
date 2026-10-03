@@ -18,12 +18,14 @@ const trip: TranslationStrings = {
   'trip.loadingSteps.arrive': 'Σχεδόν φτάσαμε...',
   'trip.mobilePlan': 'Πλάνο',
   'trip.mobilePlaces': 'Μέρη',
+  'trip.panelWidth': 'Πλάτος πλαισίου',
   'trip.toast.placeUpdated': 'Το μέρος ενημερώθηκε',
   'trip.toast.tripUpdated': 'Το ταξίδι ενημερώθηκε',
   'trip.toast.placeAdded': 'Το μέρος προστέθηκε',
   'trip.toast.placeDeleted': 'Το μέρος διαγράφηκε',
   'trip.toast.selectDay': 'Παρακαλώ επιλέξτε πρώτα μια ημέρα',
   'trip.toast.assignedToDay': 'Το μέρος ανατέθηκε στην ημέρα',
+  'trip.toast.loadError': 'Δεν ήταν δυνατή η φόρτωση του ταξιδιού',
   'trip.toast.reorderError': 'Η αναδιάταξη απέτυχε',
   'trip.toast.reservationUpdated': 'Η κράτηση ενημερώθηκε',
   'trip.toast.reservationAdded': 'Η κράτηση προστέθηκε',
@@ -63,6 +65,7 @@ const trip: TranslationStrings = {
   'transit.search': 'Αναζήτηση',
   'transit.searching': 'Αναζήτηση…',
   'transit.searchError': 'Η αναζήτηση διαδρομής απέτυχε. Δοκιμάστε ξανά.',
+  'transit.noResultsVia': 'Δεν βρέθηκαν συνδέσεις μέσω {provider}. Δοκιμάστε άλλη ώρα ή άλλα φίλτρα.',
   'transit.noResults': 'Δεν βρέθηκαν συνδέσεις. Δοκιμάστε άλλη ώρα ή φίλτρα.',
   'transit.direct': 'Απευθείας',
   'transit.transfers': '{count} μετεπιβιβάσεις',
@@ -88,5 +91,10 @@ const trip: TranslationStrings = {
   'transit.walkLabel': 'Περπάτημα',
   'transit.searchHint':
     'Αναζητήστε πραγματικές συνδέσεις και προσθέστε τις απευθείας στην ημέρα — δεδομένα μέσω Transitous.',
+  'trip.confirm.deletePlaceNight': 'Θα διαγραφεί επίσης η διαμονή που κρατήθηκε στο «{name}».',
+  'trip.confirm.deletePlaceBooked':
+    'Θα διαγραφούν επίσης η διαμονή που κρατήθηκε στο «{name}», η κράτηση «{booking}» και κάθε συνδεδεμένο έξοδο.',
+  'trip.confirm.deletePlaceBookedSame':
+    'Θα διαγραφούν επίσης η διαμονή που κρατήθηκε στο «{name}», η κράτησή της και κάθε συνδεδεμένο έξοδο.',
 };
 export default trip;

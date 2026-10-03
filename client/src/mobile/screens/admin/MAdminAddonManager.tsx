@@ -8,11 +8,16 @@ import {
   Puzzle, ListChecks, Wallet, FileText, CalendarDays, Globe, Briefcase, Image, Terminal, Link2, Compass, BookOpen,
   MessageCircle, StickyNote, BarChart3, Sparkles, Luggage, Plane, Server, Cloud, Bookmark, Check, Loader2,
 } from 'lucide-react'
+import DawarichIcon from '../../../components/shared/DawarichIcon'
+import AirTrailIcon from '../../../components/shared/AirTrailIcon'
+import { DOCUMENT_PROVIDER_ICONS } from '../../../components/shared/DocumentProviderIcons'
 import MToggle from '../../components/MToggle'
+import { asLlmVision, LLM_VISION_MODES, type LlmVision } from '@trek/shared'
 import { MAdminButton, MAdminCard, MAdminField, MAdminInput, MAdminSecretInput } from './MAdminUi'
 
 const ICON_MAP = {
   ListChecks, Wallet, FileText, CalendarDays, Puzzle, Globe, Briefcase, Image, Terminal, Link2, Compass, BookOpen, Plane, Bookmark,
+  Dawarich: DawarichIcon,
 }
 
 function ImmichIcon({ size = 14 }: { size?: number }) {
@@ -34,6 +39,7 @@ function SynologyIcon({ size = 14 }: { size?: number }) {
 const PROVIDER_ICONS: Record<string, ComponentType<{ size?: number }>> = {
   immich: ImmichIcon,
   synologyphotos: SynologyIcon,
+  ...DOCUMENT_PROVIDER_ICONS,
 }
 
 interface Addon {
@@ -57,18 +63,26 @@ interface ProviderOption {
 interface AddonIconProps {
   name: string
   size?: number
+  /** A switched-off addon greys its icon out, brand marks included. */
+  enabled?: boolean
 }
 
-function AddonIcon({ name, size = 18 }: AddonIconProps) {
+function AddonIcon({ name, size = 18, enabled = true }: AddonIconProps) {
+  if (name === 'Dawarich') return <DawarichIcon fill muted={!enabled} />
+  // 'Plane' is the icon string airtrail was seeded with, and INSERT OR IGNORE
+  // means every existing install still carries it — so the brand is keyed on
+  // that rather than on a new name no row would ever have.
+  if (name === 'Plane') return <AirTrailIcon fill muted={!enabled} />
   const Icon = ICON_MAP[name] || Puzzle
   return <Icon size={size} />
 }
 
-interface CollabFeatures { chat: boolean; notes: boolean; polls: boolean; whatsnext: boolean }
+interface CollabFeatures { chat: boolean; notes: boolean; links?: boolean; polls: boolean; whatsnext: boolean }
 
 const COLLAB_SUB_FEATURES = [
   { key: 'chat', icon: MessageCircle, titleKey: 'admin.collab.chat.title', subtitleKey: 'admin.collab.chat.subtitle' },
   { key: 'notes', icon: StickyNote, titleKey: 'admin.collab.notes.title', subtitleKey: 'admin.collab.notes.subtitle' },
+  { key: 'links', icon: Link2, titleKey: 'collab.tabs.links', subtitleKey: 'admin.collab.links.subtitle' },
   { key: 'polls', icon: BarChart3, titleKey: 'admin.collab.polls.title', subtitleKey: 'admin.collab.polls.subtitle' },
   { key: 'whatsnext', icon: Sparkles, titleKey: 'admin.collab.whatsnext.title', subtitleKey: 'admin.collab.whatsnext.subtitle' },
 ] as const
@@ -83,7 +97,7 @@ export default function MAdminAddonManager({ bagTrackingEnabled, onToggleBagTrac
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    loadAddons().finally(() => setLoading(false))
+    void loadAddons().finally(() => setLoading(false))
   }, [])
 
   const loadAddons = async () => {
@@ -110,8 +124,9 @@ export default function MAdminAddonManager({ bagTrackingEnabled, onToggleBagTrac
     refreshGlobalAddons()
     // Journey off disables every photo provider with it, and the response carries
     // only Journey. Without re-reading, switching Journey back on brings the shelf
-    // up with providers the database has long since turned off.
-    if (addon.id === 'journey') await loadAddons()
+    // up with providers the database has long since turned off. Documents does
+    // the same to the document providers.
+    if (addon.id === 'journey' || addon.id === 'documents') await loadAddons()
     toast.success(t('admin.addons.toast.updated'))
   }
 
@@ -141,6 +156,7 @@ export default function MAdminAddonManager({ bagTrackingEnabled, onToggleBagTrac
   }
 
   const photoProviderAddons = addons.filter(isPhotoProviderAddon)
+  const documentProviderAddons = addons.filter(a => a.type === 'document_provider')
   const tripAddons = addons.filter(a => a.type === 'trip' && !isPhotosAddon(a))
   const globalAddons = addons.filter(a => a.type === 'global')
   const integrationAddons = addons.filter(a => a.type === 'integration')
@@ -150,6 +166,16 @@ export default function MAdminAddonManager({ bagTrackingEnabled, onToggleBagTrac
       description: provider.description,
       enabled: provider.enabled,
       toggle: () => handleTogglePhotoProvider(provider),
+    }))
+  // No credential form under these, unlike the photo providers: a document
+  // connection belongs to a trip and is entered there. The admin only decides
+  // whether a provider may be offered at all.
+  const documentProviderOptions: ProviderOption[] = documentProviderAddons.map((provider) => ({
+      key: provider.id,
+      label: provider.name,
+      description: provider.description,
+      enabled: provider.enabled,
+      toggle: () => handleToggle(provider),
     }))
 
   if (loading) {
@@ -196,6 +222,7 @@ export default function MAdminAddonManager({ bagTrackingEnabled, onToggleBagTrac
                       onToggle={onToggleBagTracking}
                     />
                   )}
+                  {addon.id === 'documents' && addon.enabled && <MProviderShelf options={documentProviderOptions} />}
                   {addon.id === 'collab' && addon.enabled && collabFeatures && onToggleCollabFeature && (
                     <>
                       {COLLAB_SUB_FEATURES.map(feat => (
@@ -223,23 +250,7 @@ export default function MAdminAddonManager({ bagTrackingEnabled, onToggleBagTrac
                 <div key={addon.id}>
                   <MAddonRow addon={addon} onToggle={handleToggle} t={t} first={i === 0} />
                   {/* Memories providers as sub-items under Journey addon — only while it is on */}
-                  {addon.id === 'journey' && addon.enabled && providerOptions.length > 0 && (
-                    <>
-                      {providerOptions.map(provider => {
-                        const ProviderIcon = PROVIDER_ICONS[provider.key]
-                        return (
-                          <MSubRow
-                            key={provider.key}
-                            providerIcon={ProviderIcon}
-                            title={provider.label}
-                            subtitle={provider.description}
-                            enabled={provider.enabled}
-                            onToggle={provider.toggle}
-                          />
-                        )
-                      })}
-                    </>
-                  )}
+                  {addon.id === 'journey' && addon.enabled && <MProviderShelf options={providerOptions} />}
                 </div>
               ))}
             </MAdminCard>
@@ -303,8 +314,9 @@ function MAddonRow({ addon, onToggle, t, first }: MAddonRowProps) {
     addon.type === 'global' ? t('admin.addons.type.global') : addon.type === 'integration' ? t('admin.addons.type.integration') : t('admin.addons.type.trip')
   return (
     <div className={`flex items-center gap-3 py-[11px] ${first ? '' : 'border-t border-[color:var(--m-rowbr)]'}`}>
-      <span className="flex h-[38px] w-[38px] flex-none items-center justify-center rounded-[11px] bg-[color:var(--m-ic)] text-m-ink">
-        <AddonIcon name={addon.icon} size={18} />
+      {/* overflow-hidden so a brand mark that fills the slot keeps its rounded corners. */}
+      <span className="flex h-[38px] w-[38px] flex-none items-center justify-center overflow-hidden rounded-[11px] bg-[color:var(--m-ic)] text-m-ink">
+        <AddonIcon name={addon.icon} size={18} enabled={addon.enabled} />
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
@@ -317,6 +329,24 @@ function MAddonRow({ addon, onToggle, t, first }: MAddonRowProps) {
       </div>
       <MToggle checked={addon.enabled} ariaLabel={label.name} onChange={() => onToggle(addon)} />
     </div>
+  )
+}
+
+/** A provider shelf under its addon: Journey's photo providers, Documents' document providers. */
+function MProviderShelf({ options }: { options: ProviderOption[] }) {
+  return (
+    <>
+      {options.map(provider => (
+        <MSubRow
+          key={provider.key}
+          providerIcon={PROVIDER_ICONS[provider.key]}
+          title={provider.label}
+          subtitle={provider.description}
+          enabled={provider.enabled}
+          onToggle={provider.toggle}
+        />
+      ))}
+    </>
   )
 }
 
@@ -352,7 +382,7 @@ const DEFAULT_OLLAMA_URL = 'http://localhost:11434/v1'
  *  one model per document via Ollama's grammar-constrained `format`; "thinking" is disabled
  *  automatically, so the Qwen3 family works without any tuning. A host only needs one. */
 const RECOMMENDED_MODELS: { id: string; label: string; note: string; recommended: boolean; vision: boolean }[] = [
-  { id: 'qwen3:8b', label: 'Qwen3 — 8B', note: 'Recommended · best extraction quality & speed on CPU (thinking auto-disabled) · Apache-2.0', recommended: true, vision: false },
+  { id: 'qwen3.5:4b', label: 'Qwen3.5 — 4B', note: 'Recommended · small and quick on CPU, 3.4 GB download, 256K context (thinking auto-disabled) · Apache-2.0', recommended: true, vision: true },
 ]
 
 /**
@@ -362,12 +392,14 @@ const RECOMMENDED_MODELS: { id: string; label: string; note: string; recommended
  * provider, it also lists installed Ollama models and can pull NuExtract models.
  */
 function LlmParsingConfig({ addon }: { addon: Addon }) {
+  const { t } = useTranslation()
   const toast = useToast()
   const cfg = (addon.config ?? {}) as Record<string, unknown>
   const [provider, setProvider] = useState<string>((cfg.provider as string) ?? 'local')
   const [model, setModel] = useState<string>((cfg.model as string) ?? '')
   const [baseUrl, setBaseUrl] = useState<string>((cfg.baseUrl as string) ?? '')
   const [apiKey, setApiKey] = useState<string>((cfg.apiKey as string) ?? '')
+  const [vision, setVision] = useState<LlmVision>(asLlmVision(cfg.vision))
   const [saving, setSaving] = useState(false)
 
   // Local-provider model management.
@@ -398,7 +430,7 @@ function LlmParsingConfig({ addon }: { addon: Addon }) {
 
   // Load installed models when the local provider is active.
   useEffect(() => {
-    if (provider === 'local') loadModels()
+    if (provider === 'local') void loadModels()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider])
 
@@ -429,7 +461,7 @@ function LlmParsingConfig({ addon }: { addon: Addon }) {
     setSaving(true)
     try {
       // Send the masked sentinel unchanged so the server keeps the stored key.
-      await adminApi.updateAddon(addon.id, { config: { provider, model: model.trim(), baseUrl: baseUrl.trim(), apiKey, multimodal: cfg.multimodal === true } })
+      await adminApi.updateAddon(addon.id, { config: { provider, model: model.trim(), baseUrl: baseUrl.trim(), apiKey, vision } })
       toast.success('Saved')
     } catch {
       toast.error('Failed to save')
@@ -516,6 +548,31 @@ function LlmParsingConfig({ addon }: { addon: Addon }) {
           onChange={e => setModel(e.target.value)}
           placeholder={provider === 'anthropic' ? 'claude-opus-4-8' : provider === 'openai' ? 'gpt-4o' : 'select or pull below'}
         />
+
+        <MAdminField label={t('settings.aiParsing.multimodal')}>
+          <div role="radiogroup" aria-label={t('settings.aiParsing.multimodal')} className="flex gap-[6px]">
+            {LLM_VISION_MODES.map((mode) => {
+              const active = vision === mode
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setVision(mode)}
+                  className={`flex-1 rounded-xl border px-3 py-[10px] text-[0.8125rem] font-semibold text-m-ink ${
+                    active ? 'border-[color:var(--m-act)] bg-[color:var(--m-ic)]' : 'border-[color:var(--m-rowbr)]'
+                  }`}
+                >
+                  {t(`admin.addons.llm.vision.${mode}`)}
+                </button>
+              )
+            })}
+          </div>
+        </MAdminField>
+        <p className="font-geist text-[0.625rem] leading-relaxed text-m-faint">
+          {t(provider === 'local' ? 'admin.addons.llm.vision.hintLocal' : 'admin.addons.llm.vision.hintCloud')}
+        </p>
 
         {/* Local model management (Ollama) */}
         {provider === 'local' && (

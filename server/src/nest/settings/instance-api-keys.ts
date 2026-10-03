@@ -1,5 +1,7 @@
+import { readEnv } from '../../app-config';
 import { DatabaseService } from '../database/database.service';
 import { decrypt_api_key, maybe_encrypt_api_key } from '../common/crypto/apiKeyCrypto';
+import type { ApiKeySource } from '@trek/shared';
 
 /**
  * The third-party keys that belong to the instance rather than to a person.
@@ -17,17 +19,24 @@ import { decrypt_api_key, maybe_encrypt_api_key } from '../common/crypto/apiKeyC
  * apiKeyCrypto, so the format matches what the users columns already hold and
  * a legacy plaintext value still reads back.
  */
-export type InstanceApiKeyName = 'maps_api_key' | 'unsplash_api_key';
+export type InstanceApiKeyName = 'maps_api_key' | 'unsplash_api_key' | 'amap_api_key';
 
 /** Instance names whose per-user column is still honoured as a last resort. */
-export const INSTANCE_API_KEY_NAMES: readonly InstanceApiKeyName[] = ['maps_api_key', 'unsplash_api_key'];
+export const INSTANCE_API_KEY_NAMES: readonly InstanceApiKeyName[] = [
+  'maps_api_key',
+  'unsplash_api_key',
+  'amap_api_key',
+];
 
 /**
  * Where a resolved key came from. Logged beside a provider error so "works for
  * the admin, 403 for everyone else" is one line in the log rather than a
  * guessing game; the key itself is never logged.
+ *
+ * Defined in @trek/shared because the admin transit-provider response (#1699)
+ * puts it on the wire — re-declaring the union here would fork the contract.
  */
-export type ApiKeySource = 'operator-env' | 'instance' | 'user-row';
+export type { ApiKeySource };
 
 // Full statements rather than an interpolated column: the name doubles as the
 // users column AND the app_settings key, and identifiers only ever come from a
@@ -35,7 +44,28 @@ export type ApiKeySource = 'operator-env' | 'instance' | 'user-row';
 const USER_ROW_SQL: Record<InstanceApiKeyName, string> = {
   maps_api_key: 'SELECT maps_api_key FROM users WHERE id = ?',
   unsplash_api_key: 'SELECT unsplash_api_key FROM users WHERE id = ?',
+  amap_api_key: 'SELECT amap_api_key FROM users WHERE id = ?',
 };
+
+/**
+ * The environment variable that overrides each instance key. Whatever it holds
+ * is the operator key resolveApiKey puts first, so the admin panel names the
+ * variable rather than showing a field that nothing reads (#1881).
+ */
+const OPERATOR_KEY_ENV: Record<InstanceApiKeyName, { variable: string; read: () => string | undefined }> = {
+  maps_api_key: { variable: 'PLACES_API_KEY', read: () => readEnv().maps.placesApiKey },
+  unsplash_api_key: { variable: 'UNSPLASH_ACCESS_KEY', read: () => readEnv().integrations.unsplashAccessKey },
+  amap_api_key: { variable: 'AMAP_API_KEY', read: () => readEnv().maps.amapApiKey },
+};
+
+/** The instance keys an environment variable sets, each with that variable's name. Never the value. */
+export function operatorKeyVariables(): Partial<Record<InstanceApiKeyName, string>> {
+  const set: Partial<Record<InstanceApiKeyName, string>> = {};
+  for (const name of INSTANCE_API_KEY_NAMES) {
+    if (OPERATOR_KEY_ENV[name].read()) set[name] = OPERATOR_KEY_ENV[name].variable;
+  }
+  return set;
+}
 
 /** The instance-wide value in cleartext, or null when unset/cleared. */
 export function readInstanceApiKey(db: DatabaseService, name: InstanceApiKeyName): string | null {

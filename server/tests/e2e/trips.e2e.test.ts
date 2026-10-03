@@ -12,6 +12,7 @@ import { DatabaseModule } from '../../src/nest/database/database.module';
 import { RealtimeModule } from '../../src/nest/realtime/realtime.module';
 import { Test } from '@nestjs/testing';
 import { seedUser, sessionCookie } from './harness';
+import { MAX_TRIP_DAYS } from '@trek/shared';
 
 const { db } = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -33,13 +34,13 @@ const { db } = vi.hoisted(() => {
   tmp.exec(`CREATE TABLE day_assignments (id INTEGER PRIMARY KEY AUTOINCREMENT, day_id INTEGER NOT NULL,
     place_id INTEGER NOT NULL, order_index INTEGER DEFAULT 0, notes TEXT, reservation_status TEXT,
     reservation_notes TEXT, reservation_datetime TEXT, assignment_time TEXT, assignment_end_time TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP);`);
+    route_excluded INTEGER NOT NULL DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);`);
   tmp.exec(`CREATE TABLE day_notes (id INTEGER PRIMARY KEY AUTOINCREMENT, day_id INTEGER NOT NULL,
     trip_id INTEGER NOT NULL, text TEXT, time TEXT, icon TEXT, sort_order INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP);`);
   // deleteTrip cleans up synced journey entries before dropping the trip row.
   tmp.exec(`CREATE TABLE journey_entries (id INTEGER PRIMARY KEY AUTOINCREMENT, journey_id INTEGER,
-    source_trip_id INTEGER, source_place_id INTEGER, type TEXT NOT NULL);`);
+    source_trip_id INTEGER, source_place_id INTEGER, source_assignment_id INTEGER, type TEXT NOT NULL);`);
   // bundle()'s todoItems now runs TodoService's real SQL (DI-injected, no mock).
   tmp.exec(`CREATE TABLE todo_items (id INTEGER PRIMARY KEY AUTOINCREMENT, trip_id INTEGER NOT NULL,
     name TEXT NOT NULL, checked INTEGER NOT NULL DEFAULT 0, category TEXT, sort_order INTEGER NOT NULL DEFAULT 0,
@@ -50,15 +51,16 @@ const { db } = vi.hoisted(() => {
   tmp.exec(`CREATE TABLE packing_items (id INTEGER PRIMARY KEY AUTOINCREMENT, trip_id INTEGER NOT NULL,
     name TEXT NOT NULL, checked INTEGER DEFAULT 0, category TEXT, sort_order INTEGER DEFAULT 0,
     weight_grams INTEGER, bag_id INTEGER, quantity INTEGER NOT NULL DEFAULT 1,
-    is_private INTEGER NOT NULL DEFAULT 0, owner_id INTEGER, updated_at DATETIME,
+    is_private INTEGER NOT NULL DEFAULT 0, owner_id INTEGER, updated_at DATETIME, packed_quantity INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP);`);
   tmp.exec(`CREATE TABLE packing_item_recipients (item_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
     PRIMARY KEY (item_id, user_id));`);
   // bundle()'s files now runs FilesService's real SQL (DI-injected, no mock) —
   // empty tables satisfy the FILE_SELECT joins and the file_links batch.
   tmp.exec(`CREATE TABLE trip_files (id INTEGER PRIMARY KEY AUTOINCREMENT, trip_id INTEGER NOT NULL,
-    place_id INTEGER, reservation_id INTEGER, filename TEXT NOT NULL, original_name TEXT NOT NULL,
-    file_size INTEGER, mime_type TEXT, description TEXT, uploaded_by INTEGER, starred INTEGER DEFAULT 0,
+    place_id INTEGER, reservation_id INTEGER, message_id INTEGER, filename TEXT NOT NULL,
+    original_name TEXT NOT NULL, file_size INTEGER, mime_type TEXT, description TEXT,
+    uploaded_by INTEGER, starred INTEGER DEFAULT 0,
     deleted_at DATETIME, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);`);
   tmp.exec(`CREATE TABLE file_links (id INTEGER PRIMARY KEY AUTOINCREMENT, file_id INTEGER NOT NULL,
     reservation_id INTEGER, assignment_id INTEGER, place_id INTEGER,
@@ -78,6 +80,9 @@ const { db } = vi.hoisted(() => {
     needs_review INTEGER DEFAULT 0, day_plan_position REAL, external_source TEXT, sync_enabled INTEGER,
     ingest_state TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);`);
   tmp.exec('CREATE TABLE days (id INTEGER PRIMARY KEY AUTOINCREMENT, trip_id INTEGER NOT NULL, day_number INTEGER, date TEXT);');
+  // The places list reads each place's country and region (#2537).
+  tmp.exec(`CREATE TABLE place_regions (place_id INTEGER PRIMARY KEY, country_code TEXT NOT NULL,
+    region_code TEXT NOT NULL, region_name TEXT NOT NULL);`);
   tmp.exec(`CREATE TABLE places (id INTEGER PRIMARY KEY AUTOINCREMENT, trip_id INTEGER NOT NULL, name TEXT,
     image_url TEXT, address TEXT, lat REAL, lng REAL, category_id INTEGER, description TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP);`);
@@ -104,6 +109,9 @@ const { db } = vi.hoisted(() => {
   // StorageRegistryService (behind StorageModule, now in this module chain) reads
   // this at onModuleInit.
   tmp.exec('CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT);');
+  // A trip created without a currency takes the owner's display currency, read
+  // off the per-user settings rows.
+  tmp.exec('CREATE TABLE settings (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, key TEXT NOT NULL, value TEXT, UNIQUE(user_id, key));');
   return { db: tmp };
 });
 
@@ -163,6 +171,7 @@ describe('Trips e2e (real auth guard + temp SQLite)', () => {
     db.prepare('DELETE FROM trip_members').run();
     db.prepare('DELETE FROM days').run();
     db.prepare('DELETE FROM audit_log').run();
+    db.prepare('DELETE FROM settings').run();
     canAccessTrip.mockReturnValue({ user_id: 1 });
     checkPermission.mockReturnValue(true);
   });
@@ -199,6 +208,55 @@ describe('Trips e2e (real auth guard + temp SQLite)', () => {
     checkPermission.mockReturnValue(false);
     const forbidden = await request(server).post('/api/trips').set('Cookie', sessionCookie(1)).send({ title: 'T' });
     expect(forbidden.status).toBe(403);
+  });
+
+  it('201 create without a currency takes the display currency from the settings', async () => {
+    db.prepare("INSERT INTO settings (user_id, key, value) VALUES (1, 'default_currency', ?)").run(JSON.stringify('USD'));
+    const preferred = await request(server).post('/api/trips').set('Cookie', sessionCookie(1)).send({ title: 'Road trip' });
+    expect(preferred.status).toBe(201);
+    expect(preferred.body.trip).toMatchObject({ title: 'Road trip', currency: 'USD' });
+    const explicit = await request(server).post('/api/trips').set('Cookie', sessionCookie(1)).send({ title: 'Tokyo', currency: 'JPY' });
+    expect(explicit.status).toBe(201);
+    expect(explicit.body.trip).toMatchObject({ title: 'Tokyo', currency: 'JPY' });
+  });
+
+  it('201 create keeps every day of a trip longer than a year (#2403)', async () => {
+    // 2025-01-26 .. 2026-01-28 is 368 days; the day list used to stop at 365.
+    const res = await request(server).post('/api/trips').set('Cookie', sessionCookie(1))
+      .send({ title: 'Gap year', start_date: '2025-01-26', end_date: '2026-01-28' });
+    expect(res.status).toBe(201);
+    expect(res.body.trip).toMatchObject({ start_date: '2025-01-26', end_date: '2026-01-28', day_count: 368 });
+    const last = db.prepare('SELECT day_number, date FROM days WHERE trip_id = ? ORDER BY day_number DESC LIMIT 1')
+      .get(res.body.trip.id) as { day_number: number; date: string };
+    expect(last).toEqual({ day_number: 368, date: '2026-01-28' });
+  });
+
+  it('400 on a date range past MAX_TRIP_DAYS, for create and update alike', async () => {
+    const tooLong = await request(server).post('/api/trips').set('Cookie', sessionCookie(1))
+      .send({ title: 'Decade', start_date: '2026-01-01', end_date: '2036-01-01' });
+    expect(tooLong.status).toBe(400);
+    expect(tooLong.body).toEqual({ error: `A trip can span at most ${MAX_TRIP_DAYS} days` });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM trips').get()).toEqual({ n: 0 });
+
+    const week = await request(server).post('/api/trips').set('Cookie', sessionCookie(1))
+      .send({ title: 'Week', start_date: '2026-07-01', end_date: '2026-07-07' });
+    const stretched = await request(server).put(`/api/trips/${week.body.trip.id}`).set('Cookie', sessionCookie(1))
+      .send({ end_date: '2036-07-01' });
+    expect(stretched.status).toBe(400);
+    expect(stretched.body).toEqual({ error: `A trip can span at most ${MAX_TRIP_DAYS} days` });
+    expect(db.prepare('SELECT end_date FROM trips WHERE id = ?').get(week.body.trip.id)).toEqual({ end_date: '2026-07-07' });
+  });
+
+  it('200 update with an earlier end drops the last days, and the answer stays { trip }', async () => {
+    const week = await request(server).post('/api/trips').set('Cookie', sessionCookie(1))
+      .send({ title: 'Week', start_date: '2026-07-01', end_date: '2026-07-07' });
+    const kept = db.prepare('SELECT id FROM days WHERE trip_id = ? ORDER BY day_number LIMIT 5').all(week.body.trip.id);
+    const res = await request(server).put(`/api/trips/${week.body.trip.id}`).set('Cookie', sessionCookie(1))
+      .send({ end_date: '2026-07-05' });
+    expect(res.status).toBe(200);
+    expect(Object.keys(res.body)).toEqual(['trip']);
+    expect(res.body.trip).toMatchObject({ start_date: '2026-07-01', end_date: '2026-07-05', day_count: 5 });
+    expect(db.prepare('SELECT id FROM days WHERE trip_id = ? ORDER BY day_number').all(week.body.trip.id)).toEqual(kept);
   });
 
   it('404 on a missing trip', async () => {

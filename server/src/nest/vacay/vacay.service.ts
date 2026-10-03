@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
+import { manualSchoolRegionId } from '@trek/shared';
 import { RealtimeService } from '../realtime/realtime.service';
 import { DatabaseService } from '../database/database.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -519,10 +520,8 @@ export class VacayService {
     }
 
     if (company_holidays_enabled === true) {
-      const companyDates = this.db.all<{ date: string }>('SELECT date FROM vacay_company_holidays WHERE plan_id = ?', planId);
-      for (const { date } of companyDates) {
-        this.db.run('DELETE FROM vacay_entries WHERE plan_id = ? AND date = ?', planId, date);
-      }
+      const companyDates = this.db.all<{ date: string; fraction: number | null }>('SELECT date, fraction FROM vacay_company_holidays WHERE plan_id = ?', planId);
+      for (const { date, fraction } of companyDates) this.makeRoomForCompanyHoliday(planId, date, fraction ?? 1);
     }
 
     const updatedPlan = this.db.get<VacayPlan>('SELECT * FROM vacay_plans WHERE id = ?', planId)!;
@@ -578,6 +577,7 @@ export class VacayService {
   // -------------------------------------------------------------------------
 
   addHolidayCalendar(planId: number, region: string, label: string | null, color: string | undefined, sortOrder: number | undefined, socketId: string | undefined, type: 'public_holiday' | 'school_holiday' = 'public_holiday') {
+    this.validateManualRegion(region, type);
     const result = this.db.run(
       'INSERT INTO vacay_holiday_calendars (plan_id, type, region, label, color, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
       planId, type, region, label || null, color || (type === 'school_holiday' ? '#a5f3fc' : '#fecaca'), sortOrder ?? 0
@@ -595,6 +595,7 @@ export class VacayService {
   ): VacayHolidayCalendar | null {
     const cal = this.db.get<VacayHolidayCalendar>('SELECT * FROM vacay_holiday_calendars WHERE id = ? AND plan_id = ?', calId, planId);
     if (!cal) return null;
+    this.validateManualRegion(body.region ?? cal.region, body.type ?? cal.type);
     const { region, label, color, sort_order, type } = body;
     const updates: string[] = [];
     const params: (string | number | null)[] = [];
@@ -618,6 +619,14 @@ export class VacayService {
     this.db.run('DELETE FROM vacay_holiday_calendars WHERE id = ?', calId);
     this.notifyPlanUsers(planId, socketId, 'vacay:settings');
     return true;
+  }
+
+  private validateManualRegion(code: string, type: string) {
+    if (!code.includes('-MANUAL-')) return;
+    const id = manualSchoolRegionId(code);
+    if (type !== 'school_holiday' || !id || !this.db.get('SELECT id FROM school_holiday_regions WHERE id = ? AND country = ?', id, code.slice(0, 2))) {
+      throw new BadRequestException('Unknown manual school holiday region');
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -749,7 +758,7 @@ export class VacayService {
       const isOwnerFlag = plan.owner_id === userId;
 
       const userIds = this.getPlanUsers(plan.id).map(u => u.id);
-      const companyHolidays = this.db.all<{ date: string; note: string }>('SELECT date, note FROM vacay_company_holidays WHERE plan_id = ?', plan.id);
+      const companyHolidays = this.db.all<{ date: string; note: string; fraction: number | null }>('SELECT date, note, fraction FROM vacay_company_holidays WHERE plan_id = ?', plan.id);
 
       if (isOwnerFlag) {
         const members = this.db.all<{ user_id: number }>("SELECT user_id FROM vacay_plan_members WHERE plan_id = ? AND status = 'accepted'", plan.id);
@@ -757,7 +766,7 @@ export class VacayService {
           const memberPlan = this.getOwnPlan(m.user_id);
           this.db.run('UPDATE vacay_entries SET plan_id = ? WHERE plan_id = ? AND user_id = ?', memberPlan.id, plan.id, m.user_id);
           for (const ch of companyHolidays) {
-            this.db.run('INSERT OR IGNORE INTO vacay_company_holidays (plan_id, date, note) VALUES (?, ?, ?)', memberPlan.id, ch.date, ch.note);
+            this.db.run('INSERT OR IGNORE INTO vacay_company_holidays (plan_id, date, note, fraction) VALUES (?, ?, ?, ?)', memberPlan.id, ch.date, ch.note, ch.fraction ?? 1);
           }
         }
         this.db.run('DELETE FROM vacay_plan_members WHERE plan_id = ?', plan.id);
@@ -765,7 +774,7 @@ export class VacayService {
         const ownPlan = this.getOwnPlan(userId);
         this.db.run('UPDATE vacay_entries SET plan_id = ? WHERE plan_id = ? AND user_id = ?', ownPlan.id, plan.id, userId);
         for (const ch of companyHolidays) {
-          this.db.run('INSERT OR IGNORE INTO vacay_company_holidays (plan_id, date, note) VALUES (?, ?, ?)', ownPlan.id, ch.date, ch.note);
+          this.db.run('INSERT OR IGNORE INTO vacay_company_holidays (plan_id, date, note, fraction) VALUES (?, ?, ?, ?)', ownPlan.id, ch.date, ch.note, ch.fraction ?? 1);
         }
         this.db.run('DELETE FROM vacay_plan_members WHERE plan_id = ? AND user_id = ?', plan.id, userId);
       }
@@ -972,7 +981,7 @@ export class VacayService {
       // only exposed while the owner has the feature enabled, and dates only —
       // the note text may be authored by plan members who aren't part of the share.
       const companyHolidays = plan.company_holidays_enabled
-        ? this.db.all('SELECT date FROM vacay_company_holidays WHERE plan_id = ? AND date >= ? AND date < ? ORDER BY date', plan.id, start, end)
+        ? this.db.all('SELECT date, fraction FROM vacay_company_holidays WHERE plan_id = ? AND date >= ? AND date < ? ORDER BY date', plan.id, start, end)
         : [];
       return { share_id: s.id, owner_id: s.owner_id, owner_name: s.username, color, hidden: !!s.hidden, entries, companyHolidays };
     });
@@ -1093,9 +1102,13 @@ export class VacayService {
   }
 
   toggleEntry(userId: number, planId: number, date: string, fraction?: unknown, kind?: unknown, socketId?: string): { action?: string; fraction?: number; kind?: string; error?: string } {
-    const frac = normalizeFraction(fraction);
-    const knd = normalizeKind(kind);
     const plan = this.db.get<VacayPlan>('SELECT * FROM vacay_plans WHERE id = ?', planId);
+    // Half the day is the company's already (#2439): what is left is half a day.
+    const company = plan?.company_holidays_enabled
+      ? this.db.get<{ fraction: number | null }>('SELECT fraction FROM vacay_company_holidays WHERE plan_id = ? AND date = ?', planId, date)
+      : undefined;
+    const frac = company && (company.fraction ?? 1) < 1 ? 0.5 : normalizeFraction(fraction);
+    const knd = normalizeKind(kind);
     const weekendBlocked = plan ? isBlockedWeekend(plan, date) : false;
     const existing = this.db.get<{ id: number; fraction: number; kind: string | null }>('SELECT id, fraction, kind FROM vacay_entries WHERE user_id = ? AND date = ? AND plan_id = ?', userId, date, planId);
     if (existing) {
@@ -1119,18 +1132,35 @@ export class VacayService {
     return { action: 'added', fraction: frac, kind: knd };
   }
 
-  toggleCompanyHoliday(planId: number, date: string, note: string | undefined, socketId: string | undefined): { action: string } {
-    const existing = this.db.get<{ id: number }>('SELECT id FROM vacay_company_holidays WHERE plan_id = ? AND date = ?', planId, date);
-    if (existing) {
-      this.db.run('DELETE FROM vacay_company_holidays WHERE id = ?', existing.id);
-      this.notifyPlanUsers(planId, socketId);
-      return { action: 'removed' };
-    } else {
-      this.db.run('INSERT INTO vacay_company_holidays (plan_id, date, note) VALUES (?, ?, ?)', planId, date, note || '');
-      this.db.run('DELETE FROM vacay_entries WHERE plan_id = ? AND date = ?', planId, date);
-      this.notifyPlanUsers(planId, socketId);
-      return { action: 'added' };
-    }
+  /**
+   * A company holiday on or off, whole or half (#2439). The same click again clears
+   * it; the other size converts it in place, the way a vacation entry toggles. A
+   * whole company holiday leaves no room for leave that day; a half one leaves half.
+   */
+  toggleCompanyHoliday(planId: number, date: string, note: string | undefined, socketId: string | undefined, fraction?: unknown): { action: string; fraction?: number } {
+    const frac = normalizeFraction(fraction);
+    const result = this.db.transaction(() => {
+      const existing = this.db.get<{ id: number; fraction: number | null }>('SELECT id, fraction FROM vacay_company_holidays WHERE plan_id = ? AND date = ?', planId, date);
+      if (existing && (existing.fraction ?? 1) === frac) {
+        this.db.run('DELETE FROM vacay_company_holidays WHERE id = ?', existing.id);
+        return { action: 'removed' };
+      }
+      if (existing) {
+        this.db.run('UPDATE vacay_company_holidays SET fraction = ? WHERE id = ?', frac, existing.id);
+      } else {
+        this.db.run('INSERT INTO vacay_company_holidays (plan_id, date, note, fraction) VALUES (?, ?, ?, ?)', planId, date, note || '', frac);
+      }
+      this.makeRoomForCompanyHoliday(planId, date, frac);
+      return { action: existing ? 'updated' : 'added', fraction: frac };
+    });
+    this.notifyPlanUsers(planId, socketId);
+    return result;
+  }
+
+  /** What a company holiday leaves of the day's leave: nothing for a whole one, half for a half one. */
+  private makeRoomForCompanyHoliday(planId: number, date: string, fraction: number): void {
+    if (fraction >= 1) this.db.run('DELETE FROM vacay_entries WHERE plan_id = ? AND date = ?', planId, date);
+    else this.db.run('UPDATE vacay_entries SET fraction = 0.5 WHERE plan_id = ? AND date = ? AND fraction > 0.5', planId, date);
   }
 
   // -------------------------------------------------------------------------

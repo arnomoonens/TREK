@@ -13,8 +13,7 @@
 
 import { parseLenientJson } from '../lenient-json';
 import { safeFetchLlm } from '../../../utils/ssrfGuard';
-
-const TIMEOUT_MS = 300_000;
+import { readEnv } from '../../../app-config';
 
 export interface EnforcedExtractInput {
   /** Ollama base URL — accepts the addon's `…/v1` form; the `/v1` suffix is stripped. */
@@ -28,6 +27,8 @@ export interface EnforcedExtractInput {
   numPredict?: number;
   /** Context window. 8192 fits a typical multi-section booking; raise for long itineraries. */
   numCtx?: number;
+  /** Base64 images attached to the user turn, for a vision model reading a photo. */
+  images?: string[];
 }
 
 /** Resolve the native API base from a config base URL that may end in `/v1`. */
@@ -60,12 +61,12 @@ export async function extractEnforced(input: EnforcedExtractInput): Promise<Reco
     options: { temperature: 0, num_predict: input.numPredict ?? 512, num_ctx: input.numCtx ?? 8192 },
     messages: [
       { role: 'system', content: input.system },
-      { role: 'user', content: input.user },
+      { role: 'user', content: input.user, ...(input.images?.length ? { images: input.images } : {}) },
     ],
   };
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), readEnv().integrations.llmTimeoutMs);
   let res: Response;
   try {
     // baseUrl is user-configurable — guard it against the cloud-metadata range,

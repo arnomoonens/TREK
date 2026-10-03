@@ -7,5 +7,9 @@ const pdf: TranslationStrings = {
   'pdf.preview': 'PDF előnézet',
   'pdf.saveAsPdf': 'Mentés PDF-ként',
   'pdf.pageBreakPerDay': 'Oldaltörés naponta',
+  'pdf.transportNotes': 'Közlekedési jegyzetek',
+  'pdf.mapTitle': 'Útvonal áttekintése',
+  'pdf.distanceLabel': 'Távolság',
+  'pdf.mapCredit': 'Országhatárok: geoBoundaries (CC BY 4.0)',
 };
 export default pdf;

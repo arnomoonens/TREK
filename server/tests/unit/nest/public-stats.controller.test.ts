@@ -14,6 +14,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { HttpException } from '@nestjs/common';
 import type { Request } from 'express';
+import { PUBLIC_API_SCOPES, type PublicApiGrant } from '@trek/shared';
 import { PublicStatsController } from '../../../src/nest/atlas/public-stats.controller';
 import type { AtlasService } from '../../../src/nest/atlas/atlas.service';
 import { RateLimitService } from '../../../src/nest/common/rate-limit.service';
@@ -22,8 +23,15 @@ import type { User } from '../../../src/types';
 
 // `null` rather than `undefined` for "no user": passing undefined would trip the
 // default parameter and hand back a request that still has one.
+// `apiToken` is the read grant the guard resolves alongside the user (#2279);
+// the full one here, so these cases still test what they always tested.
+const FULL_GRANT: PublicApiGrant = { mode: 'all', scopes: [...PUBLIC_API_SCOPES] };
 const req = (userId: number | null = 7) =>
-  ({ headers: {}, user: userId === null ? undefined : ({ id: userId } as User) }) as Request;
+  ({
+    headers: {},
+    user: userId === null ? undefined : ({ id: userId } as User),
+    apiToken: FULL_GRANT,
+  }) as Request;
 
 const travel = (o: Partial<ReturnType<AtlasService['getTravelStats']>> = {}) => ({
   countries: ['JP', 'IT'],
@@ -38,7 +46,7 @@ const travel = (o: Partial<ReturnType<AtlasService['getTravelStats']>> = {}) => 
 
 function ctl(atlas: Partial<AtlasService> = {}, rl = new RateLimitService()) {
   return new PublicStatsController(
-    { getTravelStats: vi.fn(() => travel()), lastTrip: vi.fn(() => null), ...atlas } as unknown as AtlasService,
+    { getTravelStats: vi.fn(() => travel()), lastTrip: vi.fn(() => null), nextTrip: vi.fn(() => null), ...atlas } as unknown as AtlasService,
     rl,
   );
 }
@@ -62,15 +70,18 @@ describe('PublicStatsController', () => {
       total_days: 31,
       total_distance_km: 18402,
       last_trip: null,
+      next_trip: null,
     });
   });
 
   it('PUBSTATS-002: passes the authenticated user through to the service', () => {
     const getTravelStats = vi.fn(() => travel());
     const lastTrip = vi.fn(() => null);
-    ctl({ getTravelStats, lastTrip } as unknown as Partial<AtlasService>).stats(req(42));
+    const nextTrip = vi.fn(() => null);
+    ctl({ getTravelStats, lastTrip, nextTrip } as unknown as Partial<AtlasService>).stats(req(42));
     expect(getTravelStats).toHaveBeenCalledWith(42);
     expect(lastTrip).toHaveBeenCalledWith(42);
+    expect(nextTrip).toHaveBeenCalledWith(42);
   });
 
   it('PUBSTATS-003: last_trip carries the dominant country as the head of the list', () => {
@@ -91,6 +102,27 @@ describe('PublicStatsController', () => {
     const lastTrip = vi.fn(() => ({ title: 'Roadtrip', start_date: null, end_date: null, countries: [] }));
     const out = ctl({ lastTrip } as unknown as Partial<AtlasService>).stats(req());
     expect(out.last_trip).toMatchObject({ country: null, countries: [] });
+  });
+
+  it('PUBSTATS-008: next_trip counts down and names its countries like last_trip (#2542)', () => {
+    const nextTrip = vi.fn(() => ({
+      title: 'Lisbon', start_date: '2026-11-12', end_date: '2026-11-16', days_until: 42, countries: ['PT', 'ES'],
+    }));
+    const out = ctl({ nextTrip } as unknown as Partial<AtlasService>).stats(req());
+    expect(out.next_trip).toEqual({
+      title: 'Lisbon',
+      start_date: '2026-11-12',
+      end_date: '2026-11-16',
+      days_until: 42,
+      country: 'PT',
+      countries: ['PT', 'ES'],
+    });
+  });
+
+  it('PUBSTATS-009: an ungeocoded next trip reports country null', () => {
+    const nextTrip = vi.fn(() => ({ title: 'Somewhere', start_date: '2026-12-01', end_date: null, days_until: 61, countries: [] }));
+    const out = ctl({ nextTrip } as unknown as Partial<AtlasService>).stats(req());
+    expect(out.next_trip).toMatchObject({ country: null, countries: [], end_date: null });
   });
 
   it('PUBSTATS-005: shares one rate-limit budget with the rest of /api/v1', () => {

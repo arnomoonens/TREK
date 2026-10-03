@@ -1,5 +1,8 @@
 import { create } from 'zustand'
-import type { BookDocument, BookElement, BookFrame, BookSpread } from '@trek/shared'
+import type { BookDocument, BookElement, BookFrame, BookLayout, BookSpread } from '@trek/shared'
+import { MAX_BOOK_LAYOUTS, MAX_SPREAD_ELEMENTS } from '@trek/shared'
+import { pastedElements, type StudioClipboard } from '../components/Studio/studioClipboard'
+import { applySavedLayout, layoutFromSpread } from '../components/Studio/savedLayouts'
 
 /**
  * The book being edited.
@@ -25,6 +28,8 @@ interface StudioState {
   future: BookDocument[]
   /** The document as it was when the current gesture started. */
   gestureBase: BookDocument | null
+  /** Elements copied for pasting onto any page of the book (#2316). Kept across page switches. */
+  clipboard: StudioClipboard | null
 
   load: (doc: BookDocument) => void
   setActiveSpread: (i: number) => void
@@ -51,6 +56,16 @@ interface StudioState {
   removeElements: (spreadIndex: number, ids: string[]) => void
   duplicate: (spreadIndex: number, ids: string[]) => void
   raise: (spreadIndex: number, id: string, to: 'front' | 'back' | 'up' | 'down') => void
+  /** Copy elements of a spread to the clipboard (#2316). */
+  copy: (spreadIndex: number, ids: string[]) => void
+  /** Put the clipboard onto a spread, as one undo step, and select what arrived. */
+  paste: (spreadIndex: number) => void
+
+  /** Keep a spread's arrangement as one of the book's layouts (#2316). Returns false when the book is full. */
+  saveLayout: (spreadIndex: number, name: string) => boolean
+  removeLayout: (id: string) => void
+  /** Lay a spread out on a saved layout, keeping its pictures and words. */
+  applyLayout: (spreadIndex: number, id: string) => void
 
   /** Insert an empty spread after `index`, and select it. */
   addSpread: (index: number) => void
@@ -77,6 +92,34 @@ interface StudioState {
   canRedo: () => boolean
 }
 
+/**
+ * Where an inner spread may go: after the cover and the first page, before
+ * the last page and the back cover.
+ *
+ * Read from the document each time rather than assumed, because a book from
+ * before the single first page existed has none, and a book with no covers at
+ * all (the tests build those) has nothing to stay inside of. The lower bound
+ * is not decoration either: a book with no inner spreads yet reports its last
+ * inner one as -1, which asked for a page at 0 — in front of the cover, where
+ * it could not be moved back from, because a move only ever swaps with
+ * another inner spread.
+ */
+function innerBounds(spreads: readonly BookSpread[]): { first: number; limit: number } {
+  let first = 0
+  for (let i = 0; i < spreads.length; i++) {
+    const role = spreads[i].role
+    if (role === 'cover' || role === 'first') first = i + 1
+    else break
+  }
+  let limit = spreads.length
+  for (let i = spreads.length - 1; i >= 0; i--) {
+    const role = spreads[i].role
+    if (role === 'back' || role === 'last') limit = i
+    else break
+  }
+  return { first, limit: Math.max(first, limit) }
+}
+
 function replaceSpread(doc: BookDocument, index: number, fn: (s: BookSpread) => BookSpread): BookDocument {
   const spreads = doc.spreads.slice()
   if (!spreads[index]) return doc
@@ -91,6 +134,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   past: [],
   future: [],
   gestureBase: null,
+  clipboard: null,
 
   load: doc => set({ doc, selection: [], activeSpread: 0, past: [], future: [], gestureBase: null }),
   setActiveSpread: i => set({ activeSpread: i, selection: [] }),
@@ -192,15 +236,58 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       return { ...sp, elements: els }
     })),
 
+  copy: (spreadIndex, ids) => {
+    const sp = get().doc?.spreads[spreadIndex]
+    if (!sp) return
+    const elements = sp.elements.filter(e => ids.includes(e.id))
+    if (elements.length) set({ clipboard: { fromSpreadId: sp.id, elements } })
+  },
+
+  paste: spreadIndex => {
+    const { clipboard, doc } = get()
+    const target = doc?.spreads[spreadIndex]
+    if (!clipboard || !doc || !target) return
+    // The spread's own cap: a paste that would push it past what the contract
+    // accepts takes what fits rather than making the book unsaveable.
+    const room = Math.max(0, MAX_SPREAD_ELEMENTS - target.elements.length)
+    const copies = pastedElements(clipboard, target, doc.page).slice(0, room)
+    if (!copies.length) return
+    get().commit(d => replaceSpread(d, spreadIndex, sp => ({ ...sp, elements: [...sp.elements, ...copies] })))
+    set({ selection: copies.map(e => e.id) })
+  },
+
+  saveLayout: (spreadIndex, name) => {
+    const doc = get().doc
+    const sp = doc?.spreads[spreadIndex]
+    if (!doc || !sp || !sp.elements.length) return false
+    if ((doc.layouts ?? []).length >= MAX_BOOK_LAYOUTS) return false
+    const layout: BookLayout = layoutFromSpread(sp, doc.page, name)
+    get().commit(d => ({ ...d, layouts: [...(d.layouts ?? []), layout] }))
+    return true
+  },
+
+  removeLayout: id => get().commit(d => ({ ...d, layouts: (d.layouts ?? []).filter(l => l.id !== id) })),
+
+  applyLayout: (spreadIndex, id) => {
+    const layout = get().doc?.layouts?.find(l => l.id === id)
+    if (!layout) return
+    get().commit(d => replaceSpread(d, spreadIndex, sp => applySavedLayout(sp, layout, d.page)))
+    set({ selection: [] })
+  },
+
   /*
    * ── Spread management ────────────────────────────────────────────────
    *
    * The cover and the back cover are fixed points: a book has exactly one of
    * each, they are single pages rather than spreads, and the layouts panel
-   * already refuses to touch them. So everything here operates on the inner
-   * spreads between them, and `canEditSpread` is the one place that decides
-   * what counts as inner — the rail, the menu and the store all ask it rather
-   * than each testing `role` for themselves.
+   * already refuses to touch them. The single first and last pages inside
+   * them are fixed the same way (#2317): a bound book opens onto one
+   * right-hand page and closes on one left-hand page, and moving either into
+   * the middle of the book would put a half-width page between two spreads.
+   * So everything here operates on the inner spreads between them, and
+   * `canEditSpread` is the one place that decides what counts as inner — the
+   * rail, the menu and the store all ask it rather than each testing `role`
+   * for themselves.
    */
   canEditSpread: index => {
     const sp = get().doc?.spreads[index]
@@ -219,10 +306,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
      * move only ever swaps with another inner spread. The first page of an
      * empty book is the one this catches.
      */
-    const cover = doc.spreads.findIndex(sp => sp.role === 'cover')
-    const back = doc.spreads.findIndex(sp => sp.role === 'back')
-    const first = cover === -1 ? 0 : cover + 1
-    const limit = back === -1 ? doc.spreads.length : back
+    const { first, limit } = innerBounds(doc.spreads)
     const at = Math.min(Math.max(index + 1, first), limit)
     get().commit(d => ({
       ...d,
@@ -246,10 +330,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     const doc = get().doc
     if (!doc) return
     // Same bounds as addSpread: inside the covers at both ends.
-    const cover = doc.spreads.findIndex(sp => sp.role === 'cover')
-    const back = doc.spreads.findIndex(sp => sp.role === 'back')
-    const first = cover === -1 ? 0 : cover + 1
-    const limit = back === -1 ? doc.spreads.length : back
+    const { first, limit } = innerBounds(doc.spreads)
     const at = Math.min(Math.max(index + 1, first), limit)
     get().commit(d => ({
       ...d,

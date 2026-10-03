@@ -18,12 +18,14 @@ const trip: TranslationStrings = {
   'trip.loadingSteps.arrive': 'Почти на месте...',
   'trip.mobilePlan': 'План',
   'trip.mobilePlaces': 'Места',
+  'trip.panelWidth': 'Ширина панели',
   'trip.toast.placeUpdated': 'Место обновлено',
   'trip.toast.tripUpdated': 'Поездка обновлена',
   'trip.toast.placeAdded': 'Место добавлено',
   'trip.toast.placeDeleted': 'Место удалено',
   'trip.toast.selectDay': 'Сначала выберите день',
   'trip.toast.assignedToDay': 'Место назначено на день',
+  'trip.toast.loadError': 'Не удалось загрузить поездку',
   'trip.toast.reorderError': 'Ошибка изменения порядка',
   'trip.toast.reservationUpdated': 'Бронирование обновлено',
   'trip.toast.reservationAdded': 'Бронирование добавлено',
@@ -63,6 +65,7 @@ const trip: TranslationStrings = {
   'transit.search': 'Поиск',
   'transit.searching': 'Поиск…',
   'transit.searchError': 'Не удалось найти маршрут. Попробуйте снова.',
+  'transit.noResultsVia': 'Через {provider} маршруты не найдены. Попробуйте другое время или фильтры.',
   'transit.noResults': 'Маршруты не найдены. Измените время или фильтры.',
   'transit.direct': 'Без пересадок',
   'transit.transfers': 'Пересадок: {count}',
@@ -86,5 +89,10 @@ const trip: TranslationStrings = {
   'transit.transfersLabel': 'Пересадки',
   'transit.walkLabel': 'Пешком',
   'transit.searchHint': 'Ищите реальные маршруты и добавляйте их прямо в день — данные от Transitous.',
+  'trip.confirm.deletePlaceNight': 'Также будет удалено проживание, забронированное в «{name}».',
+  'trip.confirm.deletePlaceBooked':
+    'Также будут удалены проживание, забронированное в «{name}», бронирование «{booking}» и связанные расходы.',
+  'trip.confirm.deletePlaceBookedSame':
+    'Также будут удалены проживание, забронированное в «{name}», его бронирование и связанные расходы.',
 };
 export default trip;

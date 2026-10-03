@@ -48,7 +48,7 @@ import { encrypt_api_key } from '../../../src/nest/common/crypto/apiKeyCrypto';
 import { MASKED_SETTING_VALUE } from '@trek/shared';
 import { DISPLAY_PREFERENCE_KEYS } from '../../../src/nest/settings/settings.mcp';
 import { MANAGED_LOCKED_SETTING_KEYS } from '../../../src/nest/common/managed';
-import { isAdminOnlyLlmSetting, ENCRYPTED_SETTING_KEYS, MASKED_SETTING_KEYS } from '../../../src/nest/settings/settings.service';
+import { isAdminOnlyEndpointSetting, ENCRYPTED_SETTING_KEYS, MASKED_SETTING_KEYS } from '../../../src/nest/settings/settings.service';
 
 beforeAll(() => {
   createTables(testDb);
@@ -256,6 +256,30 @@ describe('Tool: update_display_settings', () => {
       expect(data.settings.start_trip_tab).toBe('finanzplan');
       expect(data.settings.dark_mode).toBe('auto');
       expect(data.settings.language).toBe('ja');
+    });
+  });
+
+  it('writes place_language, clears it with "", and refuses a language TREK does not offer (#1799)', async () => {
+    const { user } = createUser(testDb);
+    await withHarness(user.id, async (h) => {
+      const set = parseToolResult(await update(h, { place_language: 'en' })) as any;
+      expect(set.settings.place_language).toBe('en');
+      const refused = await update(h, { place_language: 'klingon' });
+      expect(refused.isError).toBe(true);
+      expect(readSetting(user.id, 'place_language')).toBe('en');
+      const cleared = parseToolResult(await update(h, { place_language: '' })) as any;
+      expect(cleared.settings.place_language).toBe('');
+    });
+  });
+
+  it('writes week_start and refuses a day outside the three the app offers (#2029)', async () => {
+    const { user } = createUser(testDb);
+    await withHarness(user.id, async (h) => {
+      const ok = parseToolResult(await update(h, { week_start: 'sunday' })) as any;
+      expect(ok.settings.week_start).toBe('sunday');
+      const refused = await update(h, { week_start: 'friday' });
+      expect(refused.isError).toBe(true);
+      expect(readSetting(user.id, 'week_start')).toBe('sunday');
     });
   });
 
@@ -493,11 +517,11 @@ describe('Display-preference allow-list', () => {
     expect(overlap).toEqual([]);
   });
 
-  it('holds no key assertMayWriteLlmEndpoint would have to refuse', () => {
-    // isAdminOnlyLlmSetting is value-dependent, so probe it with the values
+  it('holds no key assertMayWriteInstanceEndpoint would have to refuse', () => {
+    // isAdminOnlyEndpointSetting is value-dependent, so probe it with the values
     // that trip it rather than matching on the key name.
     const offenders = DISPLAY_PREFERENCE_KEYS.filter((key) =>
-      isAdminOnlyLlmSetting(key, 'http://127.0.0.1:11434') || isAdminOnlyLlmSetting(key, 'local'));
+      isAdminOnlyEndpointSetting(key, 'http://127.0.0.1:11434') || isAdminOnlyEndpointSetting(key, 'local'));
     expect(offenders).toEqual([]);
   });
 

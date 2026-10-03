@@ -24,6 +24,7 @@ import { memoryStorage } from 'multer';
 import { hexColorSchema, placeImageUrlSchema, placeWebsiteSchema } from '@trek/shared';
 import type { User } from '../../types';
 import { PlacesService } from './places.service';
+import { isDirectionsUrl } from './maps-dir.helpers';
 import { isUpdateConflict } from '../common/conflictResult';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -40,6 +41,7 @@ import {
   PlaceImportListDto,
   PlaceImportMapDto,
   PlaceRatingDto,
+  PlaceImageFromFileDto,
   PlaceUpdateDto,
 } from './places.dto';
 
@@ -78,9 +80,13 @@ function validateUrlFields(body: Record<string, unknown>): void {
   const website = body.website;
   // '' is how the UI clears the field; treat it like an absent value.
   if (website !== undefined && website !== null && website !== '') {
-    if (typeof website !== 'string' || !placeWebsiteSchema.safeParse(website).success) {
+    const parsed = placeWebsiteSchema.safeParse(website);
+    if (!parsed.success) {
       throw new HttpException({ error: 'website must be an http or https URL' }, 400);
     }
+    // The parsed form is the one stored: a bare host from a search result
+    // arrives here without its https (#2483).
+    body.website = parsed.data;
   }
 }
 
@@ -188,6 +194,7 @@ export class PlacesController {
     for (const place of result.places) {
       this.places.broadcast(tripId, 'place:created', { place }, socketId);
     }
+    if (parseBool(body.enrich, false)) this.places.enrichImportedFilePlaces(tripId, user.id, result.places);
     return { places: result.places, count: result.count, skipped: result.skipped };
   }
 
@@ -246,6 +253,7 @@ export class PlacesController {
       for (const place of result.places) {
         this.places.broadcast(tripId, 'place:created', { place }, socketId);
       }
+      if (parseBool(body.enrich, false)) this.places.enrichImportedFilePlaces(tripId, user.id, result.places);
       return result;
     } catch (err: unknown) {
       if (err instanceof HttpException) throw err;
@@ -274,9 +282,15 @@ export class PlacesController {
     const opts = { enrich: parseBool(enrich, false), userId: user.id };
     const label = provider === 'google' ? 'Google' : 'Naver';
     try {
-      const result = provider === 'google'
-        ? await this.places.importGoogleList(tripId, url, opts)
-        : await this.places.importNaverList(tripId, url, opts);
+      // A directions link and a list link arrive through the same box because they are
+      // the same gesture: somebody pressed Share in Google Maps. Which screen they were
+      // on is the URL's business, not the traveller's, and answering a pasted route with
+      // "could not extract list ID" was the whole of the complaint.
+      const result = provider !== 'google'
+        ? await this.places.importNaverList(tripId, url, opts)
+        : isDirectionsUrl(url)
+          ? await this.places.importGoogleDirections(tripId, url, opts)
+          : await this.places.importGoogleList(tripId, url, opts);
       if ('error' in result) {
         throw new HttpException({ error: result.error }, result.status);
       }
@@ -314,12 +328,23 @@ export class PlacesController {
     for (const id of scoped) this.places.onDeleted(id);
     // Read the linked expenses before the delete — afterwards the link is gone (#1298).
     const expenseIds = this.places.linkedExpenseIds(tripId, scoped);
-    const deleted = await this.places.removeMany(tripId, ids);
+    const { deleted, cancelled } = await this.places.removeMany(tripId, ids);
     for (const id of deleted) {
       this.places.broadcast(tripId, 'place:deleted', { placeId: id }, socketId);
     }
-    for (const itemId of expenseIds) {
-      this.places.broadcast(tripId, 'budget:deleted', { itemId }, socketId);
+    // A night booked at this place went with it, and took its partner booking and
+    // that booking's expense along. Neither is covered by place:deleted, and an
+    // expense linked by reservation_id is not one linkedExpenseIds finds.
+    //
+    // Sent to the deleting tab as well, on purpose. The socket id keeps a tab
+    // from hearing back what it just did itself, and that tab only removed the
+    // places: the booking and the expense went on the server alone, and a tab
+    // that never hears about them keeps showing both until a reload.
+    for (const reservationId of cancelled.reservationIds) {
+      this.places.broadcast(tripId, 'reservation:deleted', { reservationId }, undefined);
+    }
+    for (const itemId of [...expenseIds, ...cancelled.budgetItemIds]) {
+      this.places.broadcast(tripId, 'budget:deleted', { itemId }, undefined);
     }
     return { deleted, count: deleted.length };
   }
@@ -394,6 +419,29 @@ export class PlacesController {
     this.places.broadcast(tripId, 'place:updated', { place }, socketId);
     this.places.onUpdated(place.id);
     return { place };
+  }
+
+  @Put(':id/image/from-file')
+  async imageFromFile(
+    @CurrentUser() user: User,
+    @Param('tripId') tripId: string,
+    @Param('id') id: string,
+    @Body() body: PlaceImageFromFileDto,
+    @Headers('x-socket-id') socketId?: string,
+  ) {
+    const trip = this.requireTrip(tripId, user);
+    this.requireEdit(trip, user);
+    if (isDemoWriteBlocked(this.env, user.email)) {
+      throw new HttpException(DEMO_WRITE_ERROR, 403);
+    }
+    const result = await this.places.setImageFromFile(tripId, id, body.file_id);
+    if (result === 'not_found') throw new HttpException({ error: 'File not found' }, 404);
+    if (result === 'not_image') throw new HttpException({ error: 'Only jpg, png, gif, webp images allowed' }, 400);
+    if (result === 'too_large') throw new HttpException({ error: 'Image too large' }, 400);
+    if (!result || isUpdateConflict(result)) throw new HttpException({ error: 'Place not found' }, 404);
+    this.places.broadcast(tripId, 'place:updated', { place: result }, socketId);
+    this.places.onUpdated(result.id);
+    return { place: result };
   }
 
   @Put(':id/rating')
@@ -482,12 +530,20 @@ export class PlacesController {
     }
     this.places.onDeleted(Number(id));
     const expenseIds = this.places.linkedExpenseIds(tripId, [id]);
-    if (!(await this.places.remove(tripId, id))) {
+    const { deleted, cancelled } = await this.places.remove(tripId, id);
+    if (!deleted) {
       throw new HttpException({ error: 'Place not found' }, 404);
     }
     this.places.broadcast(tripId, 'place:deleted', { placeId: Number(id) }, socketId);
-    for (const itemId of expenseIds) {
-      this.places.broadcast(tripId, 'budget:deleted', { itemId }, socketId);
+    // A night booked at this place went with it, and took its partner booking and
+    // that booking's expense along. Neither is covered by place:deleted, and an
+    // expense linked by reservation_id is not one linkedExpenseIds finds.
+    // Without a socket id, so the deleting tab hears it too: see bulkDelete.
+    for (const reservationId of cancelled.reservationIds) {
+      this.places.broadcast(tripId, 'reservation:deleted', { reservationId }, undefined);
+    }
+    for (const itemId of [...expenseIds, ...cancelled.budgetItemIds]) {
+      this.places.broadcast(tripId, 'budget:deleted', { itemId }, undefined);
     }
     return { success: true };
   }

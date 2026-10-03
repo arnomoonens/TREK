@@ -31,6 +31,7 @@
 - [[Trip Members and Sharing|Trip-Members-and-Sharing]]
 - [[Trip Planner Overview|Trip-Planner-Overview]]
 - [[Places and Search|Places-and-Search]]
+- [[TREK Places API|TREK-Places-API]]
 - [[Day Plans and Notes|Day-Plans-and-Notes]]
 - [[Map Features|Map-Features]]
 - [[Route Optimization|Route-Optimization]]
@@ -47,6 +48,7 @@
 - [[Packing Templates|Packing-Templates]]
 - [[Todos and Tasks|Todos-and-Tasks]]
 - [[Documents and Files|Documents-and-Files]]
+- [[Document Sync|Document-Sync]]
 - [[Tags and Categories|Tags-and-Categories]]
 - [[Calendar Feeds|Calendar-Feeds]]
 
@@ -69,6 +71,7 @@
 - [[Atlas]]
 - [[Journey Journal|Journey-Journal]]
 - [[Collections]]
+- [[Road Trip|Road-Trip]]
 - [[Dashboard Widgets|Dashboard-Widgets]]
 
 ## Plugins
@@ -80,6 +83,7 @@
 
 ## Integrations
 - [[Public API|Public-API]]
+- [[Dawarich]]
 
 ## AI / MCP
 - [[MCP Overview|MCP-Overview]]
@@ -92,12 +96,15 @@
 ## Admin Panel
 - [[Admin Panel Overview|Admin-Panel-Overview]]
 - [[Admin: Users and Invites|Admin-Users-and-Invites]]
+- [[Admin: User Defaults|Admin-User-Defaults]]
+- [[Admin: Settings|Admin-Settings]]
 - [[Admin: Addons|Admin-Addons]]
 - [[Admin: Categories|Admin-Categories]]
 - [[Admin: Packing Templates|Admin-Packing-Templates]]
 - [[Admin: Permissions|Admin-Permissions]]
 - [[Admin: Plugins|Admin-Plugins]]
 - [[Admin: Storage|Admin-Storage]]
+- [[Admin: Notifications|Admin-Notifications]]
 - [[Admin: MCP Tokens|Admin-MCP-Tokens]]
 - [[Admin: GitHub Releases|Admin-GitHub-Releases]]
 
@@ -110,6 +117,7 @@
 - [[Security Hardening|Security-Hardening]]
 
 ## Help
+- [[Help Center|Help-Center]]
 - [[In-App Help|In-App-Help]]
 - [[FAQ]]
 - [[Troubleshooting]]

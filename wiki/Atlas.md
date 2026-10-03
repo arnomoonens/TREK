@@ -40,15 +40,31 @@ Visits detected automatically from your trips are shown in addition to any count
 
 At zoom level 5 and above, the map switches to a sub-national region view (states, provinces, etc.). You can mark individual regions as visited or add them to your bucket list. Marking a region also counts the parent country as visited if it was not already.
 
+A region on your bucket list is drawn with the same diagonal hatch as a wished-for country, so a state or province you want to see stands out on the region view too.
+
+### A country's places
+
+Clicking a visited country opens its card, with the flag, the number of trips and, once you have been to any, the number of regions. The **Places** badge (*Show the places in this country*) opens every place counted for that country as a list grouped by trip, with a **Search places** box to narrow it. Clicking a place opens the trip it belongs to, so a place imported into the wrong country can be found and fixed.
+
 ## Bucket list
 
-The bucket list is separate from "visited". Use it to track countries or places you want to visit in the future. Each bucket list item can have a name, coordinates, country code, optional notes, and a target date.
+The bucket list is separate from "visited". Use it to track countries or places you want to visit in the future. Each bucket list item can have a name, coordinates, country code, optional notes, and a target date. An entry can also be a region rather than a whole country.
+
+## Dawarich
+
+With the [Dawarich](Dawarich) addon on and your own instance connected, the Atlas can read your recordings. On the desktop, a Dawarich panel sits at the bottom of the map, left of the statistics, with two buttons: **Wishlist** and **Countries**. On a phone, a **Dawarich** button sits next to **Bucket List**. Both open the same dialog.
+
+- **Wishlist** checks your bucket list against the stays Dawarich recorded. A wish counts as reached within 250 m and after 20 minutes on the spot, and one wish belongs to exactly one stay. **Tick off _n_** marks the selected wishes visited on the day of the stay. On the desktop bucket list such a wish shows that date with the tooltip *Ticked off from your Dawarich recordings*; click the date to undo it.
+- **Countries** lists the countries and cities your recordings cover that are not yet marked visited, with a flag and a city count. **Add _n_ countries** marks them visited, recorded as coming from Dawarich. A country you marked by hand keeps saying it was marked by hand.
+
+Nothing reaches your Atlas until you confirm it. See [Dawarich](Dawarich) for the connection and the full rules.
 
 ## Statistics
 
 Your Atlas statistics panel shows:
 
 - **Countries visited** — total number of distinct countries you have actually been to. Countries from upcoming trips are counted separately and shown next to this number.
+- **Regions**: the number of sub-national regions (states, provinces) you have visited.
 - **Trips** — total number of trips across all time.
 - **Places** — total number of individual places logged in trips.
 - **Cities** — total number of distinct cities visited, derived from the addresses of your places. TREK drops the last comma-separated part (the country), then walks back through the remaining parts and takes the first one that is still non-empty once digits, hyphens and postal marks are stripped, lower-cased so spelling variants collapse into a single entry. This is a heuristic over a formatted address string rather than a lookup, so the figure is approximate: a short address such as `Osteria Francescana, Italy` leaves nothing but the place's own name, and an address whose administrative tail ends on a state or prefecture (`…, Shibuya, Tokyo, 150-0002, Japan`) counts that region rather than the city.
@@ -71,3 +87,4 @@ Installed plugins can tint countries on the Atlas map with their own layers — 
 
 - [Addons-Overview](Addons-Overview)
 - [Admin-Addons](Admin-Addons)
+- [Dawarich](Dawarich)

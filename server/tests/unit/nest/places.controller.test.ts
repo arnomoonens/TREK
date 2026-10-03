@@ -97,6 +97,24 @@ describe('PlacesController (parity with the legacy /api/trips/:tripId/places rou
     });
   });
 
+  describe('file import enrichment (#2536)', () => {
+    const file = { buffer: Buffer.from('gpx'), originalname: 'r.gpx' } as Express.Multer.File;
+    it('hands the imported places to the Google pass only when asked', async () => {
+      const enrichImportedFilePlaces = vi.fn();
+      const s = svc({
+        importGpx: vi.fn().mockReturnValue({ places: [{ id: 1 }], count: 1, skipped: 0 }),
+        importMapFile: vi.fn().mockResolvedValue({ places: [{ id: 2 }], count: 1, summary: { totalPlacemarks: 1 } }),
+        broadcast: vi.fn(), enrichImportedFilePlaces,
+      } as Partial<PlacesService>);
+      const c = new PlacesController(s, new RuntimeEnvService(), storageStub);
+      c.importGpx(user, '5', file, {});
+      expect(enrichImportedFilePlaces).not.toHaveBeenCalled();
+      c.importGpx(user, '5', file, { enrich: 'true' });
+      await c.importMap(user, '5', file, { enrich: 'true' });
+      expect(enrichImportedFilePlaces.mock.calls).toEqual([['5', user.id, [{ id: 1 }]], ['5', user.id, [{ id: 2 }]]]);
+    });
+  });
+
   describe('POST /import/map', () => {
     const file = { buffer: Buffer.from('<kml/>'), originalname: 'm.kml' } as Express.Multer.File;
     it('400 without a file', async () => {
@@ -190,6 +208,34 @@ describe('PlacesController (parity with the legacy /api/trips/:tripId/places rou
       expect(importGoogleList).toHaveBeenCalledWith('5', 'http://x', { enrich: true, userId: 1 });
       expect(broadcast).toHaveBeenCalledTimes(2);
     });
+    it('sends a directions link to the directions importer, not to the list one', async () => {
+      // Same box, same gesture: somebody pressed Share in Google Maps, and which screen
+      // they were on is the URL's business rather than the traveller's.
+      const importGoogleDirections = vi.fn().mockResolvedValue({ places: [{ id: 9 }], listName: 'Berlin → Prague', skipped: 1 });
+      const importGoogleList = vi.fn();
+      const s = svc({ importGoogleDirections, importGoogleList, broadcast: vi.fn() } as Partial<PlacesService>);
+      const url = 'https://www.google.com/maps/dir/Berlin/Dresden/Prague';
+
+      expect(await new PlacesController(s, new RuntimeEnvService(), storageStub).importGoogle(user, '5', { url })).toEqual({
+        places: [{ id: 9 }], count: 1, listName: 'Berlin → Prague', skipped: 1,
+      });
+      expect(importGoogleDirections).toHaveBeenCalledWith('5', url, { enrich: false, userId: 1 });
+      expect(importGoogleList).not.toHaveBeenCalled();
+    });
+    it('sends a short link to the list importer, which knows where it really goes', async () => {
+      // A short link's path is `/<code>`, so nothing about the raw URL says
+      // whether it is a route or a list. The dispatch cannot know before the
+      // redirect is followed, and the list importer already follows it — so it
+      // is the one that hands a route on. Deciding here would mean a second
+      // network hop and a second copy of the SSRF handling.
+      const importGoogleDirections = vi.fn();
+      const importGoogleList = vi.fn().mockResolvedValue({ places: [], listName: 'L', skipped: 0 });
+      const s = svc({ importGoogleDirections, importGoogleList, broadcast: vi.fn() } as Partial<PlacesService>);
+
+      await new PlacesController(s, new RuntimeEnvService(), storageStub).importGoogle(user, '5', { url: 'https://maps.app.goo.gl/abc' });
+      expect(importGoogleList).toHaveBeenCalled();
+      expect(importGoogleDirections).not.toHaveBeenCalled();
+    });
     it('wraps a thrown Error in the provider-specific 400 (Google)', async () => {
       const s = svc({ importGoogleList: vi.fn().mockRejectedValue(new Error('network down')) } as Partial<PlacesService>);
       expect(await thrownAsync(() => new PlacesController(s, new RuntimeEnvService(), storageStub).importGoogle(user, '5', { url: 'http://x' }))).toEqual({
@@ -214,7 +260,7 @@ describe('PlacesController (parity with the legacy /api/trips/:tripId/places rou
       expect(removeMany).not.toHaveBeenCalled();
     });
     it('deletes, fires hooks + broadcasts per deleted id', async () => {
-      const removeMany = vi.fn().mockReturnValue([1, 2]); const onDeleted = vi.fn(); const broadcast = vi.fn();
+      const removeMany = vi.fn().mockReturnValue({ deleted: [1, 2], cancelled: { reservationIds: [], budgetItemIds: [] } }); const onDeleted = vi.fn(); const broadcast = vi.fn();
       const scopedIds = vi.fn().mockReturnValue([1, 2]);
       const s = svc({ removeMany, onDeleted, broadcast, scopedIds } as Partial<PlacesService>);
       expect(await new PlacesController(s, new RuntimeEnvService(), storageStub).bulkDelete(user, '5', { ids: [1, 2] }, 'sock')).toEqual({ deleted: [1, 2], count: 2 });
@@ -225,7 +271,7 @@ describe('PlacesController (parity with the legacy /api/trips/:tripId/places rou
     // #1745: the hook keys on the place id alone, so an id from another trip
     // would detach that trip's journey entries even though removeMany skips it.
     it('fires the journey hook only for ids that belong to the trip, ahead of the delete', async () => {
-      const removeMany = vi.fn().mockReturnValue([1]);
+      const removeMany = vi.fn().mockReturnValue({ deleted: [1], cancelled: { reservationIds: [], budgetItemIds: [] } });
       const scopedIds = vi.fn().mockReturnValue([1]);
       const onDeleted = vi.fn();
       const s = svc({ removeMany, scopedIds, onDeleted, broadcast: vi.fn() } as Partial<PlacesService>);
@@ -238,7 +284,7 @@ describe('PlacesController (parity with the legacy /api/trips/:tripId/places rou
 
     // #1298: the link is gone once the place is, so the ids have to be read first.
     it('announces the expenses the deleted places took with them', async () => {
-      const removeMany = vi.fn().mockReturnValue([1, 2]);
+      const removeMany = vi.fn().mockReturnValue({ deleted: [1, 2], cancelled: { reservationIds: [], budgetItemIds: [] } });
       const linkedExpenseIds = vi.fn().mockReturnValue([77]);
       const broadcast = vi.fn();
       const s = svc({ removeMany, linkedExpenseIds, broadcast } as Partial<PlacesService>);
@@ -246,7 +292,22 @@ describe('PlacesController (parity with the legacy /api/trips/:tripId/places rou
 
       expect(linkedExpenseIds).toHaveBeenCalledWith('5', [1, 2]);
       expect(linkedExpenseIds.mock.invocationCallOrder[0]).toBeLessThan(removeMany.mock.invocationCallOrder[0]);
-      expect(broadcast).toHaveBeenCalledWith('5', 'budget:deleted', { itemId: 77 }, 'sock');
+      // Without the socket id: the deleting tab removed the places itself, not
+      // the expense, so it has to hear about that one like everybody else.
+      expect(broadcast).toHaveBeenCalledWith('5', 'budget:deleted', { itemId: 77 }, undefined);
+    });
+
+    it('tells the deleting tab about the booking and the expense a cancelled night took down', async () => {
+      const removeMany = vi.fn().mockReturnValue({ deleted: [1], cancelled: { reservationIds: [12], budgetItemIds: [77] } });
+      const broadcast = vi.fn();
+      const s = svc({ removeMany, broadcast, scopedIds: vi.fn().mockReturnValue([1]) } as Partial<PlacesService>);
+      await new PlacesController(s, new RuntimeEnvService(), storageStub).bulkDelete(user, '5', { ids: [1] }, 'sock');
+
+      // The place is the one change the tab made itself, so that echo stays
+      // filtered. The booking and its expense went on the server alone.
+      expect(broadcast).toHaveBeenCalledWith('5', 'place:deleted', { placeId: 1 }, 'sock');
+      expect(broadcast).toHaveBeenCalledWith('5', 'reservation:deleted', { reservationId: 12 }, undefined);
+      expect(broadcast).toHaveBeenCalledWith('5', 'budget:deleted', { itemId: 77 }, undefined);
     });
   });
 
@@ -367,7 +428,9 @@ describe('PlacesController (parity with the legacy /api/trips/:tripId/places rou
 
     it('400s a website that window.open would not treat as a page', async () => {
       const canEdit = vi.fn().mockReturnValue(false);
-      for (const website of ['javascript:fetch("/api/trips")', 'data:text/html,x', 'louvre.fr', 42]) {
+      // 'louvre' rather than 'louvre.fr': a bare host is completed since #2483,
+      // a single word is still no address.
+      for (const website of ['javascript:fetch("/api/trips")', 'data:text/html,x', 'mailto:info@louvre.fr', 'louvre', 42]) {
         expect(await thrownAsync(() => ctl({ canEdit }).update(user, '5', '9', { website }))).toEqual(siteErr);
       }
       expect(canEdit).not.toHaveBeenCalled();
@@ -377,7 +440,22 @@ describe('PlacesController (parity with the legacy /api/trips/:tripId/places rou
       const update = vi.fn().mockReturnValue({ id: 9 });
       for (const website of ['https://louvre.fr', 'http://pension.at', '', null]) {
         expect(await ctl({ update } as Partial<PlacesService>).update(user, '5', '9', { website })).toEqual({ place: { id: 9 } });
+        expect(update).toHaveBeenLastCalledWith('5', '9', { website }, undefined);
       }
+    });
+
+    // #2483: the value that reaches the service is the parsed one, on both write
+    // routes. The MCP tools parse the same schema (tools-places.test.ts), so an
+    // agent and the web app store the same string for the same input.
+    it('PLACES-CTRL-2483-01: hands the service a bare host with https, on create and on update', async () => {
+      const site = 'fr.wikipedia.org/wiki/Chapelle_Sainte-Barbe_du_Faouët';
+      const create = vi.fn().mockReturnValue({ id: 9 });
+      ctl({ create } as Partial<PlacesService>).create(user, '5', { name: 'Chapelle', website: site });
+      expect(create).toHaveBeenCalledWith('5', { name: 'Chapelle', website: `https://${site}` });
+
+      const update = vi.fn().mockReturnValue({ id: 9 });
+      await ctl({ update } as Partial<PlacesService>).update(user, '5', '9', { website: '//www.example.fr' });
+      expect(update).toHaveBeenCalledWith('5', '9', { website: 'https://www.example.fr' }, undefined);
     });
   });
 
@@ -395,12 +473,30 @@ describe('PlacesController (parity with the legacy /api/trips/:tripId/places rou
 
   it('DELETE /:id fires the hook then 404 / success', async () => {
     const onDeleted = vi.fn();
-    const remove = vi.fn().mockReturnValue(false);
+    const remove = vi.fn().mockReturnValue({ deleted: false, cancelled: { reservationIds: [], budgetItemIds: [] } });
     expect(await thrownAsync(() => new PlacesController(svc({ remove, onDeleted } as Partial<PlacesService>), new RuntimeEnvService(), storageStub).remove(user, '5', '9'))).toEqual({ status: 404, body: { error: 'Place not found' } });
     expect(onDeleted).toHaveBeenCalledWith(9);
     expect(onDeleted.mock.invocationCallOrder[0]).toBeLessThan(remove.mock.invocationCallOrder[0]);
-    const s = svc({ remove: vi.fn().mockReturnValue(true), broadcast: vi.fn() } as Partial<PlacesService>);
+    const s = svc({ remove: vi.fn().mockReturnValue({ deleted: true, cancelled: { reservationIds: [], budgetItemIds: [] } }), broadcast: vi.fn() } as Partial<PlacesService>);
     expect(await new PlacesController(s, new RuntimeEnvService(), storageStub).remove(user, '5', '9')).toEqual({ success: true });
+  });
+
+  it('DELETE /:id announces the booking and the expense a cancelled night took down', async () => {
+    // place:deleted says nothing about either, and an expense linked by
+    // reservation_id is not one linkedExpenseIds finds.
+    const broadcast = vi.fn();
+    const remove = vi.fn().mockReturnValue({ deleted: true, cancelled: { reservationIds: [12], budgetItemIds: [77] } });
+    const s = svc({ remove, broadcast, linkedExpenseIds: vi.fn().mockReturnValue([]) } as Partial<PlacesService>);
+
+    await new PlacesController(s, new RuntimeEnvService(), storageStub).remove(user, '5', '9', 'sock');
+
+    // The place echo stays filtered by the socket id; the booking and the
+    // expense are sent to the deleting tab as well, because that tab only
+    // removed the place itself and would otherwise keep showing both until a
+    // reload.
+    expect(broadcast).toHaveBeenCalledWith('5', 'place:deleted', { placeId: 9 }, 'sock');
+    expect(broadcast).toHaveBeenCalledWith('5', 'reservation:deleted', { reservationId: 12 }, undefined);
+    expect(broadcast).toHaveBeenCalledWith('5', 'budget:deleted', { itemId: 77 }, undefined);
   });
 
   // #1745: a place on another trip must 404 without the hook ever running —
@@ -469,3 +565,23 @@ describe('PlacesController (parity with the legacy /api/trips/:tripId/places rou
     });
   });
 });
+
+describe('PUT /:id/image/from-file (#1242)', () => {
+  it('maps every refusal to its status and broadcasts a success', async () => {
+    const make = (result: unknown, extra: Partial<PlacesService> = {}) =>
+      new PlacesController(svc({ setImageFromFile: vi.fn().mockResolvedValue(result), ...extra } as Partial<PlacesService>), new RuntimeEnvService(), storageStub);
+    expect(await thrownAsync(() => make('not_found').imageFromFile(user, '5', '9', { file_id: 3 }))).toEqual({ status: 404, body: { error: 'File not found' } });
+    expect(await thrownAsync(() => make('not_image').imageFromFile(user, '5', '9', { file_id: 3 }))).toEqual({ status: 400, body: { error: 'Only jpg, png, gif, webp images allowed' } });
+    expect(await thrownAsync(() => make('too_large').imageFromFile(user, '5', '9', { file_id: 3 }))).toEqual({ status: 400, body: { error: 'Image too large' } });
+    expect(await thrownAsync(() => make(null).imageFromFile(user, '5', '9', { file_id: 3 }))).toEqual({ status: 404, body: { error: 'Place not found' } });
+    const broadcast = vi.fn(); const onUpdated = vi.fn()
+    expect(await make({ id: 9 }, { broadcast, onUpdated } as Partial<PlacesService>).imageFromFile(user, '5', '9', { file_id: 3 }, 'sock')).toEqual({ place: { id: 9 } })
+    expect(broadcast).toHaveBeenCalledWith('5', 'place:updated', { place: { id: 9 } }, 'sock')
+    expect(onUpdated).toHaveBeenCalledWith(9)
+  });
+
+  it('403 without place_edit', async () => {
+    expect(await thrownAsync(() => new PlacesController(svc({ canEdit: vi.fn().mockReturnValue(false) }), new RuntimeEnvService(), storageStub).imageFromFile(user, '5', '9', { file_id: 3 }))).toEqual({ status: 403, body: { error: 'No permission' } });
+  });
+});
+

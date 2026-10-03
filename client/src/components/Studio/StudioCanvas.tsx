@@ -59,6 +59,7 @@ const HANDLE_POS: Record<HandleId, { left: string; top: string; cursor: string }
 export function StudioCanvas({
   spread,
   spreadIndex,
+  folios = [],
   page,
   zoom,
   pxPerMm,
@@ -71,6 +72,8 @@ export function StudioCanvas({
 }: {
   spread: BookSpread | null
   spreadIndex: number
+  /** The page numbers this spread carries, from foliosOf. */
+  folios?: readonly number[]
   page: BookPageSetup
   zoom: number
   pxPerMm: number
@@ -94,6 +97,9 @@ export function StudioCanvas({
   const select = useStudioStore(s => s.select)
   const removeElements = useStudioStore(s => s.removeElements)
   const duplicate = useStudioStore(s => s.duplicate)
+  const copy = useStudioStore(s => s.copy)
+  const paste = useStudioStore(s => s.paste)
+  const hasClipboard = useStudioStore(s => !!s.clipboard)
   const raise = useStudioStore(s => s.raise)
   const commit = useStudioStore(s => s.commit)
   const addElement = useStudioStore(s => s.addElement)
@@ -152,10 +158,21 @@ export function StudioCanvas({
         const ids = deletable(spread, selection)
         if (ids.length) removeElements(spreadIndex, ids)
       }
+      // Copy and paste across pages (#2316). Text selected on the page is the
+      // browser's to copy, not the book's.
+      if (!(e.metaKey || e.ctrlKey) || e.altKey) return
+      const key = e.key.toLowerCase()
+      if (key === 'c' && selection.length && !window.getSelection()?.toString()) {
+        e.preventDefault()
+        copy(spreadIndex, selection)
+      } else if (key === 'v' && hasClipboard) {
+        e.preventDefault()
+        paste(spreadIndex)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [selection, spread, spreadIndex, removeElements])
+  }, [selection, spread, spreadIndex, removeElements, copy, paste, hasClipboard])
 
   if (!spread) return null
 
@@ -256,7 +273,7 @@ export function StudioCanvas({
         }}
         onPointerDown={() => select([])}
       >
-        <SpreadView spread={spread} page={page} spreadIndex={spreadIndex} big={zoom > 0.34} showGuides dropLabel={dropLabel} />
+        <SpreadView spread={spread} page={page} folios={folios} big={zoom > 0.34} showGuides dropLabel={dropLabel} />
 
         {cursors && cursors.length > 0 && (
           <PeerCursors cursors={cursors} spreadIndex={spreadIndex} zoom={zoom} />

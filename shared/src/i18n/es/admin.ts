@@ -88,16 +88,64 @@ const admin: TranslationStrings = {
   'admin.requireMfaHint':
     'Los usuarios sin 2FA deben completar la configuración en Ajustes antes de usar la aplicación.',
   'admin.apiKeys': 'Claves API',
-  'admin.apiKeysHint': 'Opcional. Activa datos ampliados de lugares, como fotos y previsión del tiempo.',
+  'admin.apiKeysHint': 'De dónde vienen los datos de lugares. El índice de TREK no necesita clave; los dos proveedores de abajo son opcionales.',
+  'admin.trekApi.badgeDefault': 'Fuente recomendada por defecto',
+  'admin.googleCaveat.badge': 'No recomendado',
+  'admin.googleCaveat.body':
+    'TREK es software libre y aquí no somos neutrales. A esta escala, las valoraciones y las fotos de negocios corrientes solo existen en Google, y eso es un monopolio. El campo está aquí por falta de alternativa, no porque lo recomendemos. Cada consulta va entonces a Google.',
+  'admin.trekApi.tagline':
+    'El índice de lugares propio de TREK. Buscar sin clave de Google, sin cuota y sin que nadie cuente tus búsquedas.',
+  'admin.trekApi.factPlaces':
+    '73,6 millones de lugares en el mundo',
+  'admin.trekApi.factNoKey':
+    'Sin clave, sin cuota',
+  'admin.trekApi.factOffline':
+    'Los paquetes por país funcionan sin conexión',
+  'admin.trekApi.factPrivacy':
+    'Las búsquedas nunca se registran',
+  'admin.trekApi.more':
+    'Qué contiene',
+  'admin.trekApi.fieldPhone':
+    'Teléfono',
+  'admin.trekApi.fieldStableId':
+    'Identificador estable',
+  'admin.trekApi.includedNote':
+    'Las descripciones vienen de la web del propio lugar; los horarios, de OpenStreetMap donde estén puestos.',
+  'admin.trekApi.notRatings':
+    'Valoraciones',
+  'admin.trekApi.notPhotos':
+    'Fotos de negocios corrientes',
+  'admin.trekApi.notIncludedNote':
+    'Ninguna fuente abierta tiene ninguna de las dos, a ningún precio. Una clave de Google sigue siendo el único camino.',
+  'admin.trekApi.sourcesLabel':
+    'Fuentes',
+  'admin.trekApi.sourcesNote':
+    'Cada campo de una respuesta dice de cuál de ellas viene.',
+  'admin.trekApi.included':
+    'Incluido',
+  'admin.trekApi.notIncluded':
+    'No incluido',
   'admin.mapsKey': 'Clave API de Google Maps',
   'admin.mapsKeyHint': 'Obligatoria para buscar lugares. Consíguela en console.cloud.google.com',
   'admin.mapsKeyHintLong':
-    'Sin una clave API, la búsqueda de lugares usa OpenStreetMap. Con una clave de Google también se pueden cargar fotos, valoraciones y horarios de apertura. Consíguela en console.cloud.google.com.',
+    'Sin clave de API de Google se usa la API de TREK recomendada. Con una clave se pueden cargar además fotos, valoraciones y horarios. Créala en console.cloud.google.com.',
   'admin.recommended': 'Recomendado',
   'admin.weatherKey': 'Clave API de OpenWeatherMap',
   'admin.weatherKeyHint': 'Para datos meteorológicos. Gratis en openweathermap.org',
   'admin.unsplashKey': 'Clave de API de Unsplash',
   'admin.unsplashKeyHint': 'Para la búsqueda de imágenes. Gratis en unsplash.com/developers',
+  'admin.amapKey': 'Clave de API de Amap (高德地图)',
+  'admin.amapKeyHint':
+    'Para la búsqueda de lugares en China continental, donde Google no es accesible y OpenStreetMap apenas tiene datos. Requiere una clave de tipo «Web 服务» (servicio web), no una clave de la API de JS. Consíguela en console.amap.com.',
+  'admin.keyFromEnv': 'Definida mediante {name}',
+  'admin.placesProvider.title': 'Proveedor de búsqueda de lugares',
+  'admin.placesProvider.subtitle': 'El índice propio de TREK y OpenStreetMap responden a cada búsqueda. Aquí se elige a quién más se consulta cuando no encuentran nada: Automático prefiere Google si hay clave, luego Amap.',
+  'admin.placesProvider.auto': 'Automático',
+  'admin.placesProvider.google': 'Google Places',
+  'admin.placesProvider.amap': 'Amap (高德地图)',
+  'admin.placesProvider.openstreetmap': 'OpenStreetMap',
+  'admin.placesProvider.missingKey': 'El proveedor seleccionado no tiene clave de API configurada, así que la búsqueda de lugares la responden solo el índice de TREK y OpenStreetMap.',
+  'admin.placesProvider.saved': 'Proveedor de búsqueda de lugares guardado',
   'admin.validateKey': 'Probar',
   'admin.keyValid': 'Conectado',
   'admin.keyInvalid': 'No válida',
@@ -114,6 +162,8 @@ const admin: TranslationStrings = {
   'admin.fileTypesFormat':
     'Extensiones separadas por comas (p. ej. jpg,png,pdf,doc). Usa * para permitir todos los tipos.',
   'admin.fileTypesSaved': 'Ajustes de tipos de archivo guardados',
+  'admin.googleOptions': 'Para qué se usa la clave',
+  'admin.googleOptionsSummary': '{on} de {total} activados',
   'admin.placesPhotos.title': 'Fotos de Lugares',
   'admin.placesPhotos.subtitle':
     'Obtiene fotos de la Google Places API. Desactiva para ahorrar cuota de API. Las fotos de Wikimedia no se ven afectadas.',
@@ -126,6 +176,28 @@ const admin: TranslationStrings = {
   'admin.placesEnrich.title': 'Enriquecimiento de lugares',
   'admin.placesEnrich.subtitle':
     'Muestra imágenes y una descripción al añadir un lugar. Wikipedia y OpenStreetMap se usan siempre; Google se añade cuando Fotos de lugares o Detalles de lugares están activados.',
+  'admin.placesGoogleOnly.title': 'Buscar solo con Google',
+  'admin.placesGoogleOnly.subtitle': 'Cada búsqueda y cada sugerencia van a Google Places. Desactivado, responden primero el índice de TREK y OpenStreetMap, y Google solo se consulta si no encuentran nada.',
+  'admin.placesGoogleOnly.missingKey': 'Necesita una clave de API de Google Maps. Sin ella, la búsqueda usa el índice de TREK y OpenStreetMap, esté como esté este interruptor.',
+  'admin.placesGoogleOnly.otherProvider': 'Necesita Google como proveedor de lugares. Con Amap u OpenStreetMap seleccionados, ninguna búsqueda va a Google, diga lo que diga este interruptor.',
+  'admin.googleQuota.title': 'Límite diario de llamadas a Google',
+  'admin.googleQuota.subtitle': 'Al alcanzarlo, TREK deja de llamar a Google hasta el día siguiente (UTC) y busca con OpenStreetMap. Vacío significa sin límite.',
+  'admin.googleQuota.placeholder': 'Sin límite',
+  'admin.googleQuota.usedToday': 'Hoy: {used}',
+  'admin.googleQuota.usedOfLimit': 'Hoy: {used} de {limit}',
+  'admin.googleQuota.reached': 'Límite alcanzado ({used}), Google en pausa hasta mañana',
+  'admin.googleQuota.saved': 'Límite diario guardado',
+  'admin.transitProvider.title': 'Proveedor de transporte público',
+  'admin.transitProvider.subtitle': 'Qué servicio responde a la búsqueda de transporte público.',
+  'admin.transitProvider.transitous': 'Transitous (gratis)',
+  'admin.transitProvider.google': 'Google',
+  'admin.transitProvider.transitousHint': 'Fuentes GTFS de la comunidad. Gratis y sin clave, con la mejor cobertura en Europa.',
+  'admin.transitProvider.googleHint': 'Usa la clave de Google anterior, para regiones sin datos en Transitous. Se cobra por búsqueda: mientras no haya clave se usa Transitous.',
+  'admin.transitProvider.noKeyWarning': 'Google está seleccionado, pero no hay ninguna clave de Google configurada: la búsqueda de transporte sigue usando Transitous. Añade una clave en Claves de API arriba.',
+  'admin.transitProvider.personalKeyWarning': 'Solo está configurada tu propia clave de Google, así que la búsqueda de los demás miembros sigue recurriendo a Transitous. Guarda la clave arriba como administrador para aplicarla a toda la instancia.',
+  'admin.placeShadow.title': 'Registro de búsquedas de lugares',
+  'admin.placeShadow.subtitle':
+    'Guardar qué resultado de búsqueda se eligió, para poder evaluar más adelante otro índice de lugares con búsquedas reales. Nada sale de esta instancia y un administrador puede exportar o borrar el registro cuando quiera.',
   'admin.bagTracking.title': 'Seguimiento de equipaje',
   'admin.bagTracking.subtitle': 'Activar peso y asignación de equipaje para artículos de la lista',
   'admin.collab.chat.title': 'Chat',
@@ -321,6 +393,10 @@ const admin: TranslationStrings = {
   'admin.plugins.perm.hook:calendar-source': 'Proporcionar eventos al calendario',
   'admin.plugins.perm.hook:place-detail-provider':
     'Aportar detalles adicionales (reseñas, valoraciones, enlaces) a un lugar',
+  'admin.plugins.perm.hook:search-provider':
+    'Responder a búsquedas de lugares desde su propio índice, junto a los resultados de TREK',
+  'admin.plugins.perm.hook:poi-category-provider':
+    'Añadir sus propias categorías de lugares a «Explorar lugares en el mapa»; al elegir una, el plugin recibe la zona del mapa que estás viendo',
   'admin.plugins.perm.hook:trip-warning-provider':
     'Generar advertencias de validación en un viaje (mostradas en el planificador)',
   'admin.plugins.perm.hook:table-contributor':
@@ -336,6 +412,7 @@ const admin: TranslationStrings = {
   'admin.plugins.cap.mcpTools': 'Publica herramientas de IA',
   'admin.plugins.mcpToolsTitle': 'Herramientas de IA que publica',
   'admin.plugins.mcpToolsHint': 'Un asistente puede ejecutarlas en nombre de un usuario. Cada una actúa con los permisos concedidos arriba.',
+  'admin.plugins.poiCategoriesTitle': 'Categorías de mapa que añade',
   'admin.plugins.perm.mcp:tools':
     'Publicar herramientas que un asistente de IA puede ejecutar en tu nombre (actúa con el acceso que concedes aquí al complemento, no con el del asistente)',
   'admin.plugins.perm.geolocation:read':
@@ -478,6 +555,8 @@ const admin: TranslationStrings = {
   'admin.plugins.cap.photos': 'Proporciona fotos',
   'admin.plugins.cap.calendar': 'Proporciona eventos de calendario',
   'admin.plugins.cap.placeDetails': 'Enriquece lugares',
+  'admin.plugins.cap.search': 'Responde búsquedas',
+  'admin.plugins.cap.poiCategories': 'Añade categorías al mapa',
   'admin.plugins.cap.warnings': 'Marca problemas',
   'admin.plugins.cap.mapLayers': 'Dibuja en el mapa',
   'admin.plugins.cap.routing': 'Ofrece rutas',
@@ -500,6 +579,20 @@ const admin: TranslationStrings = {
   'admin.plugins.dep.trekIncompatible': 'Necesita TREK {range} — este servidor ejecuta {host}',
   'admin.plugins.dep.trekUnknown': 'No indica qué versiones de TREK admite',
   'admin.plugins.installCompatible': 'Instalar {version}',
+  'admin.plugins.installAnyway': 'Instalar de todos modos',
+  'admin.plugins.rangeBypass.pill': 'Comprobaciones de versión desactivadas',
+  'admin.plugins.rangeBypass.pillHint':
+    'TREK_PLUGINS_IGNORE_TREK_RANGE está definido — los plugins pueden instalarse y ejecutarse fuera de las versiones de TREK declaradas por sus autores',
+  'admin.plugins.rangeBypass.title': 'Fuera de las versiones de TREK compatibles',
+  'admin.plugins.rangeBypass.noticeTitle': 'Instalado fuera de las versiones de TREK compatibles',
+  'admin.plugins.rangeBypass.body':
+    '«{name}» declara compatibilidad con TREK {range}, y este servidor ejecuta {host}. TREK lo deja pasar solo porque TREK_PLUGINS_IGNORE_TREK_RANGE está definido. Su autor no ha actualizado el rango de versiones del plugin para este TREK, así que no hay garantía de que funcione — y en casos raros un plugin incompatible puede corromper los datos de TREK. Continúa solo si aceptas ese riesgo.',
+  'admin.plugins.rangeBypass.bodyUnknown':
+    '«{name}» no declara qué versiones de TREK admite; este servidor ejecuta {host}. TREK lo deja pasar solo porque TREK_PLUGINS_IGNORE_TREK_RANGE está definido. Nada indica que su autor lo haya probado en este TREK, así que no hay garantía de que funcione — y en casos raros un plugin incompatible puede corromper los datos de TREK. Continúa solo si aceptas ese riesgo.',
+  'admin.plugins.dep.trekBypassed':
+    'Fuera de su rango de TREK ({range}) — comprobaciones de versión desactivadas',
+  'admin.plugins.dep.trekBypassedUnknown':
+    'No declara ningún rango de TREK — comprobaciones de versión desactivadas',
   'admin.plugins.incompatible': 'Incompatible',
   'admin.plugins.accessTitle': 'A qué puede acceder',
   'admin.plugins.connectsTitle': 'Se conecta a',
@@ -518,8 +611,16 @@ const admin: TranslationStrings = {
   'admin.addons.catalog.naver_list_import.description': 'Importa lugares desde una lista compartida de Naver Maps',
   'admin.addons.catalog.airtrail.name': 'AirTrail',
   'admin.addons.catalog.airtrail.description': 'Sincroniza vuelos desde tu instancia de AirTrail',
+  'admin.addons.catalog.dawarich.name': 'Dawarich',
+  'admin.addons.catalog.dawarich.description':
+    'Lee estancias y rutas grabadas de una instancia de Dawarich que cada usuario conecta por su cuenta',
   'admin.addons.catalog.llm_parsing.name': 'Análisis con IA',
   'admin.addons.catalog.llm_parsing.description': 'Lee reservas que el analizador integrado no entiende, con un modelo de IA que tú elijas',
+  'admin.addons.llm.vision.auto': 'Automático',
+  'admin.addons.llm.vision.on': 'Sí',
+  'admin.addons.llm.vision.off': 'No',
+  'admin.addons.llm.vision.hintLocal': 'Automático pregunta al servidor Ollama si este modelo lee imágenes.',
+  'admin.addons.llm.vision.hintCloud': 'Automático significa no para un modelo en la nube. Elige Sí si este modelo lee imágenes.',
   'admin.addons.enabled': 'Activo',
   'admin.addons.disabled': 'Desactivado',
   'admin.addons.type.trip': 'Viaje',
@@ -635,12 +736,17 @@ const admin: TranslationStrings = {
   'admin.addons.catalog.atlas.description': 'Mapa del mundo con los países visitados y estadísticas de viaje',
   'admin.addons.catalog.collab.name': 'Colaboración',
   'admin.addons.catalog.collab.description': 'Notas, encuestas, chat y sugerencias para planificar en grupo',
+  'admin.addons.catalog.roadtrip.name': 'Viaje por carretera',
+  'admin.addons.catalog.roadtrip.description': 'Planifica trayectos con paradas: los tiempos de conducción y las horas de llegada se recalculan solos',
   'admin.oidcOnlyMode': 'Desactivar autenticación por contraseña',
   'admin.oidcOnlyModeHint':
     'Si está activado, solo se permite el inicio de sesión con SSO. El inicio de sesión y registro con contraseña se bloquean.',
   'admin.tabs.permissions': 'Permisos',
   'admin.notifications.emailPanel.title': 'Email (SMTP)',
   'admin.notifications.webhookPanel.title': 'Webhook',
+  'admin.notifications.webPushPanel.title': 'Web Push',
+  'admin.notifications.webPushPanel.hint':
+    'Permite a los usuarios recibir notificaciones en sus teléfonos y ordenadores a través del navegador, incluso con TREK cerrado. Requiere HTTPS; en iPhone y iPad, TREK tiene que añadirse a la pantalla de inicio.',
   'admin.notifications.inappPanel.title': 'In-App',
   'admin.notifications.inappPanel.hint':
     'Las notificaciones in-app siempre están activas y no se pueden desactivar globalmente.',
@@ -677,6 +783,12 @@ const admin: TranslationStrings = {
     'El Ntfy de admin siempre se activa cuando hay un tema configurado',
   'admin.notifications.adminNotificationsHint':
     'Configura qué canales entregan notificaciones de admin (ej. alertas de versión). El webhook se activa automáticamente si hay una URL de webhook de admin configurada.',
+  'admin.notificationDefaults.title': 'Valores predeterminados para usuarios',
+  'admin.notificationDefaults.hint': 'Cómo empiezan las notificaciones de cada usuario. "Desactivado" el usuario aún puede activarlo; "Bloqueado" lo desactiva para todos y aparece bloqueado en su configuración. Se aplica a quien no haya cambiado la celda.',
+  'admin.notificationDefaults.on': 'Activado',
+  'admin.notificationDefaults.off': 'Desactivado',
+  'admin.notificationDefaults.blocked': 'Bloqueado',
+  'admin.notificationDefaults.cycle': 'Haz clic para cambiar a: {next}',
   'admin.notifications.tripReminders.title': 'Recordatorios de viaje',
   'admin.notifications.tripReminders.hint':
     'Envía una notificación de recordatorio antes de que comience un viaje (requiere días de recordatorio configurados en el viaje).',
@@ -732,5 +844,9 @@ const admin: TranslationStrings = {
   'admin.invite.tripHint':
     'El nuevo usuario se añade automáticamente a este viaje cuando se registra mediante el enlace.',
   'admin.invite.boundTo': 'se añade a {trip}',
+  'admin.placesUsageTitle': 'Para qué se usa la clave',
+  'admin.mapsKeyHintShort': 'Añade fotos, valoraciones y horarios. Cada consulta pasa entonces por Google.',
+  'admin.amapKeyHintShort': 'Para la búsqueda de lugares en China continental. Necesita una clave de servicio web, no de API JS.',
+  'admin.collab.links.subtitle': 'Enlaces compartidos y marcadores',
 };
 export default admin;

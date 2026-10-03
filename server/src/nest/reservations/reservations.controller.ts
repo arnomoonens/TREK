@@ -26,7 +26,7 @@ import {
 type ReservationBody = Record<string, unknown> & {
   title?: string;
   type?: string;
-  create_budget_entry?: { total_price?: number; category?: string };
+  create_budget_entry?: { total_price?: number; category?: string; currency?: string | null };
 };
 
 /**
@@ -61,7 +61,7 @@ export class ReservationsController {
 
   @RequirePermission('reservation_edit')
   @Post()
-  create(
+  async create(
     @CurrentUser() user: User,
     @Param('tripId') tripId: string,
     @Body() rawBody: ReservationCreateDto,
@@ -69,11 +69,14 @@ export class ReservationsController {
   ) {
     const body = rawBody as ReservationBody & { title: string };
     this.rejectForeignReferences(tripId, body);
+    // Before the synchronous writes: the price keeps the currency it was quoted in,
+    // at a rate frozen now (#2525).
+    const budgetEntry = await this.reservations.withFrozenRate(tripId, body.create_budget_entry);
     const { reservation, accommodationCreated } = this.reservations.create(tripId, body as never);
     if (accommodationCreated) {
       this.reservations.broadcast(tripId, 'accommodation:created', {}, socketId);
     }
-    this.reservations.syncBudgetOnCreate(tripId, reservation.id, body.title, body.type, body.create_budget_entry, socketId);
+    this.reservations.syncBudgetOnCreate(tripId, reservation.id, body.title, body.type, budgetEntry, socketId);
     this.reservations.broadcast(tripId, 'reservation:created', { reservation }, socketId);
     this.reservations.notifyBookingChange(tripId, user.id, body.title, body.type ?? '');
     return { reservation };
@@ -150,15 +153,15 @@ export class ReservationsController {
     @Param('id') id: string,
     @Headers('x-socket-id') socketId?: string,
   ) {
-    const { deleted, accommodationDeleted, deletedBudgetItemId } = this.reservations.remove(id, tripId);
+    const { deleted, accommodationDeleted, deletedBudgetItemIds } = this.reservations.remove(id, tripId);
     if (!deleted) {
       throw new HttpException({ error: 'Reservation not found' }, 404);
     }
     if (accommodationDeleted) {
       this.reservations.broadcast(tripId, 'accommodation:deleted', { accommodationId: deleted.accommodation_id }, socketId);
     }
-    if (deletedBudgetItemId) {
-      this.reservations.broadcast(tripId, 'budget:deleted', { itemId: deletedBudgetItemId }, socketId);
+    for (const itemId of deletedBudgetItemIds) {
+      this.reservations.broadcast(tripId, 'budget:deleted', { itemId }, socketId);
     }
     this.reservations.broadcast(tripId, 'reservation:deleted', { reservationId: Number(id) }, socketId);
     this.reservations.notifyBookingChange(tripId, user.id, deleted.title, deleted.type || '');
@@ -172,11 +175,22 @@ export class ReservationsController {
    * and a foreign accommodation_id used to be stored verbatim and deleted with
    * the reservation. The MCP tools have refused foreign ids since they were
    * written; this is the REST half of the same rule.
+   *
+   * Two questions, two answers. Reaching into another trip is the older one and
+   * keeps its wording. An id that resolves to nothing at all is the other half
+   * of the same rule — it used to reach the statement and come back as the bare
+   * 500 SQLite's foreign keys produce (#2355) — and saying "not part of this
+   * trip" about an id that is part of nothing would send the caller looking in
+   * the wrong place.
    */
   private rejectForeignReferences(tripId: string, body: ReservationBody): void {
     const offenders = this.reservations.referencesOutsideTrip(tripId, body as never);
     if (offenders.length > 0) {
       throw new HttpException({ error: `Not part of this trip: ${offenders.join(', ')}` }, 400);
+    }
+    const unknown = this.reservations.unresolvedReferences(tripId, body as never);
+    if (unknown.length > 0) {
+      throw new HttpException({ error: `Unknown reference: ${unknown.join(', ')}` }, 400);
     }
   }
 }

@@ -14,12 +14,14 @@ const trip: TranslationStrings = {
   'trip.loading': 'Utazás betöltése...',
   'trip.mobilePlan': 'Tervezés',
   'trip.mobilePlaces': 'Helyek',
+  'trip.panelWidth': 'Panel szélessége',
   'trip.toast.placeUpdated': 'Hely frissítve',
   'trip.toast.tripUpdated': 'Utazás frissítve',
   'trip.toast.placeAdded': 'Hely hozzáadva',
   'trip.toast.placeDeleted': 'Hely törölve',
   'trip.toast.selectDay': 'Kérjük, először válassz egy napot',
   'trip.toast.assignedToDay': 'Hely hozzárendelve a naphoz',
+  'trip.toast.loadError': 'Az utazást nem sikerült betölteni',
   'trip.toast.reorderError': 'Nem sikerült átrendezni',
   'trip.toast.reservationUpdated': 'Foglalás frissítve',
   'trip.toast.reservationAdded': 'Foglalás hozzáadva',
@@ -63,6 +65,7 @@ const trip: TranslationStrings = {
   'transit.search': 'Keresés',
   'transit.searching': 'Keresés…',
   'transit.searchError': 'Az útvonalkeresés nem sikerült. Kérjük, próbáld újra.',
+  'transit.noResultsVia': 'Nem található összeköttetés a következőn keresztül: {provider}. Próbálj más időpontot vagy szűrőket.',
   'transit.noResults': 'Nem található kapcsolat. Próbálj másik időpontot vagy szűrőket.',
   'transit.direct': 'Közvetlen',
   'transit.transfers': '{count} átszállás',
@@ -88,5 +91,10 @@ const trip: TranslationStrings = {
   'transit.walkLabel': 'Gyaloglás',
   'transit.searchHint':
     'Keress valós összeköttetéseket, és add hozzá őket közvetlenül a naphoz – adatok a Transitous révén.',
+  'trip.confirm.deletePlaceNight': 'Ezzel a(z) „{name}” helyen foglalt szállás is törlődik.',
+  'trip.confirm.deletePlaceBooked':
+    'Ezzel a(z) „{name}” helyen foglalt szállás, a(z) „{booking}” foglalás és a hozzá kapcsolt kiadások is törlődnek.',
+  'trip.confirm.deletePlaceBookedSame':
+    'Ezzel a(z) „{name}” helyen foglalt szállás, a foglalása és a hozzá kapcsolt kiadások is törlődnek.',
 };
 export default trip;

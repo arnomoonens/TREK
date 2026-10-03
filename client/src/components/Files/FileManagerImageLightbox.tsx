@@ -8,6 +8,10 @@ import { getAuthUrl } from '../../api/authUrl'
 import { openFile as openFileUrl } from '../../utils/fileDownload'
 import { fileErrorMessage, triggerDownload, isVideo } from './FileManager.helpers'
 import VideoPlayer from '../Journey/VideoPlayerLazy'
+import { Tooltip } from '../shared/Tooltip'
+
+/** The round buttons on the dark backdrop, the same as the note preview's. */
+const LIGHTBOX_BTN = 'grid h-9 w-9 place-items-center rounded-full bg-[rgba(255,255,255,0.12)] text-[rgba(255,255,255,0.85)] hover:bg-[rgba(255,255,255,0.22)]' // theme-lint-disable: the lightbox is dark in every scheme
 
 // Image lightbox with gallery navigation
 interface ImageLightboxProps {
@@ -19,6 +23,8 @@ interface ImageLightboxProps {
 export function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
   const { t } = useTranslation()
   const toast = useToast()
+  const toastRef = useRef(toast)
+  toastRef.current = toast
   const [index, setIndex] = useState(initialIndex)
   const [imgSrc, setImgSrc] = useState('')
   const [touchStart, setTouchStart] = useState<number | null>(null)
@@ -27,21 +33,20 @@ export function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxPro
   const fileIsVideo = isVideo(file?.mime_type)
 
   useEffect(() => {
-    let current = true
     setImgSrc('')
     // Images use a one-shot signed URL; a video must use the plain same-origin
     // URL (cookie auth) so its many Range requests all authenticate (#823).
-    if (!file) return
-    const resolve = !isVideo(file.mime_type) ? getAuthUrl(file.url, 'download') : null
-    resolve?.then(u => {
+    if (!file || isVideo(file.mime_type)) return
+    // Arrowing through the gallery leaves several mints in flight; only the one for
+    // the file still on screen may paint.
+    let current = true
+    void getAuthUrl(file.url, 'download').then(u => {
       if (current) setImgSrc(u)
-    }).catch(error => {
-      if (current) console.error('Failed to resolve image preview:', error)
+    }, error => {
+      if (current) toastRef.current.error(fileErrorMessage(t, error))
     })
-    return () => {
-      current = false
-    }
-  }, [file?.url, file?.mime_type])
+    return () => { current = false }
+  }, [file?.url, file?.mime_type, t])
 
   const goPrev = () => setIndex(i => Math.max(0, i - 1))
   const goNext = () => setIndex(i => Math.min(files.length - 1, i + 1))
@@ -74,6 +79,9 @@ export function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxPro
     </button>
   ) : null
 
+  // A portal, as the two document previews are. Rendered in place, the overlay
+  // sits inside the trip page's stacking context, below the navbar's z-[200],
+  // which then covered the header and its buttons.
   return createPortal(
     <div
       data-testid="file-image-lightbox"
@@ -99,21 +107,25 @@ export function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxPro
           <span style={{ marginLeft: 8, color: 'rgba(255,255,255,0.4)' }}>{index + 1} / {files.length}</span>
         </span>
         <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-          <button type="button"
-            onClick={() => openFileUrl(file.url, file.original_name).catch(error => toast.error(fileErrorMessage(t, error)))}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', display: 'flex', padding: 4 }}
-            title={t('files.openTab')}>
-            <ExternalLink size={16} />
-          </button>
-          <button type="button"
-            onClick={() => triggerDownload(file.url, file.original_name, error => toast.error(fileErrorMessage(t, error)))}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', display: 'flex', padding: 4 }}
-            title={t('files.download') || 'Download'}>
-            <Download size={16} />
-          </button>
-          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', display: 'flex', padding: 4 }}>
-            <X size={18} />
-          </button>
+          <Tooltip label={t('files.openTab')}>
+            <button type="button"
+              onClick={() => openFileUrl(file.url, file.original_name).catch(error => toast.error(fileErrorMessage(t, error)))}
+              aria-label={t('files.openTab')} className={LIGHTBOX_BTN}>
+              <ExternalLink size={16} />
+            </button>
+          </Tooltip>
+          <Tooltip label={t('files.download') || 'Download'}>
+            <button type="button"
+              onClick={() => triggerDownload(file.url, file.original_name, error => toast.error(fileErrorMessage(t, error)))}
+              aria-label={t('files.download') || 'Download'} className={LIGHTBOX_BTN}>
+              <Download size={16} />
+            </button>
+          </Tooltip>
+          <Tooltip label={t('common.close')}>
+            <button type="button" onClick={onClose} aria-label={t('common.close')} className={LIGHTBOX_BTN}>
+              <X size={18} />
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -165,17 +177,15 @@ function ThumbImg({ file, active, onClick }: { file: TripFile & { url: string };
   useEffect(() => {
     if (!visible || fileIsVideo) return
     let current = true
-    getAuthUrl(file.url, 'download').then(u => {
+    void getAuthUrl(file.url, 'download').then(u => {
       if (current) setSrc(u)
-    }).catch(error => {
+    }, error => {
       if (current) {
         setSrc('')
         console.error('Failed to resolve thumbnail:', error)
       }
     })
-    return () => {
-      current = false
-    }
+    return () => { current = false }
   }, [file.url, fileIsVideo, visible])
 
   return (

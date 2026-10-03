@@ -13,6 +13,7 @@ const map: TranslationStrings = {
   'poi.cat.museums': 'Museus i cultura',
   'poi.cat.nature': 'Natura i parcs',
   'poi.cat.activities': 'Activitats',
+  'poi.pluginCategories': 'Categories dels connectors',
   'map.showAllConnections': 'Mostra totes les rutes de reserva',
   'map.hideAllConnections': 'Amaga totes les rutes de reserva',
   'map.baseLayer.default': 'Mapa',
@@ -22,5 +23,13 @@ const map: TranslationStrings = {
   'map.location.denied': 'L’accés a la ubicació està bloquejat. Revisa la configuració del dispositiu; una app instal·lada té el seu propi permís d’ubicació, separat del navegador.',
   'map.location.unavailable': 'No s’ha pogut determinar la teva ubicació.',
   'map.location.timeout': 'La localització ha trigat massa. Torna-ho a provar amb una vista més clara del cel.',
+  'map.overview.show': 'Mostra tot el viatge',
+  'map.lock.lock': 'Bloqueja la vista del mapa',
+  'map.lock.unlock': 'Deixa que el mapa segueixi la selecció',
+  'map.overview.hide': 'Amaga tot el viatge',
+  'map.overview.total': 'Distància total',
+  'map.attribution': 'Crèdits del mapa',
+  'map.overview.unrouted': 'No s’han pogut calcular {count} tram(s), per això les distàncies són incompletes.',
+  'map.overview.dayUnrouted': 'No s’han pogut calcular {count} tram(s) d’aquest dia',
 };
 export default map;

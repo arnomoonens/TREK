@@ -13,6 +13,7 @@ const map: TranslationStrings = {
   'poi.cat.museums': 'Museer och kultur',
   'poi.cat.nature': 'Natur och parker',
   'poi.cat.activities': 'Aktiviteter',
+  'poi.pluginCategories': 'Kategorier från tillägg',
   'map.showAllConnections': 'Visa alla bokningsvägar',
   'map.hideAllConnections': 'Dölj alla bokningsvägar',
   'map.baseLayer.default': 'Karta',
@@ -22,5 +23,13 @@ const map: TranslationStrings = {
   'map.location.denied': 'Platsåtkomst är blockerad. Kontrollera enhetens inställningar; en installerad app har ett eget platstillstånd, skilt från webbläsaren.',
   'map.location.unavailable': 'Din plats kunde inte fastställas.',
   'map.location.timeout': 'Platsbestämningen tog för lång tid. Försök igen med friare sikt mot himlen.',
+  'map.overview.show': 'Visa hela resan',
+  'map.lock.lock': 'Lås kartvyn',
+  'map.lock.unlock': 'Låt kartan följa markeringen',
+  'map.overview.hide': 'Dölj hela resan',
+  'map.overview.total': 'Total sträcka',
+  'map.attribution': 'Kartkällor',
+  'map.overview.unrouted': '{count} delsträcka/or kunde inte beräknas, så avstånden är ofullständiga.',
+  'map.overview.dayUnrouted': '{count} delsträcka/or för den här dagen kunde inte beräknas',
 };
 export default map;

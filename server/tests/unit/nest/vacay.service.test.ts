@@ -309,6 +309,19 @@ describe('updatePlan', () => {
 // ── addHolidayCalendar ────────────────────────────────────────────────────────
 
 describe('addHolidayCalendar', () => {
+  it('validates manual region references for creates and updates', () => {
+    const { plan } = setupUserWithPlan();
+    testDb.prepare("INSERT INTO school_holiday_countries (code, name) VALUES ('US', 'USA')").run();
+    const inserted = testDb.prepare("INSERT INTO school_holiday_regions (country, name) VALUES ('US', 'Seattle')").run();
+    const code = `US-MANUAL-${inserted.lastInsertRowid}`;
+    const calendar = svc.addHolidayCalendar(plan.id, code, null, undefined, 0, undefined, 'school_holiday');
+    expect(calendar.region).toBe(code);
+    expect(svc.updateHolidayCalendar(calendar.id, plan.id, { label: 'School' }, undefined)?.region).toBe(code);
+    expect(() => svc.updateHolidayCalendar(calendar.id, plan.id, { type: 'public_holiday' }, undefined)).toThrow('Unknown manual');
+    for (const region of ['US-MANUAL-0', 'US-MANUAL-999999', `CA-MANUAL-${inserted.lastInsertRowid}`]) {
+      expect(() => svc.addHolidayCalendar(plan.id, region, null, undefined, 0, undefined, 'school_holiday')).toThrow('Unknown manual');
+    }
+  });
   it('VACAY-SVC-019: inserts a new calendar row and returns the calendar object', () => {
     const { plan } = setupUserWithPlan();
 
@@ -681,6 +694,38 @@ describe('toggleCompanyHoliday', () => {
       .prepare('SELECT * FROM vacay_entries WHERE plan_id = ? AND date = ?')
       .get(plan.id, '2025-05-01');
     expect(personalEntry).toBeUndefined();
+  });
+});
+
+describe('half company holidays (#2439)', () => {
+  const entryOf = (planId: number, date: string) =>
+    testDb.prepare('SELECT fraction FROM vacay_entries WHERE plan_id = ? AND date = ?').get(planId, date) as { fraction: number } | undefined;
+  const holidayOf = (planId: number, date: string) =>
+    testDb.prepare('SELECT fraction FROM vacay_company_holidays WHERE plan_id = ? AND date = ?').get(planId, date) as { fraction: number } | undefined;
+
+  it('VACAY-SVC-036b: a half company holiday halves a whole vacation day instead of wiping it', () => {
+    const { user, plan } = setupUserWithPlan();
+    svc.toggleEntry(user.id, plan.id, '2025-12-24', 1);
+    expect(svc.toggleCompanyHoliday(plan.id, '2025-12-24', 'Christmas Eve', undefined, 0.5)).toEqual({ action: 'added', fraction: 0.5 });
+    expect(entryOf(plan.id, '2025-12-24')?.fraction).toBe(0.5);
+    expect(holidayOf(plan.id, '2025-12-24')?.fraction).toBe(0.5);
+  });
+
+  it('VACAY-SVC-036c: the other size converts the holiday, the same size clears it', () => {
+    const { user, plan } = setupUserWithPlan();
+    svc.toggleCompanyHoliday(plan.id, '2025-12-31', undefined, undefined, 0.5);
+    svc.toggleEntry(user.id, plan.id, '2025-12-31', 0.5);
+    expect(svc.toggleCompanyHoliday(plan.id, '2025-12-31', undefined, undefined, 1)).toEqual({ action: 'updated', fraction: 1 });
+    expect(entryOf(plan.id, '2025-12-31')).toBeUndefined();
+    expect(svc.toggleCompanyHoliday(plan.id, '2025-12-31', undefined, undefined, 1)).toEqual({ action: 'removed' });
+    expect(holidayOf(plan.id, '2025-12-31')).toBeUndefined();
+  });
+
+  it('VACAY-SVC-036d: leave on a half company holiday is half a day, whatever was asked', () => {
+    const { user, plan } = setupUserWithPlan();
+    testDb.prepare('UPDATE vacay_plans SET company_holidays_enabled = 1 WHERE id = ?').run(plan.id);
+    svc.toggleCompanyHoliday(plan.id, '2025-12-24', undefined, undefined, 0.5);
+    expect(svc.toggleEntry(user.id, plan.id, '2025-12-24', 1)).toMatchObject({ action: 'added', fraction: 0.5 });
   });
 });
 
@@ -1469,7 +1514,7 @@ describe('getSharedCalendars', () => {
 
     const calendars = svc.getSharedCalendars(viewer.id, '2025');
 
-    expect(calendars[0].companyHolidays).toEqual([{ date: '2025-12-24' }]);
+    expect(calendars[0].companyHolidays).toEqual([{ date: '2025-12-24', fraction: 1 }]);
   });
 
   it('VACAY-SVC-065: an owner without any plan yields empty arrays (no lazy creation)', () => {

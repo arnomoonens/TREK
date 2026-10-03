@@ -1351,8 +1351,8 @@ export function createMockHost(opts: MockHostOptions = {}): MockHost {
           }
           return rows(t.files).filter((file) =>
             file.deleted_at == null
-            && Array.isArray(file.linked_expense_ids)
-            && file.linked_expense_ids.includes(expenseId),
+            && Array.isArray(file.linked_budget_item_ids)
+            && file.linked_budget_item_ids.includes(expenseId),
           ) as TripFile[];
         },
         async attachFile(tripId, expenseId, fileId) {
@@ -1361,9 +1361,9 @@ export function createMockHost(opts: MockHostOptions = {}): MockHost {
           if (file.deleted_at != null) {
             throw new Error(`RESOURCE_FORBIDDEN: no live file ${fileId} on trip ${tripId}`);
           }
-          const links = Array.isArray(file.linked_expense_ids) ? file.linked_expense_ids : [];
+          const links = Array.isArray(file.linked_budget_item_ids) ? file.linked_budget_item_ids : [];
           if (!links.includes(expenseId)) {
-            file.linked_expense_ids = [...links, expenseId];
+            file.linked_budget_item_ids = [...links, expenseId];
             const timestamps = file.expense_attachment_created_at && typeof file.expense_attachment_created_at === 'object'
               ? { ...(file.expense_attachment_created_at as Record<string, string>) }
               : {};
@@ -1375,8 +1375,8 @@ export function createMockHost(opts: MockHostOptions = {}): MockHost {
         async detachFile(tripId, expenseId, fileId) {
           needMethod('costs.detachFile');
           const file = prepareExpenseFileMutation(tripId, expenseId, fileId);
-          const links = Array.isArray(file.linked_expense_ids) ? file.linked_expense_ids : [];
-          file.linked_expense_ids = links.filter((id) => id !== expenseId);
+          const links = Array.isArray(file.linked_budget_item_ids) ? file.linked_budget_item_ids : [];
+          file.linked_budget_item_ids = links.filter((id) => id !== expenseId);
           if (file.expense_attachment_created_at && typeof file.expense_attachment_created_at === 'object') {
             const timestamps = { ...(file.expense_attachment_created_at as Record<string, string>) };
             delete timestamps[String(expenseId)];

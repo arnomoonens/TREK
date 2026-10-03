@@ -17,8 +17,10 @@ import {
   AssignmentReorderDto,
   AssignmentMoveDto,
   AssignmentTimeDto,
+  AssignmentEndDayDto,
   AssignmentNotesDto,
   AssignmentTransportDto,
+  AssignmentRouteDto,
   AssignmentParticipantsDto,
 } from './assignments.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -90,6 +92,26 @@ export class DayAssignmentsController {
     this.assignments.reorderAssignments(dayId, body.orderedIds);
     this.assignments.broadcast(tripId, 'assignment:reordered', { dayId: Number(dayId), orderedIds: body.orderedIds }, socketId);
     return { success: true };
+  }
+
+  // Declared before ':id' so the bare collection path is never read as an id (#2470).
+  @RequirePermission('day_edit')
+  @Delete()
+  clear(
+    @CurrentUser() user: User,
+    @Param('tripId') tripId: string,
+    @Param('dayId') dayId: string,
+    @Headers('x-socket-id') socketId?: string,
+  ) {
+    if (!this.assignments.dayExists(dayId, tripId)) {
+      throw new HttpException({ error: 'Day not found' }, 404);
+    }
+    const removedIds = this.assignments.clearDay(dayId);
+    for (const assignmentId of removedIds) {
+      this.assignments.broadcast(tripId, 'assignment:deleted', { assignmentId, dayId: Number(dayId) }, socketId);
+    }
+    if (removedIds.length > 0) this.assignments.reconcile(tripId, socketId);
+    return { success: true, removedIds };
   }
 
   @RequirePermission('day_edit')
@@ -166,9 +188,34 @@ export class AssignmentOpsController {
     if (!this.assignments.getAssignmentForTrip(id, tripId)) {
       throw new HttpException({ error: 'Assignment not found' }, 404);
     }
-    const assignment = this.assignments.updateTime(id, body.place_time, body.end_time);
+    const { assignment, reordered, vias } = this.assignments.updateTime(id, body.place_time, body.end_time);
     this.assignments.broadcast(tripId, 'assignment:updated', { assignment }, socketId);
+    // The whole day when a start moved stops, or collaborators apply the one row
+    // they were sent to their old order and end up with a third one.
+    //
+    // Both to every socket, the writer's included, so the order and the vias pinned
+    // to it arrive together. The planner holds its vias in memory and would route the
+    // new anchors on the old order until its reload of the day came back, and a save
+    // replayed from the offline queue has no reload after it at all.
+    if (reordered) this.assignments.broadcast(tripId, 'assignment:reordered', reordered, undefined);
+    if (vias) this.assignments.broadcast(tripId, 'roadtripVia:changed', vias, undefined);
     this.assignments.reconcile(tripId, socketId);
+    return { assignment };
+  }
+
+  @RequirePermission('day_edit')
+  @Put(':id/end-day')
+  endDay(
+    @Param('tripId') tripId: string,
+    @Param('id') id: string,
+    @Body() body: AssignmentEndDayDto,
+    @Headers('x-socket-id') socketId?: string,
+  ) {
+    if (!this.assignments.getAssignmentForTrip(id, tripId)) {
+      throw new HttpException({ error: 'Assignment not found' }, 404);
+    }
+    const assignment = this.assignments.setEndDay(id, body.end_day);
+    this.assignments.broadcast(tripId, 'assignment:updated', { assignment }, socketId);
     return { assignment };
   }
 
@@ -207,6 +254,23 @@ export class AssignmentOpsController {
     const assignment = body.direction === 'incoming'
       ? this.assignments.setIncomingLegTransportMode(id, body.transport_mode ?? null)
       : this.assignments.setLegTransportMode(id, body.transport_mode ?? null);
+    this.assignments.broadcast(tripId, 'assignment:updated', { assignment }, socketId);
+    return { assignment };
+  }
+
+  @RequirePermission('day_edit')
+  @Put(':id/route')
+  route(
+    @CurrentUser() user: User,
+    @Param('tripId') tripId: string,
+    @Param('id') id: string,
+    @Body() body: AssignmentRouteDto,
+    @Headers('x-socket-id') socketId?: string,
+  ) {
+    if (!this.assignments.getAssignmentForTrip(id, tripId)) {
+      throw new HttpException({ error: 'Assignment not found' }, 404);
+    }
+    const assignment = this.assignments.setRouteExcluded(id, body.excluded);
     this.assignments.broadcast(tripId, 'assignment:updated', { assignment }, socketId);
     return { assignment };
   }

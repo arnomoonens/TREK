@@ -48,6 +48,8 @@ Days that overlap with any of your existing TREK trips are marked with a small b
 
 You can also switch the calendar toolbar to **Company** mode to mark shared company holidays, which are highlighted in amber and do not deduct from personal allowances.
 
+A company holiday can be a half day too (a free afternoon, say): switch on **Half day** while in **Company** mode before clicking the day. A half company holiday is drawn half filled and leaves room for half a day of leave, so a vacation day logged on it costs only 0.5. Clicking the same day with the same size again removes the company holiday, and the other size converts it. Turning a day into a whole company holiday removes any leave logged on it; making it a half one shortens a full day of leave to a half.
+
 ### Half days and comp days
 
 Two toggles in the toolbar change what a click logs. They are independent, so they combine:
@@ -60,12 +62,22 @@ Each toggle's icon in the toolbar is the marker it places, so you can see what a
 **Settings** (gear icon) let you configure:
 
 - **Block weekends** — prevents logging on weekend days. You choose which days count as the weekend.
-- **Week start** — Monday or Sunday.
+- **Week starts on**: Monday or Sunday. This one is per plan and applies to the Vacay calendar only; every other calendar in TREK follows **Week starts on** under Settings > General > Language & region.
 - **Carry-over** — toggle as described above.
 - **Vacation year** — Calendar, Fiscal or Hire date, as described under Leave year above. Unlike the rest of this panel it is personal to you rather than to the plan.
 - **Company holidays** — enable a shared company holiday layer that any fused user can edit.
 - **Public holidays** — add one or more country/region holiday calendars so that public holidays appear on the grid. Holiday data is fetched from the nager.at public holiday API. Each calendar has a label, a colour, and a country or region selector (sub-national regions such as German states or Swiss cantons are supported).
-- **School holidays** — a second holiday layer with its own toggle, independent of the public one and purely visual. Each calendar has an optional label, a colour and a country; where the source splits a country up you also pick a region (a German state, a Swiss canton, a French académie) or a school holiday group (Belgium, the Netherlands), and the calendar cannot be added until you have. A few countries publish a single national calendar (Estonia, Ireland, Serbia) and need nothing beyond the country. School holiday data comes from the OpenHolidays API rather than nager.at and covers fewer countries, so only the supported ones appear in the picker. On the grid a school holiday day gets a coloured band along the bottom of the cell, split into up to three segments when several calendars cover the same day, and a day inside a break that carries nothing else (no logged entry, no company holiday, no public holiday) is washed in the calendar colour. School holidays never deduct from anyone's allowance.
+- **School holidays**: a second holiday layer with its own toggle, independent of the public one and purely visual. Each calendar has an optional label, a colour and a country; where the source splits a country up you also pick a region (a German state, a Swiss canton, a French académie) or a school holiday group (Belgium, the Netherlands), and the calendar cannot be added until you have. A few countries publish a single national calendar (Estonia, Ireland, Serbia) and need nothing beyond the country. School holiday data comes from OpenHolidays or from the manual regions maintained by your administrator. The picker includes both sources. On the grid a school holiday day gets a coloured band along the bottom of the cell, split into up to three segments when several calendars cover the same day, and a day inside a break that carries nothing else (no logged entry, no company holiday, no public holiday) is washed in the calendar colour. School holidays never deduct from anyone's allowance.
+
+## Manually maintained school holidays
+
+Administrators manage the shared catalog under **Admin > Personalization > School holidays**. Add a country with its two-letter country code (for example, US or CA), then add a region or school district. Open a region to name its breaks and enter their start and end dates. Both dates are inclusive, and a break can cross New Year. Add the actual dates for each school year; periods do not repeat automatically.
+
+Users enable **School holidays** in Vacay settings, add a calendar, and select the country and manual region. This uses no external holiday API. Supported automatic calendars remain available alongside manual regions. A manual region can also be added to an API-supported country. The bottom editing toolbar is unchanged, and school holidays never consume leave entitlement.
+
+The catalog belongs to the whole instance. Renaming a region keeps existing calendar selections intact. A region used by a calendar cannot be deleted, and countries must be empty before deletion. Concurrent edits are rejected instead of overwriting another administrator's work. Administration requires an internet connection. Reopen vacation settings to refresh the region list after an administrator changes it.
+
+> **AI / MCP:** Use `list_manual_school_holiday_regions` to discover regions, then pass `regions[].code` to `add_holiday_calendar` with type `school_holiday`. Read dated periods with `list_manual_school_holidays`. Administrators can also create countries and regions through `create_manual_school_holiday_country` and `create_manual_school_holiday_region`. Use `get_manual_school_holiday_region` before `update_manual_school_holiday_region`: send its current revision and the full list of periods to keep. The update can rename the region and add, change or remove periods. `delete_manual_school_holiday_region` and `delete_manual_school_holiday_country` enforce the same deletion restrictions as the admin UI. These global changes require an admin account; normal users can read the catalog and manage their own calendar selections.
 
 ## Inviting collaborators
 

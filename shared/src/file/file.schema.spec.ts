@@ -37,7 +37,7 @@ describe('tripFileSchema', () => {
       created_at: '2026-08-30 10:00:00',
       url: '/api/trips/2/files/4/download',
       linked_reservation_ids: [9],
-      linked_expense_ids: [12],
+      linked_budget_item_ids: [12],
       expense_attachment_created_at: { '12': '2026-08-30 10:00:00' },
     }).success).toBe(true);
   });

@@ -26,8 +26,32 @@ export const mapsSearchRequestSchema = z.object({
   // foreign-region queries. z.number() is finite-only (zod v4), matching the
   // legacy Number.isFinite() check; radius was never validated beyond "number".
   locationBias: latLng.extend({ radius: z.number().optional() }).optional(),
+  /**
+   * Ask one provider alone for this search. The index and OpenStreetMap answer
+   * first by default and Google is only asked when they find nothing; a caller
+   * whose results were not the place they meant can send the same query to
+   * Google instead. Ignored unless Google holds the keyed slot: without a
+   * Google key, or with Amap or OpenStreetMap picked as the places provider,
+   * the index and OpenStreetMap answer as usual.
+   */
+  provider: z.enum(['google']).optional(),
 });
 export type MapsSearchRequest = z.infer<typeof mapsSearchRequestSchema>;
+
+/**
+ * Places of any kind around a point, nearest first (#976). No category and no
+ * box: the circle is the question. Both are capped, because the Google path
+ * bills per call and a city centre has more named places than anyone reads.
+ */
+export const mapsNearbyRequestSchema = z.object({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  /** Metres, 500 when left out. */
+  radius: z.number().int().min(50).max(5000).optional(),
+  /** How many places, 20 when left out. */
+  limit: z.number().int().min(1).max(20).optional(),
+});
+export type MapsNearbyRequest = z.infer<typeof mapsNearbyRequestSchema>;
 
 export const mapsAutocompleteRequestSchema = z.object({
   input: z.string().min(1).max(200),
@@ -39,7 +63,10 @@ export const mapsAutocompleteRequestSchema = z.object({
    * characters; anything else is dropped rather than forwarded, so a bad token
    * degrades to per-request billing instead of failing the search.
    */
-  sessionToken: z.string().regex(/^[A-Za-z0-9_-]{1,36}$/).optional(),
+  sessionToken: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{1,36}$/)
+    .optional(),
 });
 export type MapsAutocompleteRequest = z.infer<typeof mapsAutocompleteRequestSchema>;
 
@@ -68,6 +95,26 @@ export const mapsAutocompleteSuggestionSchema = z.object({
   placeId: z.string(),
   mainText: z.string(),
   secondaryText: z.string(),
+  /**
+   * Which index this one row came from, when the answer is more than one index
+   * interleaved. The list-level `source` cannot say it: the keystroke path asks
+   * the TREK index and the OpenStreetMap layer together, so a single name above
+   * the list marks half the rows wrong.
+   *
+   * Optional because Google and the Nominatim fallback each answer from one
+   * place, and a row that names no source falls back to the list's.
+   */
+  source: z.string().optional(),
+  /**
+   * Where the place is, when the index that answered already said so.
+   *
+   * The OpenStreetMap layer returns coordinates with every row, and throwing
+   * them away here cost the client a second round trip on every pick — and,
+   * when that round trip failed, a text search built out of a name and its
+   * local spelling, which is not a query anybody would type.
+   */
+  lat: z.number().optional(),
+  lng: z.number().optional(),
 });
 export const mapsAutocompleteResultSchema = z.object({
   suggestions: z.array(mapsAutocompleteSuggestionSchema),
@@ -131,7 +178,14 @@ export const placePhotoCandidateSchema = z.object({
 });
 export type PlacePhotoCandidate = z.infer<typeof placePhotoCandidateSchema>;
 
-export const placeDescriptionSourceSchema = z.enum(['google', 'osm', 'wikivoyage', 'wikipedia']);
+export const placeDescriptionSourceSchema = z.enum([
+  'google',
+  'osm',
+  'wikivoyage',
+  'wikipedia',
+  /** Quoted from the place's own site, via the TREK Places API. */
+  'website',
+]);
 export type PlaceDescriptionSource = z.infer<typeof placeDescriptionSourceSchema>;
 
 export const placeDescriptionSchema = z.object({
@@ -246,7 +300,12 @@ export const mapsPlaceEnrichmentRequestSchema = z.object({
    * again is not cheap: an Overpass lookup for a large relation was measured at
    * 12.8 seconds. Passing them along turns a second slow round trip into none.
    * Only the tags are read, and the wiki tag is re-validated before use, so a
-   * doctored payload can at worst mislead the user who sent it.
+   * doctored payload can at worst mislead the user who sent it. That holds for
+   * the cache too: an answer whose description or links were read off these
+   * details is served to this caller and not written to the per-instance
+   * enrichment cache, and the index's own description is fetched from the
+   * index rather than taken from here, so nothing a sender puts in this record
+   * reaches another user's screen.
    */
   details: z.record(z.string(), z.unknown()).optional(),
 });

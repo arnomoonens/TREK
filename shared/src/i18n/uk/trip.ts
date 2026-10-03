@@ -18,12 +18,14 @@ const trip: TranslationStrings = {
   'trip.loadingSteps.arrive': 'Майже на місці...',
   'trip.mobilePlan': 'План',
   'trip.mobilePlaces': 'Місця',
+  'trip.panelWidth': 'Ширина панелі',
   'trip.toast.placeUpdated': 'Місце оновлено',
   'trip.toast.tripUpdated': 'Подорож оновлено',
   'trip.toast.placeAdded': 'Місце додано',
   'trip.toast.placeDeleted': 'Місце видалено',
   'trip.toast.selectDay': 'Спочатку виберіть день',
   'trip.toast.assignedToDay': 'Місце призначено на день',
+  'trip.toast.loadError': 'Не вдалося завантажити подорож',
   'trip.toast.reorderError': 'Помилка зміни порядку',
   'trip.toast.reservationUpdated': 'Бронювання оновлено',
   'trip.toast.reservationAdded': 'Бронювання додано',
@@ -63,6 +65,7 @@ const trip: TranslationStrings = {
   'transit.search': 'Пошук',
   'transit.searching': 'Пошук…',
   'transit.searchError': 'Не вдалося знайти маршрут. Спробуйте ще раз.',
+  'transit.noResultsVia': 'Через {provider} сполучень не знайдено. Спробуйте інший час або фільтри.',
   'transit.noResults': "З'єднань не знайдено. Спробуйте інший час або фільтри.",
   'transit.direct': 'Прямий',
   'transit.transfers': 'Пересадок: {count}',
@@ -86,5 +89,10 @@ const trip: TranslationStrings = {
   'transit.transfersLabel': 'Пересадки',
   'transit.walkLabel': 'Пішки',
   'transit.searchHint': 'Шукайте справжні маршрути та додавайте їх одразу до дня — дані від Transitous.',
+  'trip.confirm.deletePlaceNight': 'Також буде видалено проживання, заброньоване в «{name}».',
+  'trip.confirm.deletePlaceBooked':
+    'Також буде видалено проживання, заброньоване в «{name}», бронювання «{booking}» і пов’язані витрати.',
+  'trip.confirm.deletePlaceBookedSame':
+    'Також буде видалено проживання, заброньоване в «{name}», його бронювання і пов’язані витрати.',
 };
 export default trip;

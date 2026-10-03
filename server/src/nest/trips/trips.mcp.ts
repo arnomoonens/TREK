@@ -12,9 +12,10 @@ import { CalendarService } from '../calendar/calendar.service';
 import { TripMembersService } from '../trip-members/trip-members.service';
 import { TripReadModelService } from '../trip-read-model/trip-read-model.service';
 import { ADDON_IDS } from '../../addons';
-import { MAX_MCP_TRIP_DAYS, noAccess, permissionDenied } from '../../mcp/tools/_shared';
+import { noAccess, permissionDenied } from '../../mcp/tools/_shared';
 import { canRead, canReadTrips, canDeleteTrips } from '../../mcp/scopes';
-import { TripsService, MAX_TRIP_DAYS, NotFoundError, ValidationError } from './trips.service';
+import { MAX_TRIP_DAYS } from '@trek/shared';
+import { TripsService, NotFoundError, ValidationError } from './trips.service';
 import { TodoService } from '../todo/todo.service';
 import { CollabService } from '../collab/collab.service';
 import { AddonsService } from '../addons/addons.service';
@@ -81,13 +82,13 @@ export class TripsMcp {
 
   @Tool({
     name: 'create_trip',
-    description: 'Create a new trip. Returns the created trip with its generated days.',
+    description: 'Create a new trip. Returns the created trip; its day_count is the number of days generated, one per day of the date range.',
     inputSchema: {
       title: z.string().min(1).max(200).describe('Trip title'),
       description: z.string().max(2000).optional().describe('Trip description'),
       start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('Start date (YYYY-MM-DD)'),
       end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('End date (YYYY-MM-DD)'),
-      currency: z.string().length(3).optional().describe('Currency code (e.g. EUR, USD)'),
+      currency: z.string().length(3).optional().describe('Currency code (e.g. EUR, USD). Left out, the trip takes the display currency from the settings (see get_display_settings), or EUR when none is set.'),
       day_count: z.number().int().min(1).max(MAX_TRIP_DAYS).optional().describe(
         'How many days a trip without dates gets (default 7). Ignored when start_date and end_date are both set, because the range decides the count.'),
       reminder_days: z.number().int().min(0).max(30).optional().describe(
@@ -117,13 +118,18 @@ export class TripsMcp {
     if (start_date && end_date && new Date(end_date) < new Date(start_date)) {
       return { content: [{ type: 'text' as const, text: 'End date must be after start date.' }], isError: true };
     }
-    const { trip } = this.trips.create(ctx.userId, { title, description, start_date, end_date, currency, day_count, reminder_days }, MAX_MCP_TRIP_DAYS);
-    return ok({ trip });
+    try {
+      const { trip } = this.trips.create(ctx.userId, { title, description, start_date, end_date, currency, day_count, reminder_days });
+      return ok({ trip });
+    } catch (err) {
+      if (err instanceof ValidationError) return errorResult(err.message);
+      throw err;
+    }
   }
 
   @Tool({
     name: 'update_trip',
-    description: 'Update an existing trip\'s details.',
+    description: 'Update an existing trip\'s details. Shortening a dated trip deletes its last days by position, with their planned places, notes and any stay that checks in or out on them; day plans move with the dates, so a later start with the same end also takes the last days. When a change removed days, the result lists them in removed_days (id, day_number and date as they stood before; reason overflow for a day past the new range, spare for an empty one).',
     inputSchema: {
       tripId: z.number().int().positive(),
       title: z.string().min(1).max(200).optional(),
@@ -177,9 +183,15 @@ export class TripsMcp {
       : { start_date, end_date };
     // update() re-anchors the budget before the trip row moves off the old
     // currency (#1543) and then runs the legacy updateTrip core.
-    const { updatedTrip } = await this.trips.update(tripId, ctx.userId, { title, description, ...dates, currency, is_archived, cover_image, day_count, reminder_days, date_shift_mode }, 'user');
-    this.guards.safeBroadcast(tripId, 'trip:updated', { trip: updatedTrip });
-    return ok({ trip: updatedTrip });
+    try {
+      const { updatedTrip, removedDays } = await this.trips.update(tripId, ctx.userId, { title, description, ...dates, currency, is_archived, cover_image, day_count, reminder_days, date_shift_mode }, 'user');
+      this.guards.safeBroadcast(tripId, 'trip:updated', { trip: updatedTrip });
+      // Only when days went, so the answer to a rename or a longer trip stays as it was.
+      return ok({ trip: updatedTrip, ...(removedDays.length > 0 ? { removed_days: removedDays } : {}) });
+    } catch (err) {
+      if (err instanceof ValidationError) return errorResult(err.message);
+      throw err;
+    }
   }
 
   @Tool({
@@ -253,7 +265,7 @@ export class TripsMcp {
   })
   async getTripSummary({ tripId }: { tripId: number }, ctx: McpContext) {
     if (!this.trips.canAccessTrip(tripId, ctx.userId)) return noAccess();
-    const summary = this.readModel.getTripSummary(tripId, ctx.userId);
+    const summary = await this.readModel.getTripSummary(tripId, ctx.userId);
     if (!summary) return noAccess();
     const R = canReadTrips(ctx.scopes);
     // Addon availability gates
@@ -587,7 +599,7 @@ export class TripsMcp {
     if (!this.trips.canAccessTrip(tripId, ctx.userId)) {
       return { messages: [{ role: 'user' as const, content: { type: 'text' as const, text: 'Trip not found or access denied.' } }] };
     }
-    const summary = this.readModel.getTripSummary(tripId, ctx.userId);
+    const summary = await this.readModel.getTripSummary(tripId, ctx.userId);
     if (!summary) {
       return { messages: [{ role: 'user' as const, content: { type: 'text' as const, text: 'Trip not found.' } }] };
     }

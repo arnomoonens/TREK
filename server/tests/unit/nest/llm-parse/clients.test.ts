@@ -10,6 +10,14 @@ vi.mock('../../../../src/utils/ssrfGuard', () => ({ safeFetchLlm: safeFetchLlmMo
 import { OpenAiCompatibleClient } from '../../../../src/nest/llm-parse/clients/openai-compatible.client';
 import { AnthropicClient } from '../../../../src/nest/llm-parse/clients/anthropic.client';
 import type { LlmExtractionInput } from '../../../../src/nest/llm-parse/llm-provider.interface';
+import {
+  buildReceiptPrompt,
+  RECEIPT_LIST_JSON_SCHEMA,
+  RECEIPT_ROOT_KEY,
+  RECEIPT_USER_TEXT,
+  toReceiptRead,
+} from '../../../../src/nest/llm-parse/receipt-read';
+import { readEnv } from '../../../../src/app-config';
 
 const baseInput: LlmExtractionInput = {
   prompt: 'system',
@@ -64,9 +72,56 @@ describe('OpenAiCompatibleClient', () => {
     expect(out).toEqual([{ '@type': 'LodgingReservation', checkinTime: '2026-08-28T00:00:00', price: 146.25 }]);
   });
 
-  it('returns [] on malformed content', async () => {
-    mockFetch(() => jsonResponse({ choices: [{ message: { content: 'not json' } }] }));
-    expect(await new OpenAiCompatibleClient().extract(baseInput)).toEqual([]);
+  /*
+   * Prose and an honest empty list both came back as `[]`, so a provider that
+   * answered neither JSON nor a reservation looked exactly like a document
+   * holding no booking: no item, no warning, nothing in the log (#2375). Only
+   * what nothing could read throws — a parsed answer that simply holds no
+   * reservation keeps the old empty path.
+   */
+  it('throws on content the lenient parser cannot read (#2375)', async () => {
+    mockFetch(() => jsonResponse({ choices: [{ message: { content: 'I could not find a booking in this document.' } }] }));
+    await expect(new OpenAiCompatibleClient().extract(baseInput)).rejects.toThrow(/did not answer with JSON/);
+
+    mockFetch(() => jsonResponse({ choices: [{ message: { content: '42' } }] }));
+    await expect(new OpenAiCompatibleClient().extract(baseInput)).rejects.toThrow(/did not answer with JSON/);
+  });
+
+  it('throws when the response carries no content at all (#2375)', async () => {
+    mockFetch(() => jsonResponse({ choices: [{ message: { content: '' } }] }));
+    await expect(new OpenAiCompatibleClient().extract(baseInput)).rejects.toThrow(/empty response/);
+
+    // A content filter or a zero-token completion leaves the field off entirely.
+    mockFetch(() => jsonResponse({ choices: [{ message: {} }] }));
+    await expect(new OpenAiCompatibleClient().extract(baseInput)).rejects.toThrow(/empty response/);
+  });
+
+  it('still answers empty for a document that genuinely holds no booking', async () => {
+    for (const content of ['[]', '{"reservations":[]}', '{}', '{"reservations":null}', JSON.stringify('{"reservations":[]}')]) {
+      mockFetch(() => jsonResponse({ choices: [{ message: { content } }] }));
+      expect(await new OpenAiCompatibleClient().extract(baseInput)).toEqual([]);
+    }
+  });
+
+  it('keeps the unreadable response out of the message on a managed instance', async () => {
+    mockFetch(() => jsonResponse({ choices: [{ message: { content: 'Booking for Jane Doe, 12 Rue de Rivoli' } }] }));
+    await expect(new OpenAiCompatibleClient().extract(baseInput)).rejects.toThrow(/Jane Doe/);
+
+    // The response is the booking, and on a managed install the operator's log
+    // is not the place for it — same split as the extracted text.
+    vi.stubEnv('TREK_MANAGED', 'true');
+    try {
+      await expect(new OpenAiCompatibleClient().extract(baseInput)).rejects.toThrow(/did not answer with JSON$/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('reads a single reservation the model answered on its own', async () => {
+    mockFetch(() => jsonResponse({ choices: [{ message: { content: '{"@type":"LodgingReservation","reservationNumber":"733"}' } }] }));
+    expect(await new OpenAiCompatibleClient().extract(baseInput)).toEqual([
+      { '@type': 'LodgingReservation', reservationNumber: '733' },
+    ]);
   });
 
   it('throws on non-2xx', async () => {
@@ -91,6 +146,31 @@ describe('OpenAiCompatibleClient', () => {
     expect(second.response_format).toEqual({ type: 'json_object' });
     expect(second.messages).toEqual(first.messages);
     expect(second.model).toBe(first.model);
+  });
+
+  it('reads a receipt from a server that only takes json_object, going by the prompt alone', async () => {
+    // The server refuses json_schema, so the schema never reaches the model: the
+    // prompt has to name JSON (json_object mode wants the word) and the wrapper
+    // the answer is read under, or a flat receipt comes back as none.
+    safeFetchLlmMock
+      .mockResolvedValueOnce(jsonResponse({ error: { message: 'response_format json_schema is not supported' } }, false, 400))
+      .mockResolvedValueOnce(jsonResponse({
+        choices: [{ message: { content: '{"receipts":[{"merchant":"Café","date":"2026-09-20","total":12.5,"currency":"EUR","items":[]}]}' } }],
+      }));
+    const out = await new OpenAiCompatibleClient().extract({
+      prompt: buildReceiptPrompt(new Date('2026-09-24T10:00:00Z'), true),
+      jsonSchema: RECEIPT_LIST_JSON_SCHEMA,
+      rootKey: RECEIPT_ROOT_KEY,
+      userText: RECEIPT_USER_TEXT,
+      model: 'deepseek-chat',
+      file: { mimeType: 'image/jpeg', data: Buffer.from('jpeg') },
+    });
+
+    const second = JSON.parse((safeFetchLlmMock.mock.calls[1][1] as RequestInit).body as string);
+    expect(second.response_format).toEqual({ type: 'json_object' });
+    expect(second.messages[0].content).toContain('JSON');
+    expect(second.messages[0].content).toContain('{ "receipts": [');
+    expect(toReceiptRead(out[0])).toEqual({ merchant: 'Café', date: '2026-09-20', total: 12.5, currency: 'EUR', items: [] });
   });
 
   it('retries with max_completion_tokens when the model rejects max_tokens (400, #1760)', async () => {
@@ -120,12 +200,103 @@ describe('OpenAiCompatibleClient', () => {
     expect(second.messages).toEqual(first.messages);
   });
 
-  it('throws when the json_object retry also fails (400 twice)', async () => {
+  // #2262 — reasoning models (the gpt-5 family) reject any explicit temperature.
+  // temperature: 0 sat in the shared body, so it went out on every attempt
+  // including both retries, and the import could not succeed at all.
+  const TEMP_400 = { error: { message: "Unsupported value: 'temperature' does not support 0 with this model. Only the default (1) value is supported.", code: 'unsupported_value' } };
+
+  it('drops temperature when the model rejects it (400, #2262)', async () => {
+    safeFetchLlmMock
+      .mockResolvedValueOnce(jsonResponse(TEMP_400, false, 400))
+      .mockResolvedValueOnce(jsonResponse({ choices: [{ message: { content: '{"reservations":[{"@type":"FlightReservation"}]}' } }] }));
+    const out = await new OpenAiCompatibleClient().extract(baseInput);
+    expect(out).toEqual([{ '@type': 'FlightReservation' }]);
+    expect(safeFetchLlmMock).toHaveBeenCalledTimes(2);
+
+    const first = JSON.parse((safeFetchLlmMock.mock.calls[0][1] as RequestInit).body as string);
+    const second = JSON.parse((safeFetchLlmMock.mock.calls[1][1] as RequestInit).body as string);
+    expect(first.temperature).toBe(0);
+    expect('temperature' in second).toBe(false);
+    // Only temperature goes; the schema and the token param are untouched.
+    expect(second.response_format.type).toBe('json_schema');
+    expect(second.max_tokens).toBe(4096);
+  });
+
+  // A gpt-5 rejects both parameters, and the API names one per response. Either
+  // order has to converge, which a chain of one-shot ifs cannot do.
+  it('combines the token-param and temperature remedies, token param named first', async () => {
+    safeFetchLlmMock
+      .mockResolvedValueOnce(jsonResponse({ error: { message: "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead." } }, false, 400))
+      .mockResolvedValueOnce(jsonResponse(TEMP_400, false, 400))
+      .mockResolvedValueOnce(jsonResponse({ choices: [{ message: { content: '{"reservations":[{"@type":"FlightReservation"}]}' } }] }));
+    const out = await new OpenAiCompatibleClient().extract(baseInput);
+    expect(out).toEqual([{ '@type': 'FlightReservation' }]);
+    expect(safeFetchLlmMock).toHaveBeenCalledTimes(3);
+
+    const third = JSON.parse((safeFetchLlmMock.mock.calls[2][1] as RequestInit).body as string);
+    expect(third.max_completion_tokens).toBe(4096);
+    expect('temperature' in third).toBe(false);
+    expect(third.response_format.type).toBe('json_schema');
+  });
+
+  it('combines them the other way round too, temperature named first', async () => {
+    safeFetchLlmMock
+      .mockResolvedValueOnce(jsonResponse(TEMP_400, false, 400))
+      .mockResolvedValueOnce(jsonResponse({ error: { message: "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead." } }, false, 400))
+      .mockResolvedValueOnce(jsonResponse({ choices: [{ message: { content: '{"reservations":[{"@type":"FlightReservation"}]}' } }] }));
+    const out = await new OpenAiCompatibleClient().extract(baseInput);
+    expect(out).toEqual([{ '@type': 'FlightReservation' }]);
+    expect(safeFetchLlmMock).toHaveBeenCalledTimes(3);
+
+    const third = JSON.parse((safeFetchLlmMock.mock.calls[2][1] as RequestInit).body as string);
+    expect(third.max_completion_tokens).toBe(4096);
+    expect('temperature' in third).toBe(false);
+  });
+
+  it('keeps temperature when a 400 only mentions the word in passing', async () => {
+    safeFetchLlmMock
+      .mockResolvedValueOnce(jsonResponse({ error: { message: 'Your prompt mentions temperature but the schema is invalid' } }, false, 400))
+      .mockResolvedValueOnce(jsonResponse({ choices: [{ message: { content: '{"reservations":[]}' } }] }));
+    await new OpenAiCompatibleClient().extract(baseInput);
+
+    const second = JSON.parse((safeFetchLlmMock.mock.calls[1][1] as RequestInit).body as string);
+    // Not a parameter rejection, so it falls through to the json_object retry
+    // with deterministic sampling intact — which is what local models need.
+    expect(second.temperature).toBe(0);
+    expect(second.response_format.type).toBe('json_object');
+  });
+
+  /*
+   * A provider behind a proxy that supports neither grammar rejected both rungs
+   * and the import failed hard, which is what `drop_params` on the proxy side was
+   * being used to work around (#2375). The last attempt sends the request the
+   * proxy would have produced.
+   */
+  it('drops response_format entirely once json_schema and json_object are both refused (#2375)', async () => {
     safeFetchLlmMock
       .mockResolvedValueOnce(jsonResponse({ error: 'no json_schema' }, false, 400))
-      .mockResolvedValueOnce(jsonResponse({ error: 'no json_object either' }, false, 400));
+      .mockResolvedValueOnce(jsonResponse({ error: 'no json_object either' }, false, 400))
+      .mockResolvedValueOnce(jsonResponse({ choices: [{ message: { content: '{"reservations":[{"@type":"FlightReservation"}]}' } }] }));
+    const out = await new OpenAiCompatibleClient().extract(baseInput);
+    expect(out).toEqual([{ '@type': 'FlightReservation' }]);
+    expect(safeFetchLlmMock).toHaveBeenCalledTimes(3);
+
+    const bodies = safeFetchLlmMock.mock.calls.map(c => JSON.parse((c[1] as RequestInit).body as string));
+    expect(bodies[0].response_format.type).toBe('json_schema');
+    expect(bodies[1].response_format).toEqual({ type: 'json_object' });
+    expect('response_format' in bodies[2]).toBe(false);
+    // Only the grammar goes; the prompt, the model and the token cap are untouched.
+    expect(bodies[2].messages).toEqual(bodies[0].messages);
+    expect(bodies[2].max_tokens).toBe(4096);
+  });
+
+  it('throws when the attempt without response_format also fails (400 three times)', async () => {
+    safeFetchLlmMock
+      .mockResolvedValueOnce(jsonResponse({ error: 'no json_schema' }, false, 400))
+      .mockResolvedValueOnce(jsonResponse({ error: 'no json_object either' }, false, 400))
+      .mockResolvedValueOnce(jsonResponse({ error: 'nothing this model accepts' }, false, 400));
     await expect(new OpenAiCompatibleClient().extract(baseInput)).rejects.toThrow(/400/);
-    expect(safeFetchLlmMock).toHaveBeenCalledTimes(2);
+    expect(safeFetchLlmMock).toHaveBeenCalledTimes(3);
   });
 
   it('does not retry the NuExtract path on 400', async () => {
@@ -134,6 +305,15 @@ describe('OpenAiCompatibleClient', () => {
       new OpenAiCompatibleClient().extract({ ...baseInput, model: 'hf.co/numind/NuExtract-2.0-2B-GGUF:latest' }),
     ).rejects.toThrow(/400/);
     expect(safeFetchLlmMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends each page of a scanned PDF as its own image_url, in order', async () => {
+    const fetchFn = mockFetch(() => jsonResponse({ choices: [{ message: { content: '{"reservations":[]}' } }] }));
+    const page = (n: string) => ({ mimeType: 'image/png', data: Buffer.from(n) });
+    await new OpenAiCompatibleClient().extract({ ...baseInput, text: undefined, file: page('p1'), pageImages: [page('p2')] });
+    const parts = JSON.parse((fetchFn.mock.calls[0][1] as RequestInit).body as string).messages[1].content;
+    const urls = parts.filter((p: { type: string }) => p.type === 'image_url').map((p: { image_url: { url: string } }) => p.image_url.url);
+    expect(urls).toEqual([`data:image/png;base64,${Buffer.from('p1').toString('base64')}`, `data:image/png;base64,${Buffer.from('p2').toString('base64')}`]);
   });
 
   it('sends an image natively as image_url but never a file/pdf part', async () => {
@@ -147,6 +327,38 @@ describe('OpenAiCompatibleClient', () => {
     await new OpenAiCompatibleClient().extract({ ...baseInput, file: { mimeType: 'application/pdf', data: Buffer.from('PDF') } });
     parts = JSON.parse((fetchFn.mock.calls[1][1] as RequestInit).body as string).messages[1].content;
     expect(parts.every((p: any) => p.type !== 'file' && p.type !== 'image_url')).toBe(true);
+  });
+
+  /**
+   * A report could not say whether the schema ever reached the model or the
+   * ladder had fallen back to the prompt alone (#2477). The debug line names
+   * the rung that answered, and nothing of the booking.
+   */
+  it('logs which response_format the answering attempt carried (#2477)', async () => {
+    const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    const ok = () => jsonResponse({ choices: [{ message: { content: '{"reservations":[]}' } }] });
+    const refused = () => jsonResponse({ error: 'no' }, false, 400);
+    const lines = () => debug.mock.calls.map(c => String(c[0])).filter(l => l.includes('response_format='));
+    try {
+      safeFetchLlmMock.mockResolvedValueOnce(ok());
+      await new OpenAiCompatibleClient().extract(baseInput);
+      safeFetchLlmMock.mockResolvedValueOnce(refused()).mockResolvedValueOnce(ok());
+      await new OpenAiCompatibleClient().extract(baseInput);
+      safeFetchLlmMock.mockResolvedValueOnce(refused()).mockResolvedValueOnce(refused()).mockResolvedValueOnce(ok());
+      await new OpenAiCompatibleClient().extract(baseInput);
+      safeFetchLlmMock.mockResolvedValueOnce(jsonResponse({ choices: [{ message: { content: '{}' } }] }));
+      await new OpenAiCompatibleClient().extract({ ...baseInput, model: 'hf.co/numind/NuExtract-2.0-2B-GGUF:latest' });
+
+      expect(lines()).toEqual([
+        '[DEBUG] LLM answered with response_format=json_schema',
+        '[DEBUG] LLM answered with response_format=json_object',
+        '[DEBUG] LLM answered with response_format=none',
+        '[DEBUG] LLM answered with response_format=none',
+      ]);
+      expect(debug.mock.calls.flat().join(' ')).not.toContain('Flight AB123');
+    } finally {
+      debug.mockRestore();
+    }
   });
 });
 
@@ -188,6 +400,17 @@ describe('OpenAiCompatibleClient — NuExtract path', () => {
     expect(body.response_format).toBeUndefined();
   });
 
+  it('throws when NuExtract answered something nothing could read (#2375)', async () => {
+    mockFetch(() => jsonResponse({ choices: [{ message: { content: 'I am NuExtract, a template filling model.' } }] }));
+    await expect(
+      new OpenAiCompatibleClient().extract({ ...baseInput, model: 'nuextract', text: 'Hotel doc' }),
+    ).rejects.toThrow(/did not answer with JSON/);
+
+    // A template that came back filled with nothing is still an answer.
+    mockFetch(() => jsonResponse({ choices: [{ message: { content: '{"type":null,"name":null}' } }] }));
+    expect(await new OpenAiCompatibleClient().extract({ ...baseInput, model: 'nuextract', text: 'Hotel doc' })).toEqual([]);
+  });
+
   it('keeps the system prompt and response_format for non-NuExtract models', async () => {
     const fetchFn = mockFetch(() => jsonResponse({ choices: [{ message: { content: '{"reservations":[]}' } }] }));
     await new OpenAiCompatibleClient().extract({ ...baseInput, model: 'qwen2.5:7b' });
@@ -198,6 +421,28 @@ describe('OpenAiCompatibleClient — NuExtract path', () => {
 });
 
 describe('AnthropicClient', () => {
+  it('sends the pages of a scanned PDF as image blocks after the first', async () => {
+    const fetchFn = mockFetch(() =>
+      jsonResponse({ stop_reason: 'tool_use', content: [{ type: 'tool_use', name: 'emit_reservations', input: { reservations: [] } }] }),
+    );
+    const page = (n: string) => ({ mimeType: 'image/png', data: Buffer.from(n) });
+    await new AnthropicClient().extract({ ...baseInput, text: undefined, file: page('p1'), pageImages: [page('p2')] });
+    const content = JSON.parse((fetchFn.mock.calls[0][1] as RequestInit).body as string).messages[0].content;
+    expect(content.map((b: { type: string }) => b.type)).toEqual(['image', 'image', 'text']);
+    expect(content[1].source.data).toBe(Buffer.from('p2').toString('base64'));
+  });
+
+  it('sends a photo as an image block and a PDF as a document block', async () => {
+    const fetchFn = mockFetch(() =>
+      jsonResponse({ stop_reason: 'tool_use', content: [{ type: 'tool_use', name: 'emit_reservations', input: { reservations: [] } }] }),
+    );
+    await new AnthropicClient().extract({ ...baseInput, text: undefined, file: { mimeType: 'image/jpeg', data: Buffer.from('jpg') } });
+    await new AnthropicClient().extract({ ...baseInput, text: undefined, file: { mimeType: 'application/pdf', data: Buffer.from('pdf') } });
+    const blockOf = (i: number) => JSON.parse((fetchFn.mock.calls[i][1] as RequestInit).body as string).messages[0].content[0];
+    expect(blockOf(0)).toEqual({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: Buffer.from('jpg').toString('base64') } });
+    expect(blockOf(1).type).toBe('document');
+  });
+
   it('forces the emit_reservations tool and reads its input', async () => {
     const fetchFn = mockFetch(() =>
       jsonResponse({ stop_reason: 'tool_use', content: [{ type: 'tool_use', name: 'emit_reservations', input: { reservations: [{ '@type': 'LodgingReservation' }] } }] }),
@@ -239,6 +484,38 @@ describe('AnthropicClient', () => {
     expect(await new AnthropicClient().extract(baseInput)).toEqual([]);
   });
 
+  /*
+   * A forced tool that was never called, and a run that stopped at the cap with a
+   * fragment of one, both came back as [] — so a long voucher reached the person
+   * as "no reservations found", with an empty warnings array and nothing in the
+   * log. That is the #2375 symptom on the provider the dropdown offers first, so
+   * the same rule applies here: only what the client could read is an answer.
+   */
+  it('throws when the answer was cut off at the token cap (#2375)', async () => {
+    mockFetch(() =>
+      jsonResponse({ stop_reason: 'max_tokens', content: [{ type: 'tool_use', name: 'emit_reservations', input: {} }] }),
+    );
+    await expect(new AnthropicClient().extract(baseInput)).rejects.toThrow(/cut off at the 8192-token limit/);
+  });
+
+  it('throws when the forced tool was never called (#2375)', async () => {
+    mockFetch(() =>
+      jsonResponse({ stop_reason: 'end_turn', content: [{ type: 'text', text: 'I could not find a booking in this document.' }] }),
+    );
+    await expect(new AnthropicClient().extract(baseInput)).rejects.toThrow(/without calling emit_reservations/);
+
+    // A response carrying no content block at all lands on the same message.
+    mockFetch(() => jsonResponse({ stop_reason: 'end_turn' }));
+    await expect(new AnthropicClient().extract(baseInput)).rejects.toThrow(/without calling emit_reservations/);
+  });
+
+  it('still answers empty for a tool call that carries an empty list', async () => {
+    mockFetch(() =>
+      jsonResponse({ stop_reason: 'tool_use', content: [{ type: 'tool_use', name: 'emit_reservations', input: { reservations: [] } }] }),
+    );
+    expect(await new AnthropicClient().extract(baseInput)).toEqual([]);
+  });
+
   it('throws on a refusal stop_reason', async () => {
     mockFetch(() => jsonResponse({ stop_reason: 'refusal', content: [] }));
     await expect(new AnthropicClient().extract(baseInput)).rejects.toThrow(/declined/i);
@@ -255,5 +532,34 @@ describe('AnthropicClient', () => {
     const body = JSON.parse((fetchFn.mock.calls[0][1] as RequestInit).body as string);
     const blocks = body.messages[0].content;
     expect(blocks.some((b: any) => b.type === 'document' && b.source.type === 'base64')).toBe(true);
+  });
+});
+
+/**
+ * The three per-client constants are gone; what replaced them is a config read.
+ * Nothing else in the suite would notice if one of them came back as a literal,
+ * so pin the seam itself: the abort deadline has to come from LLM_TIMEOUT_MS.
+ */
+describe('the abort deadline comes from the configured ceiling (#2230)', () => {
+  const setTimeoutSpy = () => vi.spyOn(globalThis, 'setTimeout');
+
+  beforeEach(() => vi.restoreAllMocks());
+
+  it('AnthropicClient arms its AbortController with the configured value', async () => {
+    const spy = setTimeoutSpy();
+    mockFetch(() => jsonResponse({ content: [{ type: 'tool_use', name: 'emit_reservations', input: { reservations: [] } }] }));
+
+    await new AnthropicClient().extract(baseInput);
+
+    expect(spy).toHaveBeenCalledWith(expect.any(Function), readEnv().integrations.llmTimeoutMs);
+  });
+
+  it('OpenAiCompatibleClient arms its AbortController with the configured value', async () => {
+    const spy = setTimeoutSpy();
+    mockFetch(() => jsonResponse({ choices: [{ message: { content: '{"reservations":[]}' } }] }));
+
+    await new OpenAiCompatibleClient().extract({ ...baseInput, baseUrl: 'http://ollama.local:11434/v1' });
+
+    expect(spy).toHaveBeenCalledWith(expect.any(Function), readEnv().integrations.llmTimeoutMs);
   });
 });

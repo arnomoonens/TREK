@@ -103,7 +103,7 @@ export default function MFileLinkSheet({ planner, file, onClose }: MFileLinkShee
 
   const bookingReservations = reservations.filter(r => !TRANSPORT_TYPES.has(r.type))
   const transportReservations = reservations.filter(r => TRANSPORT_TYPES.has(r.type))
-  const expenseIds = new Set(shown.linked_expense_ids || [])
+  const expenseIds = new Set(shown.linked_budget_item_ids || [])
   const canAttachExpenses = can('budget_edit', trip) && can('file_edit', trip)
   const toggleExpense = async (expenseId: number) => {
     if (busyKey || !canAttachExpenses) return

@@ -18,12 +18,14 @@ const trip: TranslationStrings = {
   'trip.loadingSteps.arrive': 'أوشكنا على الوصول...',
   'trip.mobilePlan': 'الخطة',
   'trip.mobilePlaces': 'الأماكن',
+  'trip.panelWidth': 'عرض اللوحة',
   'trip.toast.placeUpdated': 'تم تحديث المكان',
   'trip.toast.tripUpdated': 'تم تحديث الرحلة',
   'trip.toast.placeAdded': 'تمت إضافة المكان',
   'trip.toast.placeDeleted': 'تم حذف المكان',
   'trip.toast.selectDay': 'يرجى اختيار يوم أولًا',
   'trip.toast.assignedToDay': 'تم إسناد المكان إلى اليوم',
+  'trip.toast.loadError': 'تعذر تحميل الرحلة',
   'trip.toast.reorderError': 'فشل إعادة الترتيب',
   'trip.toast.reservationUpdated': 'تم تحديث الحجز',
   'trip.toast.reservationAdded': 'تمت إضافة الحجز',
@@ -63,6 +65,7 @@ const trip: TranslationStrings = {
   'transit.search': 'بحث',
   'transit.searching': 'جارٍ البحث…',
   'transit.searchError': 'فشل البحث عن المسار. يُرجى المحاولة مرة أخرى.',
+  'transit.noResultsVia': 'لم يتم العثور على أي رحلات عبر {provider}. جرّب وقتًا أو عوامل تصفية مختلفة.',
   'transit.noResults': 'لم يُعثر على أي رحلات. جرّب وقتًا أو عوامل تصفية مختلفة.',
   'transit.direct': 'مباشر',
   'transit.transfers': '{count} تحويلات',
@@ -86,5 +89,10 @@ const trip: TranslationStrings = {
   'transit.transfersLabel': 'التحويلات',
   'transit.walkLabel': 'المشي',
   'transit.searchHint': 'ابحث عن رحلات فعلية وأضفها مباشرة إلى اليوم — البيانات عبر Transitous.',
+  'trip.confirm.deletePlaceNight': 'سيؤدي ذلك أيضًا إلى حذف الإقامة المحجوزة في "{name}".',
+  'trip.confirm.deletePlaceBooked':
+    'سيؤدي ذلك أيضًا إلى حذف الإقامة المحجوزة في "{name}" والحجز "{booking}" وأي مصروف مرتبط به.',
+  'trip.confirm.deletePlaceBookedSame':
+    'سيؤدي ذلك أيضًا إلى حذف الإقامة المحجوزة في "{name}" وحجزها وأي مصروف مرتبط به.',
 };
 export default trip;

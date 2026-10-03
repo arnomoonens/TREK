@@ -13,6 +13,7 @@ const map: TranslationStrings = {
   'poi.cat.museums': 'Bảo tàng & văn hóa',
   'poi.cat.nature': 'Thiên nhiên & công viên',
   'poi.cat.activities': 'Các hoạt động',
+  'poi.pluginCategories': 'Danh mục từ plugin',
   'map.showAllConnections': 'Hiển thị tất cả lộ trình đặt chỗ',
   'map.hideAllConnections': 'Ẩn tất cả lộ trình đặt chỗ',
   'map.baseLayer.default': 'Bản đồ',
@@ -22,5 +23,13 @@ const map: TranslationStrings = {
   'map.location.denied': 'Quyền truy cập vị trí đang bị chặn. Hãy kiểm tra cài đặt thiết bị; ứng dụng đã cài đặt có quyền vị trí riêng, tách biệt với trình duyệt.',
   'map.location.unavailable': 'Không thể xác định vị trí của bạn.',
   'map.location.timeout': 'Việc xác định vị trí mất quá nhiều thời gian. Hãy thử lại ở nơi nhìn thấy bầu trời thoáng hơn.',
+  'map.overview.show': 'Hiện toàn bộ chuyến đi',
+  'map.lock.lock': 'Khóa góc nhìn bản đồ',
+  'map.lock.unlock': 'Để bản đồ đi theo mục đang chọn',
+  'map.overview.hide': 'Ẩn toàn bộ chuyến đi',
+  'map.overview.total': 'Tổng quãng đường',
+  'map.attribution': 'Nguồn bản đồ',
+  'map.overview.unrouted': 'Không thể tính {count} chặng, nên khoảng cách chưa đầy đủ.',
+  'map.overview.dayUnrouted': 'Không thể tính {count} chặng của ngày này',
 };
 export default map;

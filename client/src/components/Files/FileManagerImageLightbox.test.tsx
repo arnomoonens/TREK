@@ -1,4 +1,4 @@
-// FE-W4LBX-001 to FE-W4LBX-021
+// FE-W4LBX-001 to FE-W4LBX-020
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { TripFile } from '../../types'
 import { render, screen, fireEvent, waitFor, act } from '../../../tests/helpers/render'
@@ -30,10 +30,6 @@ const IMAGES = [
   file({ id: 3, original_name: 'c.jpg', url: '/f/c.jpg' }),
 ]
 
-function lightboxRoot(): HTMLElement {
-  return document.querySelector('[data-testid="file-image-lightbox"]') as HTMLElement
-}
-
 beforeEach(() => {
   getAuthUrl.mockReset()
   getAuthUrl.mockImplementation(async (url: string) => `${url}?token=abc`)
@@ -45,8 +41,8 @@ beforeEach(() => {
 
 describe('ImageLightbox', () => {
   it('FE-W4LBX-001: renders nothing when the index points past the list', () => {
-    const { container } = render(<ImageLightbox files={[]} initialIndex={0} onClose={() => {}} />)
-    expect(container).toBeEmptyDOMElement()
+    const { baseElement } = render(<ImageLightbox files={[]} initialIndex={0} onClose={() => {}} />)
+    expect(baseElement.querySelector('[role="presentation"]')).toBeNull()
   })
 
   it('FE-W4LBX-002: shows the file name and its position in the gallery', () => {
@@ -57,32 +53,32 @@ describe('ImageLightbox', () => {
   })
 
   it('FE-W4LBX-003: mints a signed download url for the shown image', async () => {
-    render(<ImageLightbox files={IMAGES} initialIndex={0} onClose={() => {}} />)
+    const { baseElement } = render(<ImageLightbox files={IMAGES} initialIndex={0} onClose={() => {}} />)
 
-    await waitFor(() => expect(lightboxRoot().querySelector('img[alt="a.jpg"]')).not.toBeNull())
+    await waitFor(() => expect(baseElement.querySelector('img[alt="a.jpg"]')).not.toBeNull())
     expect(getAuthUrl).toHaveBeenCalledWith('/f/a.jpg', 'download')
-    expect(lightboxRoot().querySelector('img[alt="a.jpg"]')).toHaveAttribute('src', '/f/a.jpg?token=abc')
+    expect(baseElement.querySelector('img[alt="a.jpg"]')).toHaveAttribute('src', '/f/a.jpg?token=abc')
   })
 
   it('FE-W4LBX-004: hides the previous arrow on the first and the next arrow on the last file', () => {
     const first = render(<ImageLightbox files={IMAGES} initialIndex={0} onClose={() => {}} />)
     // header (3) + next arrow + 3 thumbnails
-    expect(lightboxRoot().querySelectorAll('.lucide-chevron-left')).toHaveLength(0)
-    expect(lightboxRoot().querySelectorAll('.lucide-chevron-right')).toHaveLength(1)
+    expect(first.baseElement.querySelectorAll('.lucide-chevron-left')).toHaveLength(0)
+    expect(first.baseElement.querySelectorAll('.lucide-chevron-right')).toHaveLength(1)
     first.unmount()
 
-    render(<ImageLightbox files={IMAGES} initialIndex={2} onClose={() => {}} />)
-    expect(lightboxRoot().querySelectorAll('.lucide-chevron-left')).toHaveLength(1)
-    expect(lightboxRoot().querySelectorAll('.lucide-chevron-right')).toHaveLength(0)
+    const last = render(<ImageLightbox files={IMAGES} initialIndex={2} onClose={() => {}} />)
+    expect(last.baseElement.querySelectorAll('.lucide-chevron-left')).toHaveLength(1)
+    expect(last.baseElement.querySelectorAll('.lucide-chevron-right')).toHaveLength(0)
   })
 
   it('FE-W4LBX-005: the arrows page through the gallery', () => {
-    render(<ImageLightbox files={IMAGES} initialIndex={0} onClose={() => {}} />)
+    const { baseElement } = render(<ImageLightbox files={IMAGES} initialIndex={0} onClose={() => {}} />)
 
-    fireEvent.click(lightboxRoot().querySelector('.lucide-chevron-right')!.closest('button')!)
+    fireEvent.click(baseElement.querySelector('.lucide-chevron-right')!.closest('button')!)
     expect(screen.getByText('2 / 3')).toBeInTheDocument()
 
-    fireEvent.click(lightboxRoot().querySelector('.lucide-chevron-left')!.closest('button')!)
+    fireEvent.click(baseElement.querySelector('.lucide-chevron-left')!.closest('button')!)
     expect(screen.getByText('1 / 3')).toBeInTheDocument()
   })
 
@@ -113,8 +109,8 @@ describe('ImageLightbox', () => {
   })
 
   it('FE-W4LBX-008: a swipe pages in the swiped direction', () => {
-    render(<ImageLightbox files={IMAGES} initialIndex={1} onClose={() => {}} />)
-    const root = lightboxRoot()
+    const { baseElement } = render(<ImageLightbox files={IMAGES} initialIndex={1} onClose={() => {}} />)
+    const root = baseElement.querySelector('[role="presentation"]') as HTMLElement
 
     fireEvent.touchStart(root, { touches: [{ clientX: 200 }] })
     fireEvent.touchEnd(root, { changedTouches: [{ clientX: 100 }] })
@@ -126,8 +122,8 @@ describe('ImageLightbox', () => {
   })
 
   it('FE-W4LBX-009: a short swipe is ignored', () => {
-    render(<ImageLightbox files={IMAGES} initialIndex={1} onClose={() => {}} />)
-    const root = lightboxRoot()
+    const { baseElement } = render(<ImageLightbox files={IMAGES} initialIndex={1} onClose={() => {}} />)
+    const root = baseElement.querySelector('[role="presentation"]') as HTMLElement
 
     fireEvent.touchStart(root, { touches: [{ clientX: 200 }] })
     fireEvent.touchEnd(root, { changedTouches: [{ clientX: 180 }] })
@@ -136,9 +132,9 @@ describe('ImageLightbox', () => {
   })
 
   it('FE-W4LBX-010: a touch end without a start is ignored', () => {
-    render(<ImageLightbox files={IMAGES} initialIndex={1} onClose={() => {}} />)
+    const { baseElement } = render(<ImageLightbox files={IMAGES} initialIndex={1} onClose={() => {}} />)
 
-    fireEvent.touchEnd(lightboxRoot(), { changedTouches: [{ clientX: 0 }] })
+    fireEvent.touchEnd(baseElement.querySelector('[role="presentation"]')!, { changedTouches: [{ clientX: 0 }] })
 
     expect(screen.getByText('2 / 3')).toBeInTheDocument()
   })
@@ -147,10 +143,10 @@ describe('ImageLightbox', () => {
     const onClose = vi.fn()
     render(<ImageLightbox files={IMAGES} initialIndex={0} onClose={onClose} />)
 
-    fireEvent.click(screen.getByTitle(/open/i))
+    fireEvent.click(screen.getByRole('button', { name: /open/i }))
     expect(openFile).toHaveBeenCalledWith('/f/a.jpg', 'a.jpg')
 
-    fireEvent.click(screen.getByTitle(/download/i))
+    fireEvent.click(screen.getByRole('button', { name: /download/i }))
     expect(downloadFile).toHaveBeenCalledWith('/f/a.jpg', 'a.jpg')
 
     fireEvent.click(screen.getAllByRole('button')[2])
@@ -159,13 +155,13 @@ describe('ImageLightbox', () => {
 
   it('FE-W4LBX-012: clicking the backdrop closes but clicking the image does not', async () => {
     const onClose = vi.fn()
-    render(<ImageLightbox files={IMAGES} initialIndex={0} onClose={onClose} />)
+    const { baseElement } = render(<ImageLightbox files={IMAGES} initialIndex={0} onClose={onClose} />)
 
-    await waitFor(() => expect(lightboxRoot().querySelector('img[alt="a.jpg"]')).not.toBeNull())
-    fireEvent.click(lightboxRoot().querySelector('img[alt="a.jpg"]')!)
+    await waitFor(() => expect(baseElement.querySelector('img[alt="a.jpg"]')).not.toBeNull())
+    fireEvent.click(baseElement.querySelector('img[alt="a.jpg"]')!)
     expect(onClose).not.toHaveBeenCalled()
 
-    fireEvent.click(lightboxRoot())
+    fireEvent.click(baseElement.querySelector('[role="presentation"]')!)
     expect(onClose).toHaveBeenCalledOnce()
   })
 
@@ -188,21 +184,21 @@ describe('ImageLightbox', () => {
 
   it('FE-W4LBX-015: a video plays in the player and never mints a download token', async () => {
     const video = file({ id: 9, original_name: 'clip.mp4', mime_type: 'video/mp4', url: '/f/clip.mp4' })
-    render(<ImageLightbox files={[video]} initialIndex={0} onClose={() => {}} />)
+    const { baseElement } = render(<ImageLightbox files={[video]} initialIndex={0} onClose={() => {}} />)
 
     // The player loads on demand now — plyr no longer ships with the file manager.
     expect(await screen.findByTestId('video')).toHaveAttribute('data-src', '/f/clip.mp4')
     expect(getAuthUrl).not.toHaveBeenCalled()
-    expect(lightboxRoot().querySelector('img')).toBeNull()
+    expect(baseElement.querySelector('img')).toBeNull()
   })
 
   it('FE-W4LBX-016: a video thumbnail is a play glyph, not an image request', async () => {
     const files = [IMAGES[0], file({ id: 9, original_name: 'clip.mp4', mime_type: 'video/mp4', url: '/f/clip.mp4' })]
-    render(<ImageLightbox files={files} initialIndex={0} onClose={() => {}} />)
+    const { baseElement } = render(<ImageLightbox files={files} initialIndex={0} onClose={() => {}} />)
 
     await waitFor(() => expect(getAuthUrl).toHaveBeenCalledWith('/f/a.jpg', 'download'))
     expect(getAuthUrl).not.toHaveBeenCalledWith('/f/clip.mp4', 'download')
-    expect(lightboxRoot().querySelector('.lucide-play')).not.toBeNull()
+    expect(baseElement.querySelector('.lucide-play')).not.toBeNull()
   })
 
   it('FE-W4LBX-017: clicking the video wrapper does not close the lightbox', () => {
@@ -229,7 +225,7 @@ describe('ImageLightbox', () => {
   it('FE-W4LBX-020: a mint that lands after the gallery moved on does not paint', async () => {
     const pending: Record<string, (url: string) => void> = {}
     getAuthUrl.mockImplementation((url: string) => new Promise<string>(resolve => { pending[url] = resolve }))
-    render(<ImageLightbox files={IMAGES} initialIndex={0} onClose={() => {}} />)
+    const { baseElement } = render(<ImageLightbox files={IMAGES} initialIndex={0} onClose={() => {}} />)
     await waitFor(() => expect(getAuthUrl).toHaveBeenCalledWith('/f/a.jpg', 'download'))
 
     fireEvent.keyDown(window, { key: 'ArrowRight' })
@@ -240,7 +236,7 @@ describe('ImageLightbox', () => {
       pending['/f/a.jpg']('/f/a.jpg?token=a')
     })
 
-    expect(lightboxRoot().querySelector('img[alt="b.jpg"]')).toHaveAttribute('src', '/f/b.jpg?token=b')
+    expect(baseElement.querySelector('img[alt="b.jpg"]')).toHaveAttribute('src', '/f/b.jpg?token=b')
   })
 
   it('FE-W4LBX-019: the strip mints thumbnail tokens only for thumbs in view', async () => {

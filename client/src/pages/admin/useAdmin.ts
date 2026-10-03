@@ -9,6 +9,8 @@ import { getApiErrorMessage } from '../../types'
 import { useToast } from '../../components/shared/Toast'
 import { managedAdminTabs } from '../../managed'
 import type { AdminUser, AdminStats, OidcConfig, UpdateInfo } from './adminModel'
+import type { TransitProvider, TransitKeySource } from '@trek/shared'
+import { passwordErrorKey } from '../../utils/passwordError'
 
 /**
  * Every tab id AdminPage can render a panel for, whatever this install offers.
@@ -47,6 +49,11 @@ export function useAdmin() {
   const mcpEnabled = useAddonStore(s => s.isEnabled('mcp'))
   const devMode = useAuthStore(s => s.devMode)
   const managed = useAuthStore(s => s.managed)
+  // Whether a key is actually behind a provider is app-config's answer, not the
+  // form's: on a managed install the fields below stay empty by design, and an
+  // operator key set through the environment never reaches them either.
+  const hasMapsKey = useAuthStore(s => s.hasMapsKey)
+  const hasAmapKey = useAuthStore(s => s.hasAmapKey)
 
   // ?tab= makes a section linkable: a support reply, an onboarding mail or a
   // bookmark can point at the one panel it is about instead of at the top of a
@@ -99,6 +106,29 @@ export function useAdmin() {
   useEffect(() => { adminApi.getPlacesDetails().then(d => setPlacesDetailsEnabledState(d.enabled)).catch(() => {}) }, [])
   useEffect(() => { adminApi.getPlacesEnrich().then(d => setPlacesEnrichEnabledState(d.enabled)).catch(() => {}) }, [])
 
+  // Search and suggestions from Google alone. Admin-only state: the search itself
+  // reads the switch on the server, so nothing else in the client needs it.
+  const [placesGoogleOnly, setPlacesGoogleOnlyState] = useState<boolean>(false)
+  useEffect(() => { adminApi.getPlacesGoogleOnly().then(d => setPlacesGoogleOnlyState(d.enabled)).catch(() => {}) }, [])
+
+  // Transit backend (#1699). googleKeySource says where a Google key would come
+  // from for this admin — null means picking Google changes nothing, since the
+  // request-time fallback to Transitous is silent by design.
+  const [transitProvider, setTransitProviderState] = useState<TransitProvider>('transitous')
+  const [transitGoogleKeySource, setTransitGoogleKeySource] = useState<TransitKeySource>(null)
+  useEffect(() => {
+    adminApi.getTransitProvider()
+      .then(d => { setTransitProviderState(d.provider); setTransitGoogleKeySource(d.googleKeySource) })
+      .catch(() => {})
+  }, [])
+  // Place shadow log — off unless an admin turns it on, so the initial state is
+  // false rather than the true the four switches above start from.
+  // The index switch. Read fail-open like the server does, so the state shown
+  // before the request lands matches what an unset row actually means.
+
+  const [placeShadowEnabled, setPlaceShadowEnabledState] = useState<boolean>(false)
+  useEffect(() => { adminApi.getPlaceShadow().then(d => setPlaceShadowEnabledState(d.enabled)).catch(() => {}) }, [])
+
   // Collab features
   const [collabFeatures, setCollabFeatures] = useState<{ chat: boolean; notes: boolean; polls: boolean; whatsnext: boolean }>({ chat: true, notes: true, polls: true, whatsnext: true })
   useEffect(() => { adminApi.getCollabFeatures().then(d => setCollabFeatures(d)).catch(() => {}) }, [])
@@ -149,6 +179,17 @@ export function useAdmin() {
   const [mapsKey, setMapsKey] = useState<string>('')
   const [weatherKey, setWeatherKey] = useState<string>('')
   const [unsplashKey, setUnsplashKey] = useState<string>('')
+  const [amapKey, setAmapKey] = useState<string>('')
+  // Keys the operator set in an environment variable: key name → variable (#1881).
+  const [envKeys, setEnvKeys] = useState<Record<string, string>>({})
+  /**
+   * Which provider answers place search. Not a key, so it saves through
+   * updateAppSettings rather than with the keys — and it is saved on change
+   * rather than with the Save button, because it is one choice from a list and
+   * the effect is immediate everywhere.
+   */
+  const [placesProvider, setPlacesProvider] = useState<string>('auto')
+  const [savingPlacesProvider, setSavingPlacesProvider] = useState<boolean>(false)
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({})
   const [savingKeys, setSavingKeys] = useState<boolean>(false)
   const [validating, setValidating] = useState<Record<string, boolean>>({})
@@ -158,7 +199,10 @@ export function useAdmin() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false)
 
-  const { user: currentUser, updateApiKeys, setAppRequireMfa, setTripRemindersEnabled, setPlacesPhotosEnabled, setPlacesAutocompleteEnabled, setPlacesDetailsEnabled, setPlacesEnrichEnabled, logout } = useAuthStore()
+  const { user: currentUser, updateApiKeys, setAppRequireMfa, setTripRemindersEnabled, setPlacesPhotosEnabled, setPlacesAutocompleteEnabled, setPlacesDetailsEnabled, setPlacesEnrichEnabled, setPlaceShadowEnabled, logout } = useAuthStore()
+  // The store's copy is what the search screens gate the "search Google
+  // instead" line on, so a saved choice lands there the way a saved key does.
+  const setStorePlacesProvider = useAuthStore(s => s.setPlacesProvider)
   const navigate = useNavigate()
   const toast = useToast()
 
@@ -166,9 +210,9 @@ export function useAdmin() {
   const [rotatingJwt, setRotatingJwt] = useState<boolean>(false)
 
   useEffect(() => {
-    loadData()
-    loadAppConfig()
-    loadApiKeys()
+    void loadData()
+    void loadAppConfig()
+    void loadApiKeys()
     // Skipped rather than caught when the route is closed to us: the request
     // still reaches the network, still answers 403, and still prints a red line
     // in the console of every admin who opens this page. Swallowing the promise
@@ -215,6 +259,7 @@ export function useAdmin() {
       setPasskeyLogin(!!config.passkey_login)
       setPasskeyConfigured(!!config.passkey_configured)
       if (config.allowed_file_types) setAllowedFileTypes(config.allowed_file_types)
+      if (config.places_provider) setPlacesProvider(config.places_provider)
     } catch (err: unknown) {
       // ignore
     }
@@ -226,6 +271,8 @@ export function useAdmin() {
       setMapsKey(data.settings?.maps_api_key || '')
       setWeatherKey(data.settings?.openweather_api_key || '')
       setUnsplashKey(data.settings?.unsplash_api_key || '')
+      setAmapKey(data.settings?.amap_api_key || '')
+      setEnvKeys(data.settings?.env_keys ?? {})
     } catch (err: unknown) {
       // ignore
     }
@@ -274,14 +321,30 @@ export function useAdmin() {
     setShowKeys(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
+  // A key the environment sets leaves its field empty, and saving that '' would
+  // clear the stored value the install falls back to once the variable is gone.
+  // So those names stay out of every save.
+  const apiKeysBody = () => Object.fromEntries(
+    Object.entries({ maps_api_key: mapsKey, openweather_api_key: weatherKey, unsplash_api_key: unsplashKey, amap_api_key: amapKey })
+      .filter(([name]) => !envKeys[name]),
+  )
+
+  /** A key field's lock: read-only, naming the variable, while the environment sets that key. */
+  const keyInputProps = (field: 'maps' | 'unsplash' | 'amap') => {
+    const variable = envKeys[`${field}_api_key`]
+    return {
+      disabled: !!variable,
+      placeholder: variable ? t('admin.keyFromEnv', { name: variable }) : t('settings.keyPlaceholder'),
+    }
+  }
+  // Test probes the key a search resolves to, so one from the environment is
+  // testable with the field left empty.
+  const mapsKeyTestable = !!(mapsKey || envKeys.maps_api_key)
+
   const handleSaveApiKeys = async () => {
     setSavingKeys(true)
     try {
-      await updateApiKeys({
-        maps_api_key: mapsKey,
-        openweather_api_key: weatherKey,
-        unsplash_api_key: unsplashKey,
-      })
+      await updateApiKeys(apiKeysBody())
       toast.success(t('admin.keySaved'))
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Unknown error')
@@ -294,7 +357,7 @@ export function useAdmin() {
     setValidating({ maps: true, weather: true })
     try {
       // Save first so validation uses the current values
-      await updateApiKeys({ maps_api_key: mapsKey, openweather_api_key: weatherKey, unsplash_api_key: unsplashKey })
+      await updateApiKeys(apiKeysBody())
       const result = await authApi.validateKeys()
       setValidation(result)
     } catch (err: unknown) {
@@ -308,7 +371,7 @@ export function useAdmin() {
     setValidating(prev => ({ ...prev, [keyType]: true }))
     try {
       // Save first so validation uses the current values
-      await updateApiKeys({ maps_api_key: mapsKey, openweather_api_key: weatherKey, unsplash_api_key: unsplashKey })
+      await updateApiKeys(apiKeysBody())
       const result = await authApi.validateKeys()
       setValidation(prev => ({ ...prev, [keyType]: result[keyType] }))
     } catch (err: unknown) {
@@ -318,13 +381,41 @@ export function useAdmin() {
     }
   }
 
+  const handleTogglePlacesGoogleOnly = async () => {
+    const next = !placesGoogleOnly
+    setPlacesGoogleOnlyState(next)
+    try {
+      await adminApi.updatePlacesGoogleOnly(next)
+    } catch (err: unknown) {
+      setPlacesGoogleOnlyState(!next)
+      toast.error(getApiErrorMessage(err, t('common.error')))
+    }
+  }
+
+  const handleSavePlacesProvider = async (value: string) => {
+    const previous = placesProvider
+    setPlacesProvider(value)
+    setSavingPlacesProvider(true)
+    try {
+      await authApi.updateAppSettings({ places_provider: value })
+      setStorePlacesProvider(value)
+      toast.success(t('admin.placesProvider.saved'))
+    } catch (err: unknown) {
+      setPlacesProvider(previous)
+      toast.error(getApiErrorMessage(err, t('common.error')))
+    } finally {
+      setSavingPlacesProvider(false)
+    }
+  }
+
   const handleCreateUser = async () => {
     if (!createForm.username.trim() || !createForm.email.trim() || !createForm.password.trim()) {
       toast.error(t('admin.toast.fieldsRequired'))
       return
     }
-    if (createForm.password.trim().length < 8) {
-      toast.error(t('settings.passwordTooShort'))
+    const weak = passwordErrorKey(createForm.password.trim())
+    if (weak) {
+      toast.error(t(weak))
       return
     }
     try {
@@ -350,7 +441,7 @@ export function useAdmin() {
       setInviteForm({ max_uses: 1, expires_in_days: 7, trip_id: '' })
       // Copy link to clipboard
       const link = `${window.location.origin}/register?invite=${data.invite.token}`
-      navigator.clipboard.writeText(link).then(() => toast.success(t('admin.invite.copied')))
+      void navigator.clipboard.writeText(link).then(() => toast.success(t('admin.invite.copied')))
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, t('admin.invite.createError')))
     }
@@ -368,7 +459,7 @@ export function useAdmin() {
 
   const copyInviteLink = (token: string) => {
     const link = `${window.location.origin}/register?invite=${token}`
-    navigator.clipboard.writeText(link).then(() => toast.success(t('admin.invite.copied')))
+    void navigator.clipboard.writeText(link).then(() => toast.success(t('admin.invite.copied')))
   }
 
   const handleEditUser = (user) => {
@@ -385,8 +476,9 @@ export function useAdmin() {
         role: editForm.role,
       }
       if (editForm.password.trim()) {
-        if (editForm.password.trim().length < 8) {
-          toast.error(t('settings.passwordTooShort'))
+        const weak = passwordErrorKey(editForm.password.trim())
+        if (weak) {
+          toast.error(t(weak))
           return
         }
         payload.password = editForm.password.trim()
@@ -400,12 +492,14 @@ export function useAdmin() {
     }
   }
 
-  const handleDeleteUser = async (user) => {
+  // `confirmed` means the caller already asked in its own ConfirmDialog (the
+  // desktop users tab); without it the browser's confirm asks, as on mobile.
+  const handleDeleteUser = async (user, opts: { confirmed?: boolean } = {}) => {
     if (user.id === currentUser?.id) {
       toast.error(t('admin.toast.cannotDeleteSelf'))
       return
     }
-    if (!confirm(t('admin.deleteUser', { name: user.username }))) return
+    if (!opts.confirmed && !confirm(t('admin.deleteUser', { name: user.username }))) return
     try {
       await adminApi.deleteUser(user.id)
       setUsers(prev => prev.filter(u => u.id !== user.id))
@@ -419,7 +513,7 @@ export function useAdmin() {
     // store-derived
     demoMode, serverTimezone, hour12, mcpEnabled, devMode, managed, currentUser,
     updateApiKeys, setAppRequireMfa, setTripRemindersEnabled,
-    setPlacesPhotosEnabled, setPlacesAutocompleteEnabled, setPlacesDetailsEnabled, setPlacesEnrichEnabled, logout,
+    setPlacesPhotosEnabled, setPlacesAutocompleteEnabled, setPlacesDetailsEnabled, setPlacesEnrichEnabled, setPlaceShadowEnabled, logout,
     navigate, toast,
     // state + setters
     activeTab, setActiveTab, users, setUsers, stats, isLoading,
@@ -430,6 +524,10 @@ export function useAdmin() {
     placesAutocompleteEnabled, setPlacesAutocompleteEnabledState,
     placesDetailsEnabled, setPlacesDetailsEnabledState,
     placesEnrichEnabled, setPlacesEnrichEnabledState,
+    placesGoogleOnly, handleTogglePlacesGoogleOnly,
+    transitProvider, setTransitProviderState,
+    transitGoogleKeySource, setTransitGoogleKeySource,
+    placeShadowEnabled, setPlaceShadowEnabledState,
     collabFeatures, setCollabFeatures,
     oidcConfig, setOidcConfig, savingOidc, setSavingOidc,
     passwordLogin, setPasswordLogin, passwordRegistration, setPasswordRegistration,
@@ -442,6 +540,8 @@ export function useAdmin() {
     allowedFileTypes, setAllowedFileTypes, savingFileTypes, setSavingFileTypes,
     smtpValues, setSmtpValues, smtpLoaded,
     mapsKey, setMapsKey, weatherKey, setWeatherKey, unsplashKey, setUnsplashKey,
+    amapKey, setAmapKey, hasMapsKey, hasAmapKey, keyInputProps, mapsKeyTestable,
+    placesProvider, savingPlacesProvider, handleSavePlacesProvider,
     showKeys, setShowKeys, savingKeys, validating, validation,
     updateInfo, setUpdateInfo, showUpdateModal, setShowUpdateModal,
     showRotateJwtModal, setShowRotateJwtModal, rotatingJwt, setRotatingJwt,

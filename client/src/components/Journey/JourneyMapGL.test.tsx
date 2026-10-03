@@ -1,4 +1,4 @@
-// FE-COMP-JMAPGL-001 to FE-COMP-JMAPGL-026
+// FE-COMP-JMAPGL-001 to FE-COMP-JMAPGL-026, FE-COMP-JMAPGL-2453
 
 type Spy = ReturnType<typeof vi.fn>
 
@@ -32,9 +32,15 @@ interface BoundsStub {
 const gl = vi.hoisted(() => {
   const map = {
     on: vi.fn(),
+    off: vi.fn(),
+    once: vi.fn(),
+    loaded: vi.fn(() => true),
+    // Container pixels from lng/lat, ten per degree: enough to tell near from far.
+    project: vi.fn(([lng, lat]: [number, number]) => ({ x: lng * 10, y: lat * 10 })),
     remove: vi.fn(),
     resize: vi.fn(),
     flyTo: vi.fn(),
+    easeTo: vi.fn(),
     fitBounds: vi.fn(),
     getZoom: vi.fn(() => 10),
     addSource: vi.fn(),
@@ -194,7 +200,8 @@ describe('JourneyMapGL', () => {
     render(<JourneyMapGL checkins={[]} entries={entries} />)
     expect(mapboxgl.accessToken).toBe('pk.test_token')
     expect(mapboxgl.Map).toHaveBeenCalledTimes(1)
-    expect(mapOptions()).toMatchObject({ style: 'mapbox://styles/mapbox/standard', attributionControl: true })
+    // Collapsed to its ⓘ rather than a strip of text across the bottom (#2299).
+    expect(mapOptions()).toMatchObject({ style: 'mapbox://styles/mapbox/standard', attributionControl: { compact: true } })
   })
 
   it('FE-COMP-JMAPGL-003: maplibre needs no token and opts out of the around-center rotate', () => {
@@ -330,7 +337,7 @@ describe('JourneyMapGL', () => {
     const html = popupHtml()
     expect(html).toContain('>Louvre<')
     expect(html).toContain('trek-journey-popup-place')
-    expect(html).toContain('trek-journey-popup-sep')
+    expect(html).toContain('trek-journey-popup-chip')
   })
 
   it('FE-COMP-JMAPGL-014: the popup falls back to the location name when the entry has no title', () => {
@@ -348,9 +355,9 @@ describe('JourneyMapGL', () => {
 
     const html = popupHtml()
     expect(html).toContain('>Reykjavík<')
-    // the location moved to the title line, so there is no place chip left below
+    // the location moved to the title line, so there is no place chip left below.
+    // The date keeps its own chip, which is why only the place one is checked.
     expect(html).not.toContain('trek-journey-popup-place')
-    expect(html).not.toContain('trek-journey-popup-sep')
   })
 
   it('FE-COMP-JMAPGL-015: an entry with neither title nor place still gets a heading', () => {
@@ -422,7 +429,7 @@ describe('JourneyMapGL', () => {
 
     const firstInner = gl.markers[0].element.querySelector('.trek-journey-marker-inner') as HTMLElement
     expect(firstInner.style.transform).toBe('scale(1)')
-    expect(gl.markers[0].element.style.zIndex).toBe('0')
+    expect(gl.markers[0].element.style.zIndex).toBe('1')
   })
 
   it('FE-COMP-JMAPGL-019: dark mode tags the popup class on creation', () => {
@@ -448,7 +455,7 @@ describe('JourneyMapGL', () => {
     render(<JourneyMapGL ref={ref} checkins={[]} entries={entries} />)
     act(() => { ref.current!.highlightMarker('ghost') })
     expect(gl.popups).toHaveLength(0)
-    expect(gl.markers[0].element.style.zIndex).toBe('')
+    expect(gl.markers[0].element.style.zIndex).toBe('1')
   })
 
   it('FE-COMP-JMAPGL-022: the popup stylesheet is injected exactly once', () => {
@@ -460,19 +467,21 @@ describe('JourneyMapGL', () => {
     expect(document.querySelectorAll('#trek-journey-popup-style')).toHaveLength(1)
   })
 
-  it('FE-COMP-JMAPGL-023: focusMarker flies in with the 3D pitch and a zoom floor of 14', () => {
+  it('FE-COMP-JMAPGL-023: focusMarker eases over with the 3D pitch and no zoom of its own', () => {
     withToken()
     const ref = React.createRef<JourneyMapGLHandle>()
     render(<JourneyMapGL ref={ref} checkins={[]} entries={entries} />)
 
     act(() => { ref.current!.focusMarker('e2') })
 
-    expect(gl.map.flyTo).toHaveBeenCalledWith({
+    // No zoom in the call at all: stepping through the timeline keeps the frame the
+    // reader chose (discussion #2299), same as the Leaflet twin.
+    expect(gl.map.easeTo).toHaveBeenCalledWith({
       center: [13.405, 52.52],
-      zoom: 14,
       pitch: 45,
       duration: 600,
     })
+    expect(gl.map.flyTo).not.toHaveBeenCalled()
   })
 
   it('FE-COMP-JMAPGL-024: with 3D disabled the camera stays flat', () => {
@@ -482,7 +491,7 @@ describe('JourneyMapGL', () => {
 
     act(() => { ref.current!.focusMarker('e1') })
 
-    expect(gl.map.flyTo).toHaveBeenCalledWith(expect.objectContaining({ pitch: 0 }))
+    expect(gl.map.easeTo).toHaveBeenCalledWith(expect.objectContaining({ pitch: 0 }))
     expect(addCustom3dBuildings).not.toHaveBeenCalled()
   })
 
@@ -490,10 +499,28 @@ describe('JourneyMapGL', () => {
     withToken()
     const ref = React.createRef<JourneyMapGLHandle>()
     render(<JourneyMapGL ref={ref} checkins={[]} entries={entries} />)
-    gl.map.getZoom.mockImplementationOnce(() => { throw new Error('not ready') })
+    gl.map.easeTo.mockImplementationOnce(() => { throw new Error('not ready') })
 
     expect(() => act(() => { ref.current!.focusMarker('e1') })).not.toThrow()
     expect(gl.map.flyTo).not.toHaveBeenCalled()
+  })
+
+  it('FE-COMP-JMAPGL-2453: geotagged photos become clustered thumbnails under the pins and open on a tap', () => {
+    withToken()
+    const onPhotoClick = vi.fn()
+    const photos = [
+      { id: 'a', lat: 45, lng: 5, thumbUrl: '/api/photos/1/thumbnail' },
+      { id: 'b', lat: 45.1, lng: 5.1, thumbUrl: '/api/photos/2/thumbnail' },
+      { id: 'c', lat: 48, lng: 11, thumbUrl: '/api/photos/3/thumbnail' },
+    ]
+    render(<JourneyMapGL checkins={[]} entries={entries} photos={photos} onPhotoClick={onPhotoClick} />)
+    const thumbs = gl.markers.filter(m => m.element.innerHTML.includes('/api/photos/'))
+    // a and b fall in one 64px bucket at ten pixels a degree, c in its own.
+    expect(thumbs).toHaveLength(2)
+    expect(thumbs[0].element.innerHTML).toContain('>2<')
+    thumbs[0].element.click()
+    expect(onPhotoClick).toHaveBeenCalledWith(['a', 'b'])
+    expect(gl.map.on).toHaveBeenCalledWith('moveend', expect.any(Function))
   })
 
   it('FE-COMP-JMAPGL-026: focusMarker on an unknown id is a no-op', () => {
@@ -512,19 +539,18 @@ describe('JourneyMapGL', () => {
     expect(gl.map.resize).toHaveBeenCalled()
   })
 
-  it('FE-COMP-JMAPGL-028: the activeMarkerId prop highlights and flies after the settle delay', () => {
+  it('FE-COMP-JMAPGL-028: the activeMarkerId prop highlights and eases over after the settle delay', () => {
     vi.useFakeTimers()
     try {
       withToken()
       render(<JourneyMapGL checkins={[]} entries={entries} activeMarkerId="e2" />)
-      expect(gl.map.flyTo).not.toHaveBeenCalled()
+      expect(gl.map.easeTo).not.toHaveBeenCalled()
 
       act(() => { vi.advanceTimersByTime(60) })
 
       expect(gl.popups).toHaveLength(1)
-      expect(gl.map.flyTo).toHaveBeenCalledWith(expect.objectContaining({
+      expect(gl.map.easeTo).toHaveBeenCalledWith(expect.objectContaining({
         center: [13.405, 52.52],
-        zoom: 12,
         duration: 500,
       }))
     } finally {

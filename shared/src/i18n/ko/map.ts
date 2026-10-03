@@ -13,6 +13,7 @@ const map: TranslationStrings = {
   'poi.cat.museums': '박물관 & 문화',
   'poi.cat.nature': '자연 & 공원',
   'poi.cat.activities': '액티비티',
+  'poi.pluginCategories': '플러그인 카테고리',
   'map.showAllConnections': '모든 예약 경로 표시',
   'map.hideAllConnections': '모든 예약 경로 숨기기',
   'map.baseLayer.default': '지도',
@@ -22,5 +23,13 @@ const map: TranslationStrings = {
   'map.location.denied': '위치 접근이 차단되어 있습니다. 기기 설정을 확인하세요. 설치된 앱은 브라우저와 별도의 위치 권한을 사용합니다.',
   'map.location.unavailable': '현재 위치를 확인할 수 없습니다.',
   'map.location.timeout': '위치를 확인하는 데 시간이 너무 오래 걸렸습니다. 하늘이 잘 보이는 곳에서 다시 시도하세요.',
+  'map.overview.show': '전체 여행 보기',
+  'map.lock.lock': '지도 보기 고정',
+  'map.lock.unlock': '선택 항목에 따라 지도 이동',
+  'map.overview.hide': '전체 여행 숨기기',
+  'map.overview.total': '총 거리',
+  'map.attribution': '지도 출처',
+  'map.overview.unrouted': '{count}개 구간의 경로를 계산할 수 없어 거리가 불완전합니다.',
+  'map.overview.dayUnrouted': '이 날의 {count}개 구간 경로를 계산할 수 없습니다',
 };
 export default map;

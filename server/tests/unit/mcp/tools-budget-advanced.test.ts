@@ -39,6 +39,14 @@ import { runMigrations } from '../../../src/db/migrations';
 import { resetTestDb } from '../../helpers/test-db';
 import { createUser, createTrip, createBudgetItem, addTripMember } from '../../helpers/factories';
 import { createMcpHarness, parseToolResult, parseResourceResult, type McpHarness } from '../../helpers/mcp-harness';
+import { BudgetController } from '../../../src/nest/budget/budget.controller';
+import { BudgetService } from '../../../src/nest/budget/budget.service';
+import { DatabaseService } from '../../../src/nest/database/database.service';
+import { ExchangeRatesService } from '../../../src/nest/budget/exchange-rates.service';
+import { PermissionsService } from '../../../src/nest/permissions/permissions.service';
+import { RealtimeService } from '../../../src/nest/realtime/realtime.service';
+import type { TripAccess } from '../../../src/nest/database/database.service';
+import type { User } from '../../../src/types';
 
 beforeAll(() => {
   createTables(testDb);
@@ -330,6 +338,81 @@ describe('Settlement tools', () => {
       });
       expect(result.isError).toBe(true);
     });
+  });
+
+  it('get_settlement_summary agrees with GET /budget/settlement, unpaid expense included (#2225)', async () => {
+    // The two surfaces resolve the trip currency and the rates separately before
+    // calling calculateSettlement, so the parity that matters is on the payload.
+    // The fixture carries the row the fix is about: a total nobody has paid.
+    const { user, other, trip } = tripWithTwo();
+    const paid = createBudgetItem(testDb, trip.id, { total_price: 100 });
+    testDb.prepare('INSERT INTO budget_item_members (budget_item_id, user_id, paid) VALUES (?, ?, 0), (?, ?, 0)')
+      .run(paid.id, user.id, paid.id, other.id);
+    testDb.prepare('INSERT INTO budget_item_payers (budget_item_id, user_id, amount) VALUES (?, ?, ?)')
+      .run(paid.id, user.id, 100);
+    const unpaid = createBudgetItem(testDb, trip.id, { total_price: 40 });
+    testDb.prepare('INSERT INTO budget_item_members (budget_item_id, user_id, paid) VALUES (?, ?, 0)')
+      .run(unpaid.id, other.id);
+
+    const dbService = new DatabaseService(testDb);
+    const controller = new BudgetController(
+      new BudgetService(dbService, new PermissionsService(dbService), new ExchangeRatesService(), new RealtimeService()),
+    );
+    const rest = await controller.settlement(
+      { id: user.id } as User,
+      { id: trip.id, user_id: user.id } as TripAccess,
+      String(trip.id),
+      {},
+    );
+
+    await withHarness(user.id, async (h) => {
+      const result = await h.client.callTool({ name: 'get_settlement_summary', arguments: { tripId: trip.id } });
+      const data = parseToolResult(result) as { summary: typeof rest };
+      expect(data.summary.balances).toEqual(rest.balances);
+      expect(data.summary.flows).toEqual(rest.flows);
+      // Only the paid 100 settles; the 40 nobody paid is outstanding, not owed.
+      expect(rest.balances.map(b => b.balance)).toEqual([50, -50]);
+    });
+  });
+
+  it('get_settlement_summary reads a same-day bill in the viewer\'s currency to the cent, like REST (#2525)', async () => {
+    // Frankfurter's two quotes for the pair, each rounded, so not exact inverses. The entry
+    // rate is frozen from the euro's, and converting back with the dollar's read the
+    // 12,345.67 dollars as 12,346.06.
+    const quotes: Record<string, Record<string, number>> = { EUR: { EUR: 1, USD: 1.1398 }, USD: { USD: 1, EUR: 0.87732 } };
+    const spy = vi.spyOn(ExchangeRatesService.prototype, 'getRates').mockImplementation(async (b: string) => quotes[b] ?? null);
+    try {
+      const { user, other, trip } = tripWithTwo();
+      testDb.prepare("UPDATE trips SET currency = 'EUR' WHERE id = ?").run(trip.id);
+      const item = createBudgetItem(testDb, trip.id, { total_price: 12345.67 });
+      testDb.prepare("UPDATE budget_items SET currency = 'USD', exchange_rate = 1.1398 WHERE id = ?").run(item.id);
+      testDb.prepare('INSERT INTO budget_item_members (budget_item_id, user_id, paid) VALUES (?, ?, 0), (?, ?, 0)')
+        .run(item.id, user.id, item.id, other.id);
+      testDb.prepare('INSERT INTO budget_item_payers (budget_item_id, user_id, amount) VALUES (?, ?, ?)')
+        .run(item.id, user.id, 12345.67);
+
+      const dbService = new DatabaseService(testDb);
+      const controller = new BudgetController(
+        new BudgetService(dbService, new PermissionsService(dbService), new ExchangeRatesService(), new RealtimeService()),
+      );
+      const rest = await controller.settlement(
+        { id: user.id } as User,
+        { id: trip.id, user_id: user.id, currency: 'EUR' } as TripAccess,
+        String(trip.id),
+        { base: 'USD' },
+      );
+      await withHarness(user.id, async (h) => {
+        const result = await h.client.callTool({ name: 'get_settlement_summary', arguments: { tripId: trip.id, base: 'USD' } });
+        const data = parseToolResult(result) as { summary: typeof rest };
+        expect(data.summary).toEqual(rest);
+        const mine = data.summary.finalBudgets.find(f => f.user_id === user.id)!;
+        expect(mine.expenses).toBe(12345.67);
+        expect(mine.sources.fronted).toEqual([{ item_id: item.id, cents: 1234567 }]);
+        expect(data.summary.flows.map(f => f.amount)).toEqual([6172.84]);
+      });
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('get_settlement_summary returns balances and flows', async () => {

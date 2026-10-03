@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent } from 'react'
-import { MapPin, Plus } from 'lucide-react'
+import { MapPin } from 'lucide-react'
 import MSheet from '../../../components/MSheet'
 import {
   DEFAULT_FORM,
@@ -14,8 +14,14 @@ import PlPlaceSearch, { type PlSearchPick } from './PlPlaceSearch'
 import PlCategoryPicker from './PlCategoryPicker'
 import PlTimeFields from './PlTimeFields'
 import PlFileAttach from './PlFileAttach'
-import type { Place } from '../../../../types'
+import MLinkedCosts from './MLinkedCosts'
+import PlaceDetailsColumn, { type PlaceDetailsSelection } from '../../../../components/Planner/PlaceDetailsColumn'
+import { useTranslation } from '../../../../i18n'
+import { useAuthStore } from '../../../../store/authStore'
+import { useSettingsStore } from '../../../../store/settingsStore'
+import type { Assignment, AssignmentsMap, Place } from '../../../../types'
 import type { TripPlanner } from '../MTripShell'
+import { useLocationBias } from '../../../../hooks/useLocationBias'
 
 export interface MPlaceEditSheetProps {
   planner: TripPlanner
@@ -48,6 +54,21 @@ function findDuplicateName(
 }
 
 /**
+ * The visit the editor was opened on, looked up in the planner's STORED list.
+ *
+ * Not planner.assignments: the phone filters booked nights (always) and service stops
+ * (while the day lists hide them) out of that one, and the road trip stop sheet opens
+ * this editor on exactly those visits. Looked up there the visit was not found, Start
+ * prefilled from the pool place, and a plain save wrote that over the time the stop was
+ * pinned to; the day note was dropped the same way. Every visit the plan tab shows is in
+ * the stored list as well, so its entry points resolve exactly as they did.
+ */
+function findVisit(stored: AssignmentsMap, assignmentId: number | null): Assignment | null {
+  if (!assignmentId) return null
+  return Object.values(stored).flat().find(a => a.id === assignmentId) ?? null
+}
+
+/**
  * Add/edit place sheet — the mobile counterpart of PlaceFormModal, driven by
  * the planner's own editor flags (showPlaceForm / editingPlace / prefillCoords /
  * editingAssignmentId) so every entry point (timeline edit, browser context
@@ -57,7 +78,7 @@ function findDuplicateName(
  */
 export default function MPlaceEditSheet({ planner, onOpenExpense }: MPlaceEditSheetProps) {
   const {
-    t, toast, places, assignments, canUploadFiles,
+    t, toast, places, assignments, storedAssignments, canUploadFiles,
     showPlaceForm, setShowPlaceForm,
     editingPlace, setEditingPlace,
     prefillCoords, setPrefillCoords,
@@ -83,10 +104,30 @@ export default function MPlaceEditSheet({ planner, onOpenExpense }: MPlaceEditSh
   const [sheetPlace, setSheetPlace] = useState<Place | null>(null)
   const [sheetAssignmentId, setSheetAssignmentId] = useState<number | null>(null)
 
-  const dayAssignments = useMemo(
-    () => (sheetPlace ? Object.values(assignments).flat() : []),
-    [sheetPlace, assignments],
+  // The details block under the search field follows the same selection rules
+  // as the desktop dialog's left column: the picked search result, else the
+  // place being edited, else whatever a map POI prefilled.
+  const [detailsSelection, setDetailsSelection] = useState<PlaceDetailsSelection | null>(null)
+  const placesEnrichEnabled = useAuthStore(s => s.placesEnrichEnabled)
+  const { language, locale } = useTranslation()
+  const timeFormat = useSettingsStore(s => s.settings.time_format) || '24h'
+
+  // Live rather than the open-time snapshot, so the note's dirty check compares against
+  // the note as it stands when Save is tapped.
+  const ctxAssignment = useMemo(
+    () => (sheetPlace ? findVisit(storedAssignments, sheetAssignmentId) : null),
+    [sheetPlace, storedAssignments, sheetAssignmentId],
   )
+
+  // The overlap warning keeps to what the day lists show: on the plan tab a clash with a
+  // pump or a booked night the list does not draw would name a stop nobody can see there.
+  // The visit under edit joins when the lists hide it, because the warning reads the day
+  // to compare against off that very row.
+  const dayAssignments = useMemo(() => {
+    if (!sheetPlace) return []
+    const listed = Object.values(assignments).flat()
+    return ctxAssignment && !listed.some(a => a.id === ctxAssignment.id) ? [...listed, ctxAssignment] : listed
+  }, [sheetPlace, assignments, ctxAssignment])
 
   // Prefill on open — same source order as the desktop form: editing place
   // (times off the in-context assignment), map/POI prefill coords, blank.
@@ -95,9 +136,7 @@ export default function MPlaceEditSheet({ planner, onOpenExpense }: MPlaceEditSh
     setSheetPlace(editingPlace)
     setSheetAssignmentId(editingAssignmentId)
     if (editingPlace) {
-      const assignment = editingAssignmentId
-        ? Object.values(assignments).flat().find(a => a.id === editingAssignmentId)
-        : null
+      const assignment = findVisit(storedAssignments, editingAssignmentId)
       const timeSource = assignment?.place ?? editingPlace
       setForm({
         name: editingPlace.name || '',
@@ -129,6 +168,26 @@ export default function MPlaceEditSheet({ planner, onOpenExpense }: MPlaceEditSh
     } else {
       setForm(DEFAULT_FORM)
     }
+    // Same source order as the desktop dialog: an existing place's provider id
+    // and coordinates, a map POI's prefill, or nothing. Without this the block
+    // would keep showing the previous sheet's place.
+    if (editingPlace && editingPlace.lat != null && editingPlace.lng != null) {
+      setDetailsSelection({
+        placeId: editingPlace.google_place_id || editingPlace.amap_poi_id || editingPlace.osm_id || undefined,
+        lat: Number(editingPlace.lat),
+        lng: Number(editingPlace.lng),
+        name: editingPlace.name || '',
+      })
+    } else if (prefillCoords) {
+      setDetailsSelection({
+        placeId: prefillCoords.osm_id || undefined,
+        lat: prefillCoords.lat,
+        lng: prefillCoords.lng,
+        name: prefillCoords.name || '',
+      })
+    } else {
+      setDetailsSelection(null)
+    }
     // A fresh sheet owns nothing yet; one opened on a map POI owns whatever
     // that POI filled in. An existing place being edited owns nothing either —
     // everything on that form came out of the database.
@@ -142,29 +201,14 @@ export default function MPlaceEditSheet({ planner, onOpenExpense }: MPlaceEditSh
     setPendingFiles([])
     setDuplicateWarning(null)
     setDeleteArmed(false)
-    // assignments is a fresh map each load — read at open time only.
+    // storedAssignments is a fresh map each load, so it is read at open time only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showPlaceForm, editingPlace, prefillCoords, editingAssignmentId])
 
-  // Trip-centre bias for search/autocomplete, skipped past ~500 km diagonal.
-  const locationBias = useMemo(() => {
-    const withCoords = (places || []).filter(p => p.lat != null && p.lng != null)
-    if (withCoords.length === 0) return undefined
-    let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity
-    for (const p of withCoords) {
-      const lat = Number(p.lat), lng = Number(p.lng)
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue
-      if (lat < minLat) minLat = lat
-      if (lat > maxLat) maxLat = lat
-      if (lng < minLng) minLng = lng
-      if (lng > maxLng) maxLng = lng
-    }
-    if (!Number.isFinite(minLat)) return undefined
-    const avgLatRad = ((minLat + maxLat) / 2) * (Math.PI / 180)
-    const diagKm = Math.sqrt(((maxLat - minLat) * 111) ** 2 + ((maxLng - minLng) * 111 * Math.cos(avgLatRad)) ** 2)
-    if (diagKm > 500) return undefined
-    return { low: { lat: minLat, lng: minLng }, high: { lat: maxLat, lng: maxLng } }
-  }, [places])
+  // The area being planned, as a hint for search and autocomplete. Same helper
+  // as the desktop dialog: the day currently open first, the whole trip only
+  // while it still fits inside one region.
+  const { box: locationBias } = useLocationBias()
 
   const handleChange = (field: keyof PlaceFormData, value: string) => {
     // Typed by hand, so the next pick must leave it alone.
@@ -177,6 +221,21 @@ export default function MPlaceEditSheet({ planner, onOpenExpense }: MPlaceEditSh
   // airport and then a station left the airport's website in the field.
   const applyPick = (pick: PlSearchPick) => {
     setForm(prev => mergeResult(prev, pick as unknown as Record<string, unknown>, autoFilledRef.current))
+    // The details block hangs off the same pick, like the desktop column. A
+    // pick without usable coordinates leaves the previous selection alone.
+    const lat = Number.parseFloat(pick.lat ?? '')
+    const lng = Number.parseFloat(pick.lng ?? '')
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      setDetailsSelection({
+        placeId: pick.google_place_id || pick.amap_poi_id || pick.osm_id || undefined,
+        lat,
+        lng,
+        name: pick.name || '',
+        // Hand the record along: the server needs the same record for the
+        // enrichment call, and looking it up again costs a provider round trip.
+        details: pick.details,
+      })
+    }
   }
 
   const handleClose = () => {
@@ -250,7 +309,6 @@ export default function MPlaceEditSheet({ planner, onOpenExpense }: MPlaceEditSh
       // #2163: the per-assignment note only travels when an assignment is in
       // context AND the value actually changed — same dirty-check as the
       // desktop form, so an untouched note never produces a PUT.
-      const ctxAssignment = sheetAssignmentId ? dayAssignments.find(a => a.id === sheetAssignmentId) : null
       if (!ctxAssignment || (form.assignment_notes ?? '') === (ctxAssignment.notes ?? '')) {
         delete payload.assignment_notes
       }
@@ -299,6 +357,23 @@ export default function MPlaceEditSheet({ planner, onOpenExpense }: MPlaceEditSh
 
       <div className="min-h-0 flex-1 overflow-y-auto px-[18px] pb-[6px] pt-[2px]" onPaste={handlePaste}>
         <PlPlaceSearch planner={planner} locationBias={locationBias} onPick={applyPick} onResolvingChange={setResolvingPick} />
+
+        {placesEnrichEnabled && (
+          <div className="mt-3">
+            <PlaceDetailsColumn
+              selection={detailsSelection}
+              selectedImageUrl={form.image_url}
+              onPickImage={(url) => setForm(prev => ({ ...prev, image_url: url ?? undefined }))}
+              onAdoptDescription={(text) => setForm(prev => ({ ...prev, description: text }))}
+              hasDescription={!!form.description.trim()}
+              language={language}
+              timeFormat={timeFormat}
+              locale={locale}
+              fluid
+              t={t}
+            />
+          </div>
+        )}
 
         <Eyebrow className="mb-[5px] mt-3 uppercase">{t('places.formName')} *</Eyebrow>
         <input
@@ -403,19 +478,13 @@ export default function MPlaceEditSheet({ planner, onOpenExpense }: MPlaceEditSh
 
         {/* COSTS — same block, same flow as the booking sheet (#1298) */}
         {isBudgetEnabled && (
-          <>
-            <Eyebrow className="mb-[6px] mt-3 uppercase">{t('reservations.costsLabel')}</Eyebrow>
-            <button
-              type="button"
-              onClick={() => { expenseIntentRef.current = true; handleSubmit() }}
-              disabled={!form.name.trim() || isSaving}
-              className="flex w-full items-center justify-center gap-[6px] rounded-[13px] border border-[color:var(--m-rowbr)] bg-[color:var(--m-ic)] py-[11px] text-[0.78125rem] font-semibold text-m-ink disabled:opacity-40"
-            >
-              <Plus size={13} strokeWidth={2.2} />
-              {t('reservations.createExpense')}
-            </button>
-            <div className="mt-[5px] font-geist text-[0.625rem] text-m-faint">{t('places.createExpenseHint')}</div>
-          </>
+          <MLinkedCosts
+            placeId={sheetPlace?.id}
+            hintKey="places.createExpenseHint"
+            createDisabled={!form.name.trim() || isSaving}
+            onCreate={() => { expenseIntentRef.current = true; void handleSubmit() }}
+            onEdit={item => onOpenExpense({ editItem: item })}
+          />
         )}
       </div>
 

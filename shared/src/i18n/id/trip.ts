@@ -18,12 +18,14 @@ const trip: TranslationStrings = {
   'trip.loadingSteps.arrive': 'Hampir sampai...',
   'trip.mobilePlan': 'Rencana',
   'trip.mobilePlaces': 'Tempat',
+  'trip.panelWidth': 'Lebar panel',
   'trip.toast.placeUpdated': 'Tempat diperbarui',
   'trip.toast.tripUpdated': 'Perjalanan diperbarui',
   'trip.toast.placeAdded': 'Tempat ditambahkan',
   'trip.toast.placeDeleted': 'Tempat dihapus',
   'trip.toast.selectDay': 'Pilih hari terlebih dahulu',
   'trip.toast.assignedToDay': 'Tempat ditambahkan ke hari',
+  'trip.toast.loadError': 'Tidak dapat memuat perjalanan',
   'trip.toast.reorderError': 'Gagal mengurutkan ulang',
   'trip.toast.reservationUpdated': 'Reservasi diperbarui',
   'trip.toast.reservationAdded': 'Reservasi ditambahkan',
@@ -63,6 +65,7 @@ const trip: TranslationStrings = {
   'transit.search': 'Cari',
   'transit.searching': 'Mencari…',
   'transit.searchError': 'Pencarian rute gagal. Silakan coba lagi.',
+  'transit.noResultsVia': 'Tidak ada koneksi yang ditemukan via {provider}. Coba waktu atau filter lain.',
   'transit.noResults': 'Tidak ada koneksi ditemukan. Coba waktu atau filter lain.',
   'transit.direct': 'Langsung',
   'transit.transfers': '{count} transit',
@@ -87,5 +90,10 @@ const trip: TranslationStrings = {
   'transit.transfersLabel': 'Transit',
   'transit.walkLabel': 'Jalan kaki',
   'transit.searchHint': 'Cari koneksi nyata dan tambahkan langsung ke hari itu — data melalui Transitous.',
+  'trip.confirm.deletePlaceNight': 'Ini juga menghapus penginapan yang dipesan di “{name}”.',
+  'trip.confirm.deletePlaceBooked':
+    'Ini juga menghapus penginapan yang dipesan di “{name}”, pemesanan “{booking}”, dan pengeluaran yang terkait.',
+  'trip.confirm.deletePlaceBookedSame':
+    'Ini juga menghapus penginapan yang dipesan di “{name}”, pemesanannya, dan pengeluaran yang terkait.',
 };
 export default trip;

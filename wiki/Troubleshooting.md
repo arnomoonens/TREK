@@ -115,9 +115,9 @@ There is no button for it: the Admin Panel UI has no per-user MFA reset (the use
 
 ---
 
-## Demo user cannot edit or create
+## Demo user cannot upload files or change account settings
 
-**Cause:** The instance is running with `DEMO_MODE=true`. All write operations are blocked for the demo account by design.
+**Cause:** The instance is running with `DEMO_MODE=true`. For the demo account, file uploads (avatar, trip cover, documents, place and collection images), password change, account deletion, MFA changes and the MCP write tools answer 403 by design. Everything else the demo user can create, edit and delete, trips, days, places and costs included; the hourly reset puts it all back to the saved baseline.
 
 **Fix:** This is intentional behavior for public demo deployments. If you are self-hosting and want full access, remove the `DEMO_MODE` variable (or set it to `false`). See [Demo Mode](Demo-Mode).
 
@@ -144,6 +144,21 @@ environment:
 ```
 
 Keep the proxy's `client_max_body_size` at or above `BACKUP_UPLOAD_LIMIT_MB`. Non-positive or invalid values for either variable abort startup.
+
+---
+
+## File upload refused: "File is too large"
+
+**Cause:** A file uploaded to a trip, a booking or a collab note is capped at 50 MB by default. The Files tab refuses a bigger file before the upload starts with `File is too large (max 50 MB)`, and the server answers the same check with `400 File is too large`. Videos have their own 500 MB cap, and trip covers and place images 20 MB. If the upload instead fails with a `413` or without any message, your reverse proxy refused the request body before TREK saw it.
+
+**Fix:** Raise the limit with `FILE_UPLOAD_LIMIT_MB` and restart:
+
+```yaml
+environment:
+  - FILE_UPLOAD_LIMIT_MB=200   # in MB (default: 50)
+```
+
+Keep the proxy's body limit (`client_max_body_size` on nginx) at or above that value. On Helm the chart does not pass this variable through, so patch it onto the Deployment. See [Environment Variables](Environment-Variables#storage--paths) and [Reverse Proxy](Reverse-Proxy).
 
 ---
 
@@ -197,6 +212,30 @@ docker compose up -d
 
 ---
 
+## Container won't start: `Syntax error: end of file unexpected (expecting "fi")`
+
+**Symptoms:** The container restarts in a loop and the log holds a single line, with no TREK banner and no Node error:
+
+```
+TREK: 1: Syntax error: end of file unexpected (expecting "fi")
+```
+
+It typically shows up right after you changed an environment variable — `COOKIE_SECURE=false`, for example — on a container that had been running fine.
+
+**Cause:** The environment variable is innocent. The message comes from `/bin/sh` inside the container, before Node is ever reached. Some container management UIs — Portainer's **Duplicate/Edit** form among them — let you edit a running container's command by rendering it back into a text field and re-splitting that text when you submit. Older images shipped their start-up logic as a single quoted shell command, and the quotes do not survive that round-trip: the command comes back truncated, and the shell refuses to parse the half of an `if` block that is left. `TREK` is simply the word the re-split happened to strand as the shell's program name, from the message quoted in [**"Cannot find module" on startup**](#cannot-find-module-on-startup).
+
+Once a container is in this state it stays broken across restarts and image pulls, because the mangled command is stored in the container's own configuration, not in the image.
+
+**Fix:** Clear the command override so the image's own start-up command applies again.
+
+In Portainer, open the container → **Duplicate/Edit** → **Command & logging**, empty the **Command** field completely, then deploy. An empty field means "use the image's command". Recreating the container from the image, or redeploying it as a stack, has the same effect.
+
+> **Note:** `COOKIE_SECURE=false` is still the right setting if you reach TREK over plain HTTP — without it the browser will not send the session cookie and you cannot log in. Set it, just not by editing the container in place. Change environment variables by editing the **stack** and redeploying it; see [Install: Portainer](Install-Portainer).
+
+Current images run their start-up logic from a script file, and their command is a single word with nothing left for a UI to mangle.
+
+---
+
 ## Encryption key regenerated on restart — stored secrets stop working
 
 **Cause:** On every startup, TREK resolves its encryption key in this order: (1) `ENCRYPTION_KEY` env var, (2) `data/.encryption_key` file, (3) legacy `data/.jwt_secret` fallback, (4) auto-generate a fresh key. If neither the env var nor the `data/` volume is persisted — for example after recreating a container without a volume mount — a new random key is generated and all stored secrets (SMTP password, OIDC client secret, API keys, MFA TOTP seeds) become unrecoverable.
@@ -243,7 +282,9 @@ Set `OIDC_ISSUER` to that exact string.
 
 ## OIDC login fails when provider is on a private/internal network
 
-**Cause:** Not the SSRF guard, despite what it looks like. All four OIDC calls — discovery, token, userinfo, JWKS — go through the admin-configured fetch path, which deliberately **allows** loopback and private/LAN targets: a Keycloak or Authentik on `192.168.x` or `10.x` is a supported setup and needs no extra variable. `ALLOW_INTERNAL_NETWORK` belongs to the guard on *user*-supplied URLs and changes nothing about OIDC. The only addresses that path refuses are link-local and cloud-metadata ones (`169.254.0.0/16`, `fe80::/10`), which fail with `Requests to link-local / cloud-metadata addresses are not allowed`.
+**Cause:** Not the SSRF guard, despite what it looks like. All four OIDC calls (discovery, token, userinfo, JWKS) go through the admin-configured fetch path, which deliberately **allows** loopback and private/LAN targets: a Keycloak or Authentik on `192.168.x` or `10.x` is a supported setup and needs no extra variable. `ALLOW_INTERNAL_NETWORK` belongs to the guard on *user*-supplied URLs and changes nothing about OIDC. The only addresses that path refuses are link-local and cloud-metadata ones (`169.254.0.0/16`, `fe80::/10`), which fail with `Requests to link-local / cloud-metadata addresses are not allowed`. A provider behind the host gateway of a rootless Podman container resolves to `169.254.1.2` and fails exactly like that; list that address in `ALLOW_LINK_LOCAL_IPS`, see [Internal-Network-Access](Internal-Network-Access#a-link-local-address-you-need).
+
+Versions 4.3.0 to 4.3.2 also failed like that when the provider's hostname had an IPv6 link-local (`fe80::`) record next to its LAN address, which many LAN DNS servers hand out. From 4.3.3 on, TREK leaves such an address out and connects over the LAN address, so only a hostname that resolves to nothing but link-local or metadata addresses still fails.
 
 **Fix:** Look for the reasons an internal provider actually fails. A failed discovery fetch answers `500 { "error": "OIDC login failed" }` and logs the real message as `[OIDC] Login error: …`, so start there:
 
@@ -308,7 +349,7 @@ docker logs <container> 2>&1 | grep -E "SMTP test email (sent|failed)|SMTP test 
 
 ## CORS error — API requests blocked in the browser
 
-**Cause:** If `ALLOWED_ORIGINS` is set, only those origins are permitted. Any request from a different origin is rejected with a CORS error visible in the browser console.
+**Cause:** If `ALLOWED_ORIGINS` is set, only those origins are permitted, plus the host the request was sent to (the address in the browser's address bar is never cross-origin to itself). A request from any other origin is refused with `403 Not allowed by CORS`, and the server logs a `CORS: refused origin ...` warning naming the origin to add.
 
 **Fix:** Add your origin to the comma-separated list:
 
@@ -341,13 +382,15 @@ If `ALLOWED_ORIGINS` is not set, the default is **same-origin only** — cross-o
 
 **Cause:** The browser Clipboard API (`navigator.clipboard`) is only available in a [secure context](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts), so on plain HTTP at a non-localhost address it is undefined.
 
-TREK works around this where it matters most. The share-link and invite-link buttons in the trip **Members** dialog, the journey share link, and the calendar-subscribe URLs fall back to a hidden textarea plus the deprecated `document.execCommand('copy')`, which is not secure-context gated — **those keep working over plain HTTP**, on desktop and mobile alike.
+TREK works around this where it matters most. The share-link and invite-link buttons in the trip's **Share Trip** and **Members** dialogs, the journey share link, and the calendar-subscribe URLs fall back to a hidden textarea plus the deprecated `document.execCommand('copy')`, which is not secure-context gated, so **those keep working over plain HTTP**, on desktop and mobile alike.
 
 The remaining copy buttons call `navigator.clipboard` directly and have no fallback:
 
 - **Settings > Integrations (MCP)** — the MCP endpoint URL, the JSON client config, a newly created MCP token, and OAuth client IDs, client secrets and rotated secrets. These fail with no message at all, because the click handler throws before any toast is shown.
 - **Settings > Account** — the 2FA backup codes. This one shows a generic error toast. Use the **Download** button next to it as a workaround; it does not need a secure context.
-- **Admin Panel > Users & Invites** — the registration invite link, both on create ("create and copy") and via the copy button on an existing invite.
+- **Admin Panel > Users** (the **Invite Links** card): the registration invite link, both on create ("create and copy") and via the copy button on an existing invite.
+- The copy button next to a booking's confirmation code in the booking's detail popup. It shows `Could not copy`.
+- The webhook URL of a [Document-Sync](Document-Sync) connection in the Files tab.
 
 **Fix:** For those buttons, one of:
 

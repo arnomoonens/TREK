@@ -6,6 +6,9 @@ const mobileTrip: TranslationStrings = {
   'mobileTrip.addPlaceShort': 'Yer',
   'mobileTrip.addToDayQuestion': 'Bir güne eklensin mi?',
   'mobileTrip.addTransportShort': 'Ulaşım',
+  'mobileTrip.allDays': 'Tüm Günler',
+  'mobileTrip.today': 'Bugün',
+  'mobileTrip.jumpToToday': 'Bugüne git',
   'mobileTrip.assignedDays': 'Atanan Günler',
   'mobileTrip.assignmentNotes': 'Güne özel notlar',
   'mobileTrip.bookingsEmpty': 'Henüz rezervasyon yok',
@@ -34,6 +37,7 @@ const mobileTrip: TranslationStrings = {
   'mobileTrip.onMap': 'Haritada',
   'mobileTrip.profileDriving': 'Araba',
   'mobileTrip.profileWalking': 'Yürüyüş',
+  'mobileTrip.profileCycling': 'Bisiklet',
   'mobileTrip.renameDay': 'Günü yeniden adlandır',
   'mobileTrip.resBadge': 'Rezervasyon',
   'mobileTrip.showOnMap': 'Haritada göster',
@@ -46,5 +50,29 @@ const mobileTrip: TranslationStrings = {
   'mobileTrip.upNext': 'Sırada',
   'mobileTrip.viewDetails': 'Ayrıntıları görüntüle',
   'mobileTrip.transportsEmpty': 'Henüz ulaşım yok',
+  'mobileTrip.rtInfoTitle': 'Sürüş değerleri',
+  'mobileTrip.rtDesktopNote':
+    'Bu değerler masaüstünde ayarlanır; orada başka yolları karşılaştırabilir ve bir günü içe aktarılmış bir izi takip ettirebilirsiniz.',
+  'mobileTrip.rtPlanOnDesktop': 'Planlama masaüstünde yapılır. Bir günde iki yer olduğunda TREK sürüşü hesaplar.',
+  'mobileTrip.rtSearchOffline': 'Bağlantı gerekir: arama, ileride kalan rotayı okur.',
+  'mobileTrip.rtBehind': 'plandan {time} geride',
+  'mobileTrip.rtStart': 'Başlangıç',
+  'mobileTrip.rtStayScope': 'Bu süre yere aittir, bu yüzden bu durağın planlandığı her gün için geçerlidir.',
+  'mobileTrip.rtStayLess': '{count} dakika daha az',
+  'mobileTrip.rtStayMore': '{count} dakika daha fazla',
+  'mobileTrip.rtNightDesktopOnly':
+    'Bu yerde konaklama masaüstü planlayıcıda ayarlanır. Burada yalnızca kaldırabilirsiniz.',
+  'mobileTrip.rtReach': 'Ne kadar uzağa',
+  'mobileTrip.rtReachAhead': '{distance} ileride',
+  'mobileTrip.rtFromNext': 'Bir sonraki durağınızdan itibaren',
+  'mobileTrip.rtFromStart': 'Etabın başından itibaren',
+  'mobileTrip.rtNoneAhead': 'İleride yol üzerinde bir şey yok. Tüm etabı deneyin.',
+  'mobileTrip.rtNoneOnStage': 'Bu etap boyunca bu türden bir şey yok.',
+  'mobileTrip.rtTruncated.one':
+    '1 kesimde tek bir yanıta sığandan fazlası vardı. Geri kalanı görmek için daha az tür seçin.',
+  'mobileTrip.rtTruncated.other':
+    '{count} kesimde tek bir yanıta sığandan fazlası vardı. Geri kalanı görmek için daha az tür seçin.',
+  'mobileTrip.rtNoDay': 'Gün seçilmedi',
+  'mobileTrip.rtNoDayHint': 'Harita tüm yolculuğu gösteriyor. Günün sürüşünü görmek için yukarıdan bir güne dokunun.',
 };
 export default mobileTrip;

@@ -23,6 +23,7 @@ export const fileUploadRequestSchema = z.object({
   place_id: z.string().optional(),
   description: z.string().optional(),
   reservation_id: z.string().optional(),
+  budget_item_id: z.string().optional(),
 });
 export type FileUploadRequest = z.infer<typeof fileUploadRequestSchema>;
 
@@ -30,6 +31,7 @@ export const fileUpdateRequestSchema = z.object({
   description: z.string().optional(),
   place_id: nullableIdField,
   reservation_id: nullableIdField,
+  budget_item_id: nullableIdField,
 });
 export type FileUpdateRequest = z.infer<typeof fileUpdateRequestSchema>;
 
@@ -37,6 +39,7 @@ export const fileLinkRequestSchema = z.object({
   reservation_id: nullableIdField,
   assignment_id: nullableIdField,
   place_id: nullableIdField,
+  budget_item_id: nullableIdField,
 });
 export type FileLinkRequest = z.infer<typeof fileLinkRequestSchema>;
 
@@ -61,7 +64,7 @@ export const tripFileSchema = z.object({
   reservation_title: z.string().nullable().optional(),
   linked_reservation_ids: z.array(z.number().nullable()).optional(),
   linked_place_ids: z.array(z.number().nullable()).optional(),
-  linked_expense_ids: z.array(z.number().int().positive()).optional(),
+  linked_budget_item_ids: z.array(z.number().int().positive()).optional(),
   expense_attachment_created_at: z.record(z.string(), z.string()).optional(),
   url: z.string(),
 }).passthrough();

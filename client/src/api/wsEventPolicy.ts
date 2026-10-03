@@ -20,6 +20,9 @@ export const HANDLED_OUTSIDE_TRIP_STORE = [
   'collab:note:created',
   'collab:note:updated',
   'collab:note:deleted',
+  'collab:link:created',
+  'collab:link:updated',
+  'collab:link:deleted',
   'collab:poll:created',
   'collab:poll:voted',
   'collab:poll:closed',
@@ -27,6 +30,14 @@ export const HANDLED_OUTSIDE_TRIP_STORE = [
   'collab:message:created',
   'collab:message:reacted',
   'collab:message:deleted',
+  // Road trip shaping — components/Roadtrip/useRoadtripVias. The points a drive is
+  // routed through live in that hook and nowhere else; a store slice for them would be a
+  // second copy of the same list to keep in step.
+  'roadtripVia:changed',
+  'roadtripTrack:changed',
+  'roadtripPreferences:changed',
+  // components/Roadtrip/useDayBoundaries reloads the shared boundaries.
+  'roadtripBoundary:changed',
   // In-app notifications — hooks/useInAppNotificationListener
   'notification:new',
   'notification:updated',
@@ -62,6 +73,9 @@ export const HANDLED_OUTSIDE_TRIP_STORE = [
   'journey:entry:deleted',
   'journey:entries:reordered',
   'journey:contributor:changed',
+  // Capture times landed after a photo import (#1587); the same listener reloads
+  // the journey so the gallery re-sorts.
+  'journey:photos:updated',
   // Studio book — components/Studio/useBookStore (its own listener: a client
   // with nothing outstanding takes the new version, one with unsaved edits
   // deliberately does not and conflicts on its next save instead)
@@ -70,6 +84,12 @@ export const HANDLED_OUTSIDE_TRIP_STORE = [
   // who has the book open, and where their pointers are)
   'journey:book:peers',
   'journey:book:cursor',
+  // Document sync: components/Files/docsync/useDocSync re-reads the bindings
+  // and their counts, and components/Files/docsync/useDocSyncOffered asks
+  // again whether the Files screen offers the sync button. Content-free like
+  // the bag ping: what a run changed is per-binding server state, and the
+  // files it moved arrive as file:* events.
+  'docsync:changed',
   // Booking import — BackgroundTasks/BackgroundTasksWidget ('import:' prefix listener)
   'import:progress',
   'import:done',

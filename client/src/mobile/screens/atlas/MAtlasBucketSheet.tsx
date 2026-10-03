@@ -152,8 +152,8 @@ export default function MAtlasBucketSheet({ atlas, open, onClose }: MAtlasBucket
                   }}
                   onKeyDown={(e) => {
                     if (e.key !== 'Enter') return
-                    if (bucketForm.name) handleAddBucketItem()
-                    else handleBucketPoiSearch()
+                    if (bucketForm.name) void handleAddBucketItem()
+                    else void handleBucketPoiSearch()
                   }}
                   placeholder={t('atlas.bucketNamePlaceholder')}
                   className={`${inputCls} min-w-0 flex-1`}
@@ -236,6 +236,7 @@ export default function MAtlasBucketSheet({ atlas, open, onClose }: MAtlasBucket
             {t('atlas.addPoi')}
           </button>
         )}
+
       </div>
     </MSheet>
   )

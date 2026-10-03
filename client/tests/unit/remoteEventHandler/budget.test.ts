@@ -60,14 +60,14 @@ describe('remoteEventHandler > budget', () => {
     useTripStore.setState({
       files: [buildTripFile({
         id: 10,
-        linked_expense_ids: [1, 2],
+        linked_budget_item_ids: [1, 2],
         expense_attachment_created_at: { '1': '2026-08-30', '2': '2026-08-31' },
       })],
     });
 
     useTripStore.getState().handleRemoteEvent({ type: 'budget:deleted', itemId: 1 });
 
-    expect(useTripStore.getState().files[0].linked_expense_ids).toEqual([2]);
+    expect(useTripStore.getState().files[0].linked_budget_item_ids).toEqual([2]);
     expect(useTripStore.getState().files[0].expense_attachment_created_at).toEqual({ '2': '2026-08-31' });
   });
 

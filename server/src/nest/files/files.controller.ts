@@ -29,7 +29,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { TripAccessGuard } from '../permissions/trip-access.guard';
 import type { TripAccess } from '../database/database.service';
 import { Trip } from '../permissions/trip.decorator';
-import { MAX_FILE_SIZE, BLOCKED_EXTENSIONS, isVideoExtension } from './files.constants';
+import { MAX_FILE_SIZE, isUploadTypeAllowed, isVideoExtension } from './files.constants';
 import { FileUploadDto, FileUpdateDto, FileLinkDto } from './files.dto';
 import { AllowedFileTypesService } from './allowed-file-types.service';
 
@@ -44,19 +44,11 @@ import { AllowedFileTypesService } from './allowed-file-types.service';
  */
 export function filesUploadFileFilter(allowedTypes: AllowedFileTypesService): Options['fileFilter'] {
   return (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const reject = () => {
-      // i18n key — the client resolves it via t() (see translateApiError).
-      const err: Error & { statusCode?: number } = new Error('files.uploadErrorType');
-      err.statusCode = 400;
-      cb(err);
-    };
-    if (BLOCKED_EXTENSIONS.includes(ext) || file.mimetype.includes('svg')) return reject();
-    const allowed = allowedTypes.get().split(',').map((e) => e.trim().toLowerCase());
-    const fileExt = ext.replace('.', '');
-    // Video is accepted as media regardless of the admin doc-types allowlist (#823).
-    if (allowed.includes(fileExt) || isVideoExtension(fileExt) || (allowed.includes('*') && !BLOCKED_EXTENSIONS.includes(ext))) return cb(null, true);
-    reject();
+    if (isUploadTypeAllowed(file.originalname, file.mimetype, allowedTypes.get())) return cb(null, true);
+    // i18n key — the client resolves it via t() (see translateApiError).
+    const err: Error & { statusCode?: number } = new Error('files.uploadErrorType');
+    err.statusCode = 400;
+    cb(err);
   };
 }
 
@@ -91,10 +83,10 @@ export class FilesController {
   ) {}
 
 
-  // A file may only point at reservations/assignments/places from its own trip.
+  // A file may only point at reservations/assignments/places/budget_items from its own trip.
   // Reject cross-trip ids before they are stored — the reservation JOIN would
   // otherwise leak the foreign reservation's title back to the caller.
-  private assertLinkTargets(tripId: string, body: { reservation_id?: string | number | null; assignment_id?: string | number | null; place_id?: string | number | null }) {
+  private assertLinkTargets(tripId: string, body: { reservation_id?: string | number | null; assignment_id?: string | number | null; place_id?: string | number | null; budget_item_id?: string | number | null }) {
     if (this.files.findForeignLinkTarget(tripId, body)) {
       throw new HttpException({ error: 'Linked item does not belong to this trip' }, 400);
     }
@@ -148,7 +140,7 @@ export class FilesController {
       throw new HttpException({ error: 'File is too large' }, 400);
     }
     try {
-      this.assertLinkTargets(tripId, { reservation_id: body.reservation_id, place_id: body.place_id });
+      this.assertLinkTargets(tripId, { reservation_id: body.reservation_id, place_id: body.place_id, budget_item_id: body.budget_item_id });
     } catch (err) {
       cleanup();
       throw err;
@@ -165,6 +157,7 @@ export class FilesController {
       place_id: body.place_id,
       description: body.description,
       reservation_id: body.reservation_id,
+      budget_item_id: body.budget_item_id,
     });
     this.files.broadcast(tripId, 'file:created', { file: created }, socketId);
     return { file: created };
@@ -180,8 +173,13 @@ export class FilesController {
     if (!file) {
       throw new HttpException({ error: 'File not found' }, 404);
     }
-    this.assertLinkTargets(tripId, { reservation_id: body.reservation_id, place_id: body.place_id });
-    const updated = this.files.updateFile(id, file, { description: body.description, place_id: body.place_id, reservation_id: body.reservation_id });
+    this.assertLinkTargets(tripId, { reservation_id: body.reservation_id, place_id: body.place_id, budget_item_id: body.budget_item_id });
+    const updated = this.files.updateFile(id, file, {
+      description: body.description,
+      place_id: body.place_id,
+      reservation_id: body.reservation_id,
+      budget_item_id: body.budget_item_id,
+    });
     this.files.broadcast(tripId, 'file:updated', { file: updated }, socketId);
     return { file: updated };
   }
@@ -273,8 +271,8 @@ export class FilesController {
     if (!file) {
       throw new HttpException({ error: 'File not found' }, 404);
     }
-    this.assertLinkTargets(tripId, { reservation_id: body.reservation_id, assignment_id: body.assignment_id, place_id: body.place_id });
-    const links = this.files.createFileLink(id, { reservation_id: body.reservation_id, assignment_id: body.assignment_id, place_id: body.place_id });
+    this.assertLinkTargets(tripId, { reservation_id: body.reservation_id, assignment_id: body.assignment_id, place_id: body.place_id, budget_item_id: body.budget_item_id });
+    const links = this.files.createFileLink(id, { reservation_id: body.reservation_id, assignment_id: body.assignment_id, place_id: body.place_id, budget_item_id: body.budget_item_id });
     return { success: true, links };
   }
 

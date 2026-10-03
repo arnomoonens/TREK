@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { readEnv, type AppEnv } from '../app-config';
 import { logDebug, logWarn, logError } from '../nest/audit/audit-log.logger';
+import { isSameHostOrigin } from '../nest/common/same-origin';
 
 /**
  * Field names redacted from request-log query/body dumps (case-insensitive —
@@ -28,6 +29,11 @@ export const SENSITIVE_KEYS = new Set([
   'code',
   'smtp_pass',
   'secretaccesskey',
+  // A Web Push subscription's keys: whoever holds them together with the
+  // endpoint can encrypt messages for that browser. No other request body has
+  // either field, and an `auth` anywhere else would be a credential as well.
+  'p256dh',
+  'auth',
 ]);
 
 /**
@@ -43,7 +49,26 @@ function isSensitiveName(name: string): boolean {
   return SENSITIVE_KEYS.has(lower) || SENSITIVE_SUFFIXES.some((suffix) => lower.endsWith(suffix));
 }
 
-/** Deep-redacts every key in `SENSITIVE_KEYS` (case-insensitive) from a request-log value. */
+/**
+ * The fields PushSubscription.toJSON() puts next to `endpoint`. Either one is
+ * enough to know the object is a subscription, so a body that arrives without
+ * its keys (which the route then refuses) still keeps its endpoint out of the log.
+ */
+const PUSH_SUBSCRIPTION_FIELDS = new Set(['keys', 'expirationtime']);
+
+/**
+ * A Web Push endpoint is a capability URL: anyone holding it can post to that
+ * browser's push service. It arrives inside a subscription, or on its own in
+ * the body that forgets a device. Anywhere else `endpoint` is an ordinary
+ * setting (the S3 backend's URL, for one) and stays readable.
+ */
+function isPushEndpoint(entries: Record<string, unknown>, name: string): boolean {
+  if (name.toLowerCase() !== 'endpoint') return false;
+  const siblings = Object.keys(entries).filter((k) => k !== name);
+  return siblings.length === 0 || siblings.some((k) => PUSH_SUBSCRIPTION_FIELDS.has(k.toLowerCase()));
+}
+
+/** Deep-redacts every key in `SENSITIVE_KEYS` (case-insensitive) and every Web Push endpoint from a request-log value. */
 export function redact(value: unknown): unknown {
   if (!value || typeof value !== 'object') return value;
   if (Array.isArray(value)) return (value as unknown[]).map(redact);
@@ -54,7 +79,8 @@ export function redact(value: unknown): unknown {
   const namedSecret = typeof entries.key === 'string' && isSensitiveName(entries.key);
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(entries)) {
-    out[k] = isSensitiveName(k) || (namedSecret && k === 'value') ? '[REDACTED]' : redact(v);
+    const hidden = isSensitiveName(k) || (namedSecret && k === 'value') || isPushEndpoint(entries, k);
+    out[k] = hidden ? '[REDACTED]' : redact(v);
   }
   return out;
 }
@@ -72,15 +98,47 @@ export function redact(value: unknown): unknown {
  * bootstrap.ts. The flag that used to switch a second parser on had exactly one
  * caller, which passed false.
  */
+/**
+ * Turns a configured routing base URL into the origin CSP needs.
+ *
+ * Only the origin: a CSP source with a path only matches that path prefix, and a router
+ * is asked at several of them (`/route/v1/...`, `/table/v1/...`). Anything that is not an
+ * absolute http(s) URL is dropped rather than passed through — a bad value in a settings
+ * row must not be able to widen the policy.
+ */
+export function routingCspOrigins(baseUrls: (string | null | undefined)[]): string[] {
+  const origins = new Set<string>();
+  for (const raw of baseUrls) {
+    if (!raw) continue;
+    try {
+      const url = new URL(raw.trim());
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') continue;
+      origins.add(url.origin);
+    } catch {
+      // Not a URL; the client falls back to the public hosts, so the policy stays as it was.
+    }
+  }
+  return [...origins];
+}
+
 export function applyGlobalMiddleware(
   app: express.Application,
-  opts: { http?: AppEnv['http'] } = {},
+  opts: {
+    http?: AppEnv['http'];
+    /**
+     * Extra origins the browser may talk to, from the instance's own settings — today the
+     * self-hosted routing engine (#1797). Read once at apply time like everything else
+     * here, so changing it takes a restart; the alternative is a database read on every
+     * request for a value that changes about once in a deployment's life.
+     */
+    extraConnectSrc?: string[];
+  } = {},
 ): void {
   // The whole pipeline is configured at APPLY time (the per-request closures
   // capture these values), so a snapshot is the correct semantic. bootstrap
   // threads in the DI-loaded httpConfig; direct callers fall back to an
   // apply-time readEnv() — same values, same freeze point.
-  const { http = readEnv().http } = opts;
+  const { http = readEnv().http, extraConnectSrc = [] } = opts;
   const { nodeEnv, isProduction } = readEnv().app;
 
   // Trust first proxy (nginx/Docker) for correct req.ip
@@ -105,17 +163,28 @@ export function applyGlobalMiddleware(
 
   const allowedOrigins = http.corsOrigins;
 
-  let corsOrigin: cors.CorsOptions['origin'];
-  if (allowedOrigins) {
-    corsOrigin = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      if (!origin || allowedOrigins.includes(origin)) callback(null, true);
-      else callback(new Error('Not allowed by CORS'));
-    };
-  } else if (isProduction) {
-    corsOrigin = false;
-  } else {
-    corsOrigin = true;
-  }
+  // With ALLOWED_ORIGINS set, a request from anywhere else is refused outright.
+  // Two things keep that from hitting the instance's own pages (#2543): a request
+  // whose Origin is the host it was sent to is same-origin and always passes, and
+  // a refusal is a 403 naming the cause instead of an unhandled error, which the
+  // exception filter turned into a bare 500 on the login screen.
+  const warnedOrigins = new Set<string>();
+  const corsOptions: cors.CorsOptions | cors.CorsOptionsDelegate<Request> = allowedOrigins
+    ? (req: Request, callback: (err: Error | null, options?: cors.CorsOptions) => void) => {
+        const origin = req.headers.origin;
+        if (!origin || allowedOrigins.includes(origin) || isSameHostOrigin(origin, req.headers.host)) {
+          callback(null, { origin: true, credentials: true });
+          return;
+        }
+        if (!warnedOrigins.has(origin) && warnedOrigins.size < 50) {
+          warnedOrigins.add(origin);
+          logWarn(
+            `CORS: refused origin ${origin} for host ${req.headers.host ?? '(none)'}; add it to ALLOWED_ORIGINS if it is yours`,
+          );
+        }
+        callback(Object.assign(new Error('Not allowed by CORS'), { statusCode: 403 }));
+      }
+    : { origin: isProduction ? false : true, credentials: true };
 
   const shouldForceHttps = http.forceHttps;
   // HSTS is worth enabling any time we're serving production traffic,
@@ -168,7 +237,7 @@ export function applyGlobalMiddleware(
       }
     },
   );
-  app.use(cors({ origin: corsOrigin, credentials: true }));
+  app.use(cors(corsOptions));
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
@@ -203,14 +272,43 @@ export function applyGlobalMiddleware(
           // document and never reaches the Service Worker that would cache it
           // (#2180). routing.openstreetmap.de below is a different host.
           "https://tile.openstreetmap.de", "https://tiles.stadiamaps.com",
+          // The imagery host, for the same reason and one more. Leaflet fetches a tile
+          // as an <img>, which img-src's blanket `https:` waves through, so the satellite
+          // view worked on Leaflet with this host missing. A GL map reads the raster
+          // through fetch to hand it to WebGL, and the prefetch does too, so both were
+          // refused here while nothing in the app could see it: the switch flipped, the
+          // layer went on, and no tile ever arrived (#2307).
+          "https://server.arcgisonline.com",
+          // Amap's raster tiles, for an install whose users are in China, for the
+          // same reason as the hosts above (#2180). Road (webrd01..04) and
+          // satellite (webst01..04) are numbered shards of one domain, so the
+          // wildcard is the whole list.
+          "https://*.is.autonavi.com",
           "https://unpkg.com", "https://open-meteo.com", "https://api.open-meteo.com",
           "https://geocoding-api.open-meteo.com", "https://api.frankfurter.dev",
           "https://router.project-osrm.org/route/v1/", "https://routing.openstreetmap.de/",
+          // The second routing engine, shipped as a default the same way the OSRM hosts
+          // above are. It is asked only when a leg should avoid tolls, motorways or a
+          // ferry — which the OSRM hosts answer with HTTP 400, because their car profile
+          // carries no excludable classes. Origin only, no path: unlike OSRM this one is
+          // a POST to /route and would grow more endpoints if isochrones ever land.
+          "https://valhalla1.openstreetmap.de",
           "https://api.mapbox.com", "https://*.tiles.mapbox.com", "https://events.mapbox.com",
-          "https://tiles.openfreemap.org"
+          "https://tiles.openfreemap.org",
+          // A self-hosted routing engine, when the instance has one configured. Without
+          // this the browser blocks it silently: no error the app can catch, just legs
+          // that never route (#1797).
+          ...extraConnectSrc,
         ],
         workerSrc: ["'self'", "blob:"],
         childSrc: ["'self'", "blob:"],
+        // blob: because a picked clip is previewed and its poster frame grabbed
+        // through a <video> on an object URL, before any byte reaches the server.
+        // Unset, this fell back to default-src, which refuses blob: outright: the
+        // editor showed nothing and every clip landed without a poster, so its
+        // thumbnail answered 404 (#2341). Invisible in dev, where Vite serves the
+        // document without this header.
+        mediaSrc: ["'self'", "blob:"],
         fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
         // 'self' so same-origin file previews can embed PDFs via <object>/<embed>
         // (Firefox/Chrome enforce object-src; 'none' broke inline PDF previews there).

@@ -730,8 +730,17 @@ export type BookUnits = z.infer<typeof bookUnitsSchema>;
 
 export const bookSpreadSchema = z.object({
   id: z.string().min(1),
-  /** 'cover' and 'back' are single pages; everything else is a double spread. */
-  role: z.enum(['cover', 'back', 'inner']).default('inner'),
+  /**
+   * Which leaf of the bound book this is.
+   *
+   * 'inner' is a double spread; the other four are single pages. 'cover' and
+   * 'back' are the outside of the book. 'first' is the right-hand page a book
+   * opens onto, and 'last' the left-hand page before the back cover: the
+   * inside of each cover is blank in a bound book, so the first and the last
+   * inner page stand alone rather than facing anything (#2317). Both are
+   * optional so that a document from before they existed still reads.
+   */
+  role: z.enum(['cover', 'first', 'inner', 'last', 'back']).default('inner'),
   background: hex.nullable().default(null),
   /** Back to front. */
   elements: z.array(bookElementSchema).max(MAX_SPREAD_ELEMENTS).default([]),
@@ -803,12 +812,38 @@ export const bookPageSetupSchema = z.object({
 });
 export type BookPageSetup = z.infer<typeof bookPageSetupSchema>;
 
+/** How many layouts a book keeps for reuse (#2316). */
+export const MAX_BOOK_LAYOUTS = 24;
+
+/**
+ * A spread's arrangement, kept to lay other pages out with (#2316).
+ *
+ * The design as drawn, in the millimetres of the page it was drawn on, with the
+ * pictures taken out: applying it to another page pours that page's photos and
+ * words into it, and the page size it came from scales it onto a book whose
+ * trim changed since. Stored in the book rather than per person, so everyone
+ * editing the book sees and uses the same set.
+ */
+export const bookLayoutSchema = z.object({
+  id: z.string().min(1).max(40),
+  name: z.string().trim().min(1).max(60),
+  /** Double spread or single page: a layout only fits the kind it was drawn on. */
+  role: z.enum(['inner', 'single']).default('inner'),
+  pageWidth: z.number().positive().max(2000),
+  pageHeight: z.number().positive().max(2000),
+  background: hex.nullable().default(null),
+  elements: z.array(bookElementSchema).max(MAX_SPREAD_ELEMENTS).default([]),
+});
+export type BookLayout = z.infer<typeof bookLayoutSchema>;
+
 export const bookDocumentSchema = z.object({
   /** In the document, not in a column: a format bump must not need a migration. */
   version: z.literal(1).catch(1).default(1),
   title: z.string().max(MAX_BOOK_TITLE).default(''),
   page: bookPageSetupSchema.default(() => bookPageSetupSchema.parse({})),
   spreads: z.array(bookSpreadSchema).max(MAX_SPREADS).default([]),
+  /** The book's own layouts (#2316). Optional so a document from before still reads. */
+  layouts: z.array(bookLayoutSchema).max(MAX_BOOK_LAYOUTS).optional(),
 });
 export type BookDocument = z.infer<typeof bookDocumentSchema>;
 
@@ -857,8 +892,11 @@ function withoutUnreadableElements(raw: unknown): unknown {
       ? list.filter(el => bookElementSchema.safeParse(el).success).slice(0, MAX_SPREAD_ELEMENTS)
       : list);
 
+  const layouts = (doc as { layouts?: unknown }).layouts;
   return {
     ...doc,
+    // A saved layout is a convenience: one that no longer reads is dropped, not the book.
+    ...(Array.isArray(layouts) ? { layouts: layouts.filter(l => bookLayoutSchema.safeParse(l).success).slice(0, MAX_BOOK_LAYOUTS) } : {}),
     spreads: doc.spreads.map(sp => {
       if (!sp || typeof sp !== 'object') return sp;
       const spread = sp as { elements?: unknown; parked?: unknown };

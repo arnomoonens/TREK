@@ -38,11 +38,17 @@ export class ExpenseAttachmentsService {
 
   list(tripId: string | number, expenseId: string | number): TripFile[] | undefined {
     if (!this.findExpense(tripId, expenseId)) return undefined;
-    // The trip Files collection is already batch-enriched with attachment
-    // metadata. Filtering it here keeps this focused endpoint from introducing
-    // one database request per attached file.
+    // The trip Files collection is already batch-enriched with receipt links.
+    // Filtering it here keeps this focused endpoint from introducing one
+    // database request per attached file.
+    const expenseKey = String(Number(expenseId));
     return this.files.listFiles(tripId, false)
-      .filter(file => file.linked_expense_ids?.includes(Number(expenseId)) ?? false);
+      .filter(file => file.linked_budget_item_ids?.includes(Number(expenseId)) ?? false)
+      .sort((a, b) => {
+        const aCreatedAt = a.expense_attachment_created_at?.[expenseKey] ?? '';
+        const bCreatedAt = b.expense_attachment_created_at?.[expenseKey] ?? '';
+        return (aCreatedAt < bCreatedAt ? -1 : aCreatedAt > bCreatedAt ? 1 : 0) || a.id - b.id;
+      });
   }
 
   attach(
@@ -55,9 +61,9 @@ export class ExpenseAttachmentsService {
 
     const inserted = this.db.transaction(() => {
       const result = this.db.run(
-        'INSERT OR IGNORE INTO expense_attachments (expense_id, file_id) VALUES (?, ?)',
-        Number(expenseId),
+        'INSERT OR IGNORE INTO file_links (file_id, budget_item_id) VALUES (?, ?)',
         Number(fileId),
+        Number(expenseId),
       );
       return result.changes > 0;
     });
@@ -77,12 +83,26 @@ export class ExpenseAttachmentsService {
     if (!this.findExpense(tripId, expenseId) || !this.findFile(tripId, fileId, false)) return undefined;
 
     const deleted = this.db.transaction(() => {
-      const result = this.db.run(
-        'DELETE FROM expense_attachments WHERE expense_id = ? AND file_id = ?',
-        Number(expenseId),
+      const link = this.db.get<{
+        id: number;
+        reservation_id: number | null;
+        assignment_id: number | null;
+        place_id: number | null;
+      }>(
+        `SELECT id, reservation_id, assignment_id, place_id
+         FROM file_links
+         WHERE file_id = ? AND budget_item_id = ?`,
         Number(fileId),
+        Number(expenseId),
       );
-      return result.changes > 0;
+      if (!link) return false;
+
+      if (link.reservation_id || link.assignment_id || link.place_id) {
+        this.db.run('UPDATE file_links SET budget_item_id = NULL WHERE id = ?', link.id);
+      } else {
+        this.db.run('DELETE FROM file_links WHERE id = ?', link.id);
+      }
+      return true;
     });
 
     const file = this.files.getFileResponse(fileId, tripId);

@@ -1,11 +1,13 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   A2_TO_A3,
+  visitedRegionCount,
   bucketTooltipHeight,
   bucketTooltipNeedsScroll,
   bucketTooltipPlacement,
   bucketTooltipWidth,
   countryStatus,
+  visitMonth,
   findBucketDuplicate,
   isBucketDuplicateError,
   isCountryVisible,
@@ -13,6 +15,8 @@ import {
   regionCacheEvictions,
   withCountryMarkedVisited,
   wishlistA3Codes,
+  wishlistRegionCodes,
+  groupCountryPlaces,
   countryColor,
   COUNTRY_COLORS,
   REGION_CACHE_MAX,
@@ -71,6 +75,31 @@ describe('countryStatus', () => {
   });
 });
 
+describe('visitMonth (#1535)', () => {
+  // West of Greenwich, where new Date('2024-06-01') is still the last evening of May.
+  beforeEach(() => {
+    vi.stubEnv('TZ', 'America/New_York');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('reads the year and month as a local date, so the 1st stays in its own month', () => {
+    const june = visitMonth('2024-06-01')!;
+    expect([june.getFullYear(), june.getMonth(), june.getDate()]).toEqual([2024, 5, 1]);
+    const january = visitMonth('2025-01-01')!;
+    expect([january.getFullYear(), january.getMonth()]).toEqual([2025, 0]);
+  });
+
+  it('gives nothing for a missing or malformed date', () => {
+    expect(visitMonth(null)).toBeNull();
+    expect(visitMonth(undefined)).toBeNull();
+    expect(visitMonth('')).toBeNull();
+    expect(visitMonth('June 2024')).toBeNull();
+  });
+});
+
 describe('isCountryVisible', () => {
   it('always shows visited countries', () => {
     expect(isCountryVisible({ status: 'visited' }, false)).toBe(true);
@@ -121,7 +150,7 @@ describe('withCountryMarkedVisited', () => {
     const prev = base({
       countries: [
         { code: 'FR', tripCount: 2, placeCount: 5, status: 'visited' },
-        { code: 'JP', tripCount: 1, placeCount: 0, status: 'planned' },
+        { code: 'JP', tripCount: 1, placeCount: 0, firstVisit: '2099-05-01', lastVisit: '2099-05-08', status: 'planned' },
       ],
       stats: { totalTrips: 3, totalPlaces: 10, totalCountries: 1, totalDays: 14, totalCountriesPlanned: 1 },
       continents: { Europe: 1 },
@@ -131,7 +160,8 @@ describe('withCountryMarkedVisited', () => {
     const next = withCountryMarkedVisited(prev, 'JP');
 
     expect(next.countries).toHaveLength(2);
-    expect(next.countries.find((c) => c.code === 'JP')?.status).toBe('visited');
+    // The planned trip's dates are not the dates of a visit, as the server agrees (#1535).
+    expect(next.countries.find((c) => c.code === 'JP')).toMatchObject({ status: 'visited', firstVisit: null, lastVisit: null });
     expect(next.stats.totalCountries).toBe(2);
     expect(next.stats.totalCountriesPlanned).toBe(0);
     expect(next.continents).toEqual({ Europe: 1, Asia: 1 });
@@ -195,6 +225,12 @@ describe('countryColor', () => {
 });
 
 describe('wishlistA3Codes', () => {
+  it('leaves a country alone when only one of its regions is wished for (#1901)', () => {
+    const result = wishlistA3Codes([bucketItem({ country_code: 'DE', region_code: 'DE-BY' })], new Set());
+    expect(result.size).toBe(0);
+    expect(wishlistRegionCodes([bucketItem({ region_code: 'de-by' }), bucketItem({ region_code: null })])).toEqual(new Set(['DE-BY']));
+  });
+
   it('resolves a bucket-list country to its A3 code', () => {
     const result = wishlistA3Codes([bucketItem({ country_code: 'JP' })], new Set());
     expect(result).toEqual(new Set(['JPN']));
@@ -383,3 +419,36 @@ describe('bucketTooltipNeedsScroll (#2153)', () => {
     expect(bucketTooltipNeedsScroll(201, 200)).toBe(false);
   });
 });
+
+describe('visitedRegionCount (#1639)', () => {
+  const regions = {
+    US: [{ status: 'visited' as const }, { status: 'planned' as const }, {}],
+    DE: [{ status: 'visited' as const }],
+  }
+  it('counts visited regions over every country, and in one of them', () => {
+    expect(visitedRegionCount(regions)).toBe(3)
+    expect(visitedRegionCount(regions, 'US')).toBe(2)
+    expect(visitedRegionCount(regions, 'FR')).toBe(0)
+    expect(visitedRegionCount({})).toBe(0)
+  })
+})
+
+describe('groupCountryPlaces (#2174)', () => {
+  const detail = {
+    trips: [{ id: 1, title: 'Berlin' }, { id: 2, title: 'Munich' }, { id: 3, title: 'Empty' }],
+    places: [
+      { id: 10, name: 'Reichstag', lat: 0, lng: 0, trip_id: 1, address: 'Platz der Republik' },
+      { id: 11, name: 'Brandenburg Gate', lat: 0, lng: 0, trip_id: 1, address: 'Pariser Platz' },
+      { id: 12, name: 'Marienplatz', lat: 0, lng: 0, trip_id: 2, address: null },
+    ],
+  }
+  it('groups by trip in trip order, places by name, and drops empty trips', () => {
+    const groups = groupCountryPlaces(detail)
+    expect(groups.map(g => g.trip.title)).toEqual(['Berlin', 'Munich'])
+    expect(groups[0].places.map(p => p.name)).toEqual(['Brandenburg Gate', 'Reichstag'])
+  })
+  it('searches name and address', () => {
+    expect(groupCountryPlaces(detail, 'platz').flatMap(g => g.places.map(p => p.id))).toEqual([11, 10, 12])
+    expect(groupCountryPlaces(detail, 'nothing')).toEqual([])
+  })
+})

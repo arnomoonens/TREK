@@ -13,6 +13,7 @@ const map: TranslationStrings = {
   'poi.cat.museums': 'Muzea i kultura',
   'poi.cat.nature': 'Przyroda i parki',
   'poi.cat.activities': 'Aktywności',
+  'poi.pluginCategories': 'Kategorie z wtyczek',
   'map.showAllConnections': 'Pokaż wszystkie trasy rezerwacji',
   'map.hideAllConnections': 'Ukryj wszystkie trasy rezerwacji',
   'map.baseLayer.default': 'Mapa',
@@ -22,5 +23,13 @@ const map: TranslationStrings = {
   'map.location.denied': 'Dostęp do lokalizacji jest zablokowany. Sprawdź ustawienia urządzenia; zainstalowana aplikacja ma własne uprawnienie do lokalizacji, niezależne od przeglądarki.',
   'map.location.unavailable': 'Nie udało się ustalić Twojej lokalizacji.',
   'map.location.timeout': 'Ustalanie lokalizacji trwało zbyt długo. Spróbuj ponownie przy lepszej widoczności nieba.',
+  'map.overview.show': 'Pokaż całą podróż',
+  'map.lock.lock': 'Zablokuj widok mapy',
+  'map.lock.unlock': 'Pozwól mapie podążać za zaznaczeniem',
+  'map.overview.hide': 'Ukryj całą podróż',
+  'map.overview.total': 'Łączny dystans',
+  'map.attribution': 'Źródła mapy',
+  'map.overview.unrouted': 'Nie udało się wyznaczyć {count} odcinka/odcinków, więc odległości są niepełne.',
+  'map.overview.dayUnrouted': 'Nie udało się wyznaczyć {count} odcinka/odcinków tego dnia',
 };
 export default map;

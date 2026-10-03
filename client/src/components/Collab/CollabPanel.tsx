@@ -1,11 +1,13 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useAuthStore } from '../../store/authStore'
 import { useTranslation } from '../../i18n'
-import { MessageCircle, StickyNote, BarChart3, Sparkles } from 'lucide-react'
+import { MessageCircle, StickyNote, Link2, BarChart3, Sparkles } from 'lucide-react'
 import CollabChat from './CollabChat'
 import CollabNotes from './CollabNotes'
 import CollabPolls from './CollabPolls'
 import WhatsNextWidget from './WhatsNextWidget'
+import CollabLinks from './CollabLinks'
+import CollabPanelHead from './CollabPanelHead'
 
 function useIsDesktop(breakpoint = 1024) {
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= breakpoint)
@@ -17,7 +19,7 @@ function useIsDesktop(breakpoint = 1024) {
   return isDesktop
 }
 
-const cardClass = 'flex flex-col bg-surface-card rounded-2xl border border-edge-faint overflow-hidden min-h-0'
+const cardClass = 'flex flex-col bg-surface-secondary rounded-2xl border border-edge-faint overflow-hidden min-h-0'
 
 interface TripMember {
   id: number
@@ -28,6 +30,7 @@ interface TripMember {
 interface CollabFeatures {
   chat: boolean
   notes: boolean
+  links?: boolean
   polls: boolean
   whatsnext: boolean
 }
@@ -39,10 +42,11 @@ interface CollabPanelProps {
 }
 
 const ALL_TABS = [
-  { id: 'chat', featureKey: 'chat' as const, labelKey: 'collab.tabs.chat', icon: MessageCircle },
-  { id: 'notes', featureKey: 'notes' as const, labelKey: 'collab.tabs.notes', icon: StickyNote },
-  { id: 'polls', featureKey: 'polls' as const, labelKey: 'collab.tabs.polls', icon: BarChart3 },
-  { id: 'next', featureKey: 'whatsnext' as const, labelKey: 'collab.whatsNext.title', icon: Sparkles },
+  { id: 'chat', featureKey: 'chat' as const, labelKey: 'collab.tabs.chat', fallback: 'Chat', icon: MessageCircle },
+  { id: 'notes', featureKey: 'notes' as const, labelKey: 'collab.tabs.notes', fallback: 'Notes', icon: StickyNote },
+  { id: 'links', featureKey: 'links' as const, labelKey: 'collab.tabs.links', fallback: 'Links', icon: Link2 },
+  { id: 'polls', featureKey: 'polls' as const, labelKey: 'collab.tabs.polls', fallback: 'Polls', icon: BarChart3 },
+  { id: 'next', featureKey: 'whatsnext' as const, labelKey: 'collab.whatsNext.title', fallback: "What's Next", icon: Sparkles },
 ]
 
 export default function CollabPanel({ tripId, tripMembers = [], collabFeatures }: CollabPanelProps) {
@@ -50,12 +54,14 @@ export default function CollabPanel({ tripId, tripMembers = [], collabFeatures }
   const { t } = useTranslation()
   const isDesktop = useIsDesktop()
 
-  const features = collabFeatures || { chat: true, notes: true, polls: true, whatsnext: true }
+  // Older server/admin configs predate the Links feature; merge defaults so a
+  // missing `links` key does not silently hide the new panel.
+  const features = { chat: true, notes: true, links: true, polls: true, whatsnext: true, ...(collabFeatures || {}) }
 
   const tabs = useMemo(() =>
     ALL_TABS.filter(tab => features[tab.featureKey]).map(tab => ({
       ...tab,
-      label: t(tab.labelKey),
+      label: t(tab.labelKey) || tab.fallback,
     })),
   [features, t])
 
@@ -70,10 +76,36 @@ export default function CollabPanel({ tripId, tripMembers = [], collabFeatures }
 
   const chatOn = features.chat
   const rightPanels = [
-    features.notes && 'notes',
+    features.notes && 'notes', features.links && 'links',
     features.polls && 'polls',
     features.whatsnext && 'whatsnext',
   ].filter(Boolean) as string[]
+
+  // One place decides what a panel id renders. It was spelled out at five call
+  // sites, and the layout branch below dropped a panel precisely because one of
+  // those copies did not list it.
+  const renderPanel = (p: string) => (
+    <>
+      {p === 'notes' && <CollabNotes tripId={tripId} currentUser={user} />}
+      {p === 'links' && <CollabLinks tripId={tripId} />}
+      {p === 'polls' && <CollabPolls tripId={tripId} currentUser={user} />}
+      {p === 'whatsnext' && <WhatsNextWidget tripMembers={tripMembers} />}
+    </>
+  )
+  // The chat carries the same head band as the panels beside it.
+  const chatPanel = (
+    <>
+      <CollabPanelHead icon={MessageCircle} title={t('collab.tabs.chat') || 'Chat'} />
+      <div className="flex min-h-0 flex-1 flex-col">
+        <CollabChat tripId={tripId} currentUser={user} />
+      </div>
+    </>
+  )
+  const panelRow = (ids: string[]) => (
+    <div style={{ flex: 1, display: 'flex', gap: 16, minHeight: 0 }}>
+      {ids.map(p => <div key={p} className={cardClass} style={{ flex: 1, minWidth: 0 }}>{renderPanel(p)}</div>)}
+    </div>
+  )
 
   if (tabs.length === 0) return null
 
@@ -83,9 +115,9 @@ export default function CollabPanel({ tripId, tripMembers = [], collabFeatures }
     if (chatOn && rightPanels.length === 0) {
       // Only chat
       return (
-        <div style={{ height: '100%', display: 'flex', gap: 12, padding: 12, overflow: 'hidden', minHeight: 0 }}>
+        <div className="flex h-full min-h-0 gap-4 overflow-hidden px-7 py-6">
           <div className={cardClass} style={{ flex: 1 }}>
-            <CollabChat tripId={tripId} currentUser={user} />
+            {chatPanel}
           </div>
         </div>
       )
@@ -94,40 +126,24 @@ export default function CollabPanel({ tripId, tripMembers = [], collabFeatures }
     if (chatOn) {
       // Chat left (380px) + right panels
       return (
-        <div style={{ height: '100%', display: 'flex', gap: 12, padding: 12, overflow: 'hidden', minHeight: 0 }}>
+        <div className="flex h-full min-h-0 gap-4 overflow-hidden px-7 py-6">
           <div className={cardClass} style={{ flex: '0 0 380px' }}>
-            <CollabChat tripId={tripId} currentUser={user} />
+            {chatPanel}
           </div>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden', minHeight: 0 }}>
-            {rightPanels.length === 1 && (
-              <div className={cardClass} style={{ flex: 1 }}>
-                {rightPanels[0] === 'notes' && <CollabNotes tripId={tripId} currentUser={user} />}
-                {rightPanels[0] === 'polls' && <CollabPolls tripId={tripId} currentUser={user} />}
-                {rightPanels[0] === 'whatsnext' && <WhatsNextWidget tripMembers={tripMembers} />}
-              </div>
-            )}
-            {rightPanels.length === 2 && rightPanels.map(p => (
-              <div key={p} className={cardClass} style={{ flex: 1 }}>
-                {p === 'notes' && <CollabNotes tripId={tripId} currentUser={user} />}
-                {p === 'polls' && <CollabPolls tripId={tripId} currentUser={user} />}
-                {p === 'whatsnext' && <WhatsNextWidget tripMembers={tripMembers} />}
-              </div>
-            ))}
-            {rightPanels.length === 3 && (
-              <>
-                <div className={cardClass} style={{ flex: 1 }}>
-                  <CollabNotes tripId={tripId} currentUser={user} />
-                </div>
-                <div style={{ flex: 1, display: 'flex', gap: 12, overflow: 'hidden', minHeight: 0 }}>
-                  <div className={cardClass} style={{ flex: 1 }}>
-                    <CollabPolls tripId={tripId} currentUser={user} />
-                  </div>
-                  <div className={cardClass} style={{ flex: 1 }}>
-                    <WhatsNextWidget tripMembers={tripMembers} />
-                  </div>
-                </div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16, overflow: 'hidden', minHeight: 0 }}>
+            {rightPanels.length <= 2 && panelRow(rightPanels)}
+            {rightPanels.length >= 3 && (() => {
+              // Two rows, split by kind rather than by a pair being present:
+              // the old condition needed notes AND links together, so turning
+              // the new Links feature off dropped Notes out of the layout
+              // entirely. Each row renders only when it has something in it.
+              const written = rightPanels.filter(p => p === 'notes' || p === 'links')
+              const rest = rightPanels.filter(p => p !== 'notes' && p !== 'links')
+              return <>
+                {written.length > 0 && panelRow(written)}
+                {rest.length > 0 && panelRow(rest)}
               </>
-            )}
+            })()}
           </div>
         </div>
       )
@@ -135,26 +151,10 @@ export default function CollabPanel({ tripId, tripMembers = [], collabFeatures }
 
     // Chat off — remaining panels share full width
     const panels = rightPanels
-    if (panels.length === 1) {
-      return (
-        <div style={{ height: '100%', display: 'flex', gap: 12, padding: 12, overflow: 'hidden', minHeight: 0 }}>
-          <div className={cardClass} style={{ flex: 1 }}>
-            {panels[0] === 'notes' && <CollabNotes tripId={tripId} currentUser={user} />}
-            {panels[0] === 'polls' && <CollabPolls tripId={tripId} currentUser={user} />}
-            {panels[0] === 'whatsnext' && <WhatsNextWidget tripMembers={tripMembers} />}
-          </div>
-        </div>
-      )
-    }
-
     return (
-      <div style={{ height: '100%', display: 'flex', gap: 12, padding: 12, overflow: 'hidden', minHeight: 0 }}>
+      <div className="flex h-full min-h-0 gap-4 overflow-hidden px-7 py-6">
         {panels.map(p => (
-          <div key={p} className={cardClass} style={{ flex: 1 }}>
-            {p === 'notes' && <CollabNotes tripId={tripId} currentUser={user} />}
-            {p === 'polls' && <CollabPolls tripId={tripId} currentUser={user} />}
-            {p === 'whatsnext' && <WhatsNextWidget tripMembers={tripMembers} />}
-          </div>
+          <div key={p} className={cardClass} style={{ flex: 1 }}>{renderPanel(p)}</div>
         ))}
       </div>
     )
@@ -170,7 +170,7 @@ export default function CollabPanel({ tripId, tripMembers = [], collabFeatures }
         {tabs.map(tab => {
           const active = mobileTab === tab.id
           return (
-            <button type="button" key={tab.id} onClick={() => setMobileTab(tab.id)} style={{
+            <button key={tab.id} onClick={() => setMobileTab(tab.id)} style={{
               flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               padding: '8px 0', borderRadius: 10, border: 'none', cursor: 'pointer',
               background: active ? 'var(--accent)' : 'transparent',
@@ -187,6 +187,7 @@ export default function CollabPanel({ tripId, tripMembers = [], collabFeatures }
       <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
         {mobileTab === 'chat' && features.chat && <CollabChat tripId={tripId} currentUser={user} />}
         {mobileTab === 'notes' && features.notes && <CollabNotes tripId={tripId} currentUser={user} />}
+        {mobileTab === 'links' && features.links && <CollabLinks tripId={tripId} />}
         {mobileTab === 'polls' && features.polls && <CollabPolls tripId={tripId} currentUser={user} />}
         {mobileTab === 'next' && features.whatsnext && <WhatsNextWidget tripMembers={tripMembers} />}
       </div>

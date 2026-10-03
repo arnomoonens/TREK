@@ -13,6 +13,7 @@ const map: TranslationStrings = {
   'poi.cat.museums': 'متاحف وثقافة',
   'poi.cat.nature': 'طبيعة وحدائق',
   'poi.cat.activities': 'أنشطة',
+  'poi.pluginCategories': 'فئات من الإضافات الخارجية',
   'map.showAllConnections': 'إظهار جميع مسارات الحجوزات',
   'map.hideAllConnections': 'إخفاء جميع مسارات الحجوزات',
   'map.baseLayer.default': 'خريطة',
@@ -22,5 +23,13 @@ const map: TranslationStrings = {
   'map.location.denied': 'تم حظر الوصول إلى الموقع. تحقق من إعدادات الجهاز؛ فالتطبيق المثبت لديه إذن موقع خاص به منفصل عن المتصفح.',
   'map.location.unavailable': 'تعذر تحديد موقعك.',
   'map.location.timeout': 'استغرق تحديد موقعك وقتًا طويلًا. حاول مرة أخرى تحت سماء مكشوفة.',
+  'map.overview.show': 'عرض الرحلة كاملة',
+  'map.lock.lock': 'قفل عرض الخريطة',
+  'map.lock.unlock': 'دع الخريطة تتبع التحديد',
+  'map.overview.hide': 'إخفاء الرحلة كاملة',
+  'map.overview.total': 'المسافة الإجمالية',
+  'map.attribution': 'مصادر الخريطة',
+  'map.overview.unrouted': 'تعذّر حساب {count} مرحلة، لذا المسافات غير مكتملة.',
+  'map.overview.dayUnrouted': 'تعذّر حساب {count} مرحلة من هذا اليوم',
 };
 export default map;

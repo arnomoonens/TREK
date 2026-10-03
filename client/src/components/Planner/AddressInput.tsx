@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { MapPin } from 'lucide-react'
 import { mapsApi } from '../../api/client'
 import { useTranslation } from '../../i18n'
+import { useLocationBias } from '../../hooks/useLocationBias'
+import { usePlaceLanguage } from '../../hooks/usePlaceLanguage'
 
 interface Props {
   value: string
@@ -16,6 +18,9 @@ interface Props {
 // is never lost, and picking a suggestion just replaces the text (#1496).
 export default function AddressInput({ value, onChange, placeholder, className }: Props) {
   const { t, locale } = useTranslation()
+  const placeLang = usePlaceLanguage()
+  // Ohne Reisekontext ist der Hinweis leer, und die Suche laeuft wie bisher.
+  const { point: locationBias } = useLocationBias()
   const [open, setOpen] = useState(false)
   const [results, setResults] = useState<any[]>([])
   const [highlight, setHighlight] = useState(-1)
@@ -47,7 +52,7 @@ export default function AddressInput({ value, onChange, placeholder, className }
       const myReq = ++reqIdRef.current
       setLoading(true)
       try {
-        const data = await mapsApi.search(trimmed, locale)
+        const data = await mapsApi.search(trimmed, placeLang, locationBias)
         if (myReq !== reqIdRef.current) return
         setResults(data.places || [])
         setHighlight(-1)
@@ -84,6 +89,8 @@ export default function AddressInput({ value, onChange, placeholder, className }
         value={value}
         placeholder={placeholder}
         onChange={e => { onChange(e.target.value); setOpen(true); search(e.target.value) }}
+        // Opens its list on focus, so a dialog must not focus it by itself (#1302).
+        data-no-autofocus
         onFocus={() => setOpen(true)}
         onKeyDown={onKey}
         className={className}

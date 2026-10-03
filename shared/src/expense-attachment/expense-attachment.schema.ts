@@ -1,14 +1,6 @@
 import { z } from 'zod';
 import { tripFileSchema } from '../file/file.schema';
 
-export const expenseAttachmentSchema = z.object({
-  id: z.number().int().positive(),
-  expense_id: z.number().int().positive(),
-  file_id: z.number().int().positive(),
-  created_at: z.string(),
-});
-export type ExpenseAttachment = z.infer<typeof expenseAttachmentSchema>;
-
 export const expenseAttachmentListResponseSchema = z.object({
   files: z.array(tripFileSchema),
 });

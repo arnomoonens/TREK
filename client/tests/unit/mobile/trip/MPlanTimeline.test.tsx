@@ -9,7 +9,7 @@ import type { MergedItem } from '../../../../src/utils/dayMerge'
 import type { Assignment, Day, DayNote, Place, RouteSegment } from '../../../../src/types'
 import MPlanTimeline from '../../../../src/mobile/screens/trip/plan/MPlanTimeline'
 
-// FE-MOB-PLTL-001 to FE-MOB-PLTL-045
+// FE-MOB-PLTL-001 to FE-MOB-PLTL-049
 
 const mocks = vi.hoisted(() => ({
   tl: {} as Record<string, unknown>,
@@ -110,7 +110,9 @@ function buildTl(over: Record<string, unknown> = {}): MPlanTimelineController {
     addBooking: vi.fn(),
     addTransport: vi.fn(),
     optimize: vi.fn(async () => undefined),
+    canExportRoute: true,
     exportGoogleMaps: vi.fn(),
+    exportCoMaps: vi.fn(),
     renameDay: vi.fn(),
     fullPlaceOf: vi.fn(() => undefined as Place | undefined),
     routeModeOptions: [
@@ -119,6 +121,8 @@ function buildTl(over: Record<string, unknown> = {}): MPlanTimelineController {
       { key: 'plugin:ev/fastest', label: 'EV fastest' },
     ],
     setLegMode: vi.fn(),
+    transitLegFor: vi.fn(() => null),
+    planTransitLeg: vi.fn(),
     ...over,
   } as unknown as MPlanTimelineController
 }
@@ -388,6 +392,26 @@ describe('MPlanTimeline', () => {
       expect(mocks.tl.setLegMode).toHaveBeenCalledWith(11, null)
     })
 
+    it('FE-MOB-PLTL-046: a leg with a transit search behind it offers Public transit and opens it (#2398)', () => {
+      const leg = { from: { name: 'Museum', lat: 35.71, lng: 139.79 }, to: { name: 'Ueno Park', lat: 35.72, lng: 139.77 }, time: '09:30' }
+      renderTimeline({ transitLegFor: vi.fn(() => leg) }, {}, { mode: 'edit' })
+      fireEvent.click(connector())
+
+      expect(mocks.tl.transitLegFor).toHaveBeenCalledWith(SEG)
+      fireEvent.click(screen.getByText('transit.title'))
+
+      expect(mocks.tl.planTransitLeg).toHaveBeenCalledWith(leg)
+      expect(mocks.tl.setLegMode).not.toHaveBeenCalled()
+    })
+
+    it('FE-MOB-PLTL-047: without a transit search for the leg the menu keeps to the road profiles', () => {
+      renderEditing()
+      fireEvent.click(connector())
+
+      expect(screen.getByText('Driving')).toBeInTheDocument()
+      expect(screen.queryByText('transit.title')).not.toBeInTheDocument()
+    })
+
     it('FE-MOB-PLTL-020: read-only members get no tappable connectors', () => {
       renderTimeline({}, { can: vi.fn(() => false) }, { mode: 'edit' })
 
@@ -561,6 +585,16 @@ describe('MPlanTimeline', () => {
       expect(mocks.tl.exportGoogleMaps).toHaveBeenCalledTimes(1)
     })
 
+    it('FE-MOB-PLTL-049: a day with no route to hand over offers no Google Maps or CoMaps tile (#2476)', () => {
+      // A moving day whose only content is the flight: the export would be a drive
+      // from one hotel to the other, so the two tiles are left out, not left dead.
+      renderTimeline({ canExportRoute: false }, {}, { mode: 'edit' })
+
+      expect(screen.queryByText('mobileTrip.googleMaps')).not.toBeInTheDocument()
+      expect(screen.queryByText('mobileTrip.coMaps')).not.toBeInTheDocument()
+      expect(screen.getByText('dayplan.optimize')).toBeInTheDocument()
+    })
+
     it('FE-MOB-PLTL-034: the note tile is inert while no day is selected', () => {
       const { shell } = renderTimeline({ day: undefined, rows: [], merged: [] }, {}, { mode: 'edit' })
 
@@ -598,6 +632,19 @@ describe('MPlanTimeline', () => {
 
       expect(mocks.tl.editAssignment).toHaveBeenCalledWith(MUSEUM)
       expect(mocks.tl.removeAssignment).toHaveBeenCalledWith(MUSEUM)
+    })
+
+    it('FE-MOB-PLTL-048: without place_edit a place row keeps remove and reorder but loses its edit circle (#2446)', () => {
+      renderTimeline({}, { can: vi.fn((action: string) => action !== 'place_edit') as TripPlanner['can'] }, { mode: 'edit' })
+
+      // the place row keeps its remove circle and loses the edit one; the
+      // transport and note rows keep theirs, editing those is a day right
+      const row = screen.getByText('Museum').closest('[role="button"]') as HTMLElement
+      expect(within(row).getByLabelText('planner.removeFromDay')).toBeInTheDocument()
+      expect(within(row).queryByLabelText('common.edit')).not.toBeInTheDocument()
+      fireEvent.click(within(row).getByLabelText('planner.removeFromDay'))
+      expect(mocks.tl.removeAssignment).toHaveBeenCalledWith(MUSEUM)
+      expect(mocks.tl.editAssignment).not.toHaveBeenCalled()
     })
 
     it('FE-MOB-PLTL-037: the transit row opens the journey view from its edit circle', () => {

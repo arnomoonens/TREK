@@ -65,7 +65,8 @@ const photoCacheStub = { removeIfUnreferenced: removeIfUnreferencedSpy } as unkn
 import { createTables } from '../../../src/db/schema';
 import { runMigrations } from '../../../src/db/migrations';
 import { resetTestDb } from '../../helpers/test-db';
-import { createUser, createTrip, createPlace, createCategory, createTag, addTripMember } from '../../helpers/factories';
+import { accommodationsOver } from '../../helpers/accommodations-service';
+import { createUser, createTrip, createPlace, createDay, createCategory, createTag, addTripMember } from '../../helpers/factories';
 import path from 'path';
 import fs from 'fs';
 import { DatabaseService } from '../../../src/nest/database/database.service';
@@ -77,6 +78,7 @@ import { QueryHelpersService } from '../../../src/nest/query-helpers/query-helpe
 import { JourneyDomainService } from '../../../src/nest/journey/journey-domain.service';
 import { TrekPhotosRepository } from '../../../src/nest/photos/trek-photos.repository';
 import { makeStorageFixture } from '../../helpers/storage-fixture';
+import { noGoogleQuota } from '../../helpers/google-quota';
 
 const GPX_FIXTURE = path.join(__dirname, '../../fixtures/test.gpx');
 const KML_FIXTURE = path.join(__dirname, '../../fixtures/test.kml');
@@ -94,7 +96,7 @@ const dbs = new DatabaseService(testDb);
  */
 const placesStorageFx = makeStorageFixture('');
 
-function makePlacesService(maps: MapsService = new MapsService(dbs, photoCacheStub)): PlacesService {
+function makePlacesService(maps: MapsService = new MapsService(dbs, photoCacheStub, noGoogleQuota)): PlacesService {
   return new PlacesService(
     dbs,
     new PermissionsService(dbs),
@@ -105,9 +107,11 @@ function makePlacesService(maps: MapsService = new MapsService(dbs, photoCacheSt
     photoCacheStub,
     new JourneyDomainService(dbs, new RealtimeService(), new TrekPhotosRepository(dbs)),
     placesStorageFx.storage,
+    accommodationsOver(dbs),
   );
 }
 
+const accommodations = accommodationsOver(dbs);
 const svc = makePlacesService();
 
 beforeAll(() => {
@@ -160,6 +164,20 @@ describe('list', () => {
     const places = svc.list(String(trip.id), { search: 'Eiffel' }) as any[];
     expect(places).toHaveLength(1);
     expect(places[0].name).toBe('Eiffel Tower');
+  });
+
+  it('PLACE-SVC-005b — carries where each place lies: the cached region, else the bundled borders (#2537)', () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const berlin = createPlace(testDb, trip.id, { name: 'Brandenburger Tor', lat: 52.5163, lng: 13.3777 });
+    const paris = createPlace(testDb, trip.id, { name: 'Louvre', lat: 48.8606, lng: 2.3376 });
+    const nowhere = createPlace(testDb, trip.id, { name: 'Unplaced' });
+    testDb.prepare('UPDATE places SET lat = NULL, lng = NULL, address = NULL WHERE id = ?').run(nowhere.id);
+    testDb.prepare('INSERT INTO place_regions (place_id, country_code, region_code, region_name) VALUES (?, ?, ?, ?)').run(berlin.id, 'DE', 'DE-BE', 'Berlin');
+    const byId = new Map((svc.list(String(trip.id), {}) as any[]).map(p => [p.id, p]));
+    expect(byId.get(berlin.id)).toMatchObject({ country_code: 'DE', region_name: 'Berlin' });
+    expect(byId.get(paris.id)).toMatchObject({ country_code: 'FR', region_name: null });
+    expect(byId.get(nowhere.id)!.country_code).toBeNull();
   });
 
   it('PLACE-SVC-005 — attaches tags array to each place (empty when none)', () => {
@@ -279,6 +297,23 @@ describe('update', () => {
     expect(updated.name).toBe('New');
     expect(updated.lat).toBe(48.8);
     expect(updated.lng).toBe(2.3);
+  });
+
+  it('PLACE-SVC-2472 — keeps an e-mail and hand-kept hours, trims the address, empty clears', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const week = '[{"closed":false,"open":"09:00","close":"17:00"},{"closed":false},{"closed":false},{"closed":false},{"closed":false},{"closed":true},{"closed":true}]';
+    const place = svc.create(String(trip.id), { name: 'Bakery', email: ' shop@example.com ', opening_hours: week }) as any;
+    expect(place.email).toBe('shop@example.com');
+    expect(place.opening_hours).toBe(week);
+
+    const renamed = await svc.update(String(trip.id), String(place.id), { name: 'Baker' }) as any;
+    expect(renamed.email).toBe('shop@example.com');
+    expect(renamed.opening_hours).toBe(week);
+
+    const cleared = await svc.update(String(trip.id), String(place.id), { email: '', opening_hours: '' }) as any;
+    expect(cleared.email).toBeNull();
+    expect(cleared.opening_hours).toBeNull();
   });
 
   it('PLACE-SVC-014 — returns null for non-existent place', async () => {
@@ -403,14 +438,14 @@ describe('remove', () => {
     const { user } = createUser(testDb);
     const trip = createTrip(testDb, user.id);
     const place = createPlace(testDb, trip.id, { name: 'To Delete' }) as any;
-    expect(await svc.remove(String(trip.id), String(place.id))).toBe(true);
+    expect((await svc.remove(String(trip.id), String(place.id))).deleted).toBe(true);
     expect(svc.get(String(trip.id), String(place.id))).toBeNull();
   });
 
   it('PLACE-SVC-018 — returns false for non-existent place', async () => {
     const { user } = createUser(testDb);
     const trip = createTrip(testDb, user.id);
-    expect(await svc.remove(String(trip.id), '99999')).toBe(false);
+    expect((await svc.remove(String(trip.id), '99999')).deleted).toBe(false);
   });
 
   it('PLACE-SVC-019 — deleting one place does not remove others', async () => {
@@ -424,6 +459,42 @@ describe('remove', () => {
     expect(remaining[0].id).toBe(p1.id);
   });
 
+  it('PLACE-SVC-019d — the night booked at a place goes with the place', async () => {
+    // Left behind, a stay keeps its place_id as NULL: still drawn in the day header,
+    // still naming a hotel through its partner booking, and pointing nowhere. Its day
+    // stop and that booking go too, which is the accommodations cascade doing its job
+    // rather than a second copy of it here.
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const day = createDay(testDb, trip.id);
+    const place = createPlace(testDb, trip.id, { name: 'Hotel Adlon' }) as any;
+    const { accommodation } = accommodations.createAccommodation(trip.id, {
+      place_id: place.id, start_day_id: day.id, end_day_id: day.id,
+    }) as any;
+    expect(testDb.prepare('SELECT id FROM reservations WHERE accommodation_id = ?').get(accommodation.id)).toBeTruthy();
+
+    await svc.remove(String(trip.id), String(place.id));
+
+    expect(testDb.prepare('SELECT id FROM day_accommodations WHERE id = ?').get(accommodation.id)).toBeUndefined();
+    expect(testDb.prepare('SELECT id FROM reservations WHERE accommodation_id = ?').get(accommodation.id)).toBeUndefined();
+    expect(testDb.prepare('SELECT id FROM day_assignments WHERE day_id = ?').all(day.id)).toEqual([]);
+  });
+
+  it('PLACE-SVC-019e — a place with no booking is untouched by that', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const day = createDay(testDb, trip.id);
+    const hotel = createPlace(testDb, trip.id, { name: 'Hotel Adlon' }) as any;
+    const museum = createPlace(testDb, trip.id, { name: 'Pergamon' }) as any;
+    const { accommodation } = accommodations.createAccommodation(trip.id, {
+      place_id: hotel.id, start_day_id: day.id, end_day_id: day.id,
+    }) as any;
+
+    await svc.remove(String(trip.id), String(museum.id));
+
+    expect(testDb.prepare('SELECT id FROM day_accommodations WHERE id = ?').get(accommodation.id)).toBeTruthy();
+  });
+
   it('PLACE-SVC-019c — the linked expense goes with the place (#1298)', async () => {
     const { user } = createUser(testDb);
     const trip = createTrip(testDb, user.id);
@@ -435,7 +506,7 @@ describe('remove', () => {
 
     // Read the link before the delete — that is what the controller broadcasts.
     expect(svc.linkedExpenseIds(trip.id, [place.id])).toEqual([linked]);
-    expect(await svc.remove(String(trip.id), String(place.id))).toBe(true);
+    expect((await svc.remove(String(trip.id), String(place.id))).deleted).toBe(true);
 
     const rows = testDb.prepare('SELECT id FROM budget_items ORDER BY id').all() as { id: number }[];
     expect(rows.map(r => r.id)).toEqual([untouched, standalone]);
@@ -493,16 +564,41 @@ describe('removeMany', () => {
     const b = createPlace(testDb, trip.id, { name: 'B' }) as any;
     const foreign = createPlace(testDb, other.id, { name: 'Foreign' }) as any;
 
-    const deleted = await svc.removeMany(String(trip.id), [a.id, b.id, foreign.id, 99999]);
+    const { deleted } = await svc.removeMany(String(trip.id), [a.id, b.id, foreign.id, 99999]);
 
     expect(deleted.sort()).toEqual([a.id, b.id].sort());
     expect(svc.get(String(other.id), String(foreign.id))).not.toBeNull();
   });
 
+  it('PLACE-SVC-057b — a place delete reports the booking and expense its cancelled night took down', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const day = createDay(testDb, trip.id) as any;
+    const hotel = createPlace(testDb, trip.id, { name: 'Hotel Adlon' }) as any;
+    // Booked through the accommodations domain, so it gets its partner hotel
+    // reservation the way the booking form writes one.
+    const { accommodation } = accommodations.createAccommodation(trip.id, {
+      place_id: hotel.id, start_day_id: day.id, end_day_id: day.id,
+    }) as { accommodation: { id: number } };
+    const reservation = testDb.prepare('SELECT id FROM reservations WHERE accommodation_id = ?').get(accommodation.id) as { id: number };
+    // An expense hung off the reservation rather than the place: linkedExpenseIds
+    // selects on budget_items.place_id and never finds this one.
+    const itemId = Number(testDb.prepare(
+      "INSERT INTO budget_items (trip_id, name, total_price, reservation_id) VALUES (?, 'Hotel stay', 240, ?)"
+    ).run(trip.id, reservation.id).lastInsertRowid);
+
+    const { deleted, cancelled } = await svc.remove(String(trip.id), String(hotel.id));
+
+    expect(deleted).toBe(true);
+    expect(cancelled.reservationIds).toEqual([reservation.id]);
+    expect(cancelled.budgetItemIds).toEqual([itemId]);
+    expect(testDb.prepare('SELECT id FROM budget_items WHERE id = ?').get(itemId)).toBeUndefined();
+  });
+
   it('PLACE-SVC-057 — returns [] for an empty id list', async () => {
     const { user } = createUser(testDb);
     const trip = createTrip(testDb, user.id);
-    expect(await svc.removeMany(String(trip.id), [])).toEqual([]);
+    expect((await svc.removeMany(String(trip.id), [])).deleted).toEqual([]);
   });
 });
 
@@ -1220,6 +1316,13 @@ describe('enrichImportedPlaces', () => {
     expect(searchPlaces).not.toHaveBeenCalled();
   });
 
+  it('PLACE-SVC-058b — a file import enriches its points, never its paths (#2536)', async () => {
+    const service = enrichSvc({ getMapsKey: vi.fn(() => null) });
+    const spy = vi.spyOn(service, 'enrichImportedPlaces').mockResolvedValue();
+    service.enrichImportedFilePlaces('1', 1, [{ id: 1 }, { id: 2, route_geometry: '[[1,2],[3,4]]' }]);
+    expect(spy).toHaveBeenCalledWith('1', 1, [{ id: 1 }]);
+  });
+
   it('PLACE-SVC-059 — no-ops for an empty batch without touching the provider', async () => {
     const getMapsKey = vi.fn(() => 'key');
     await enrichSvc({ getMapsKey }).enrichImportedPlaces('1', 1, []);
@@ -1354,13 +1457,56 @@ describe('zero-valued numeric fields', () => {
     const zeroed = await svc.update(String(trip.id), String(place.id), { duration_minutes: 0 }) as any;
     expect(zeroed.duration_minutes).toBe(0);
 
-    // An omitted duration still leaves the stored value alone (COALESCE).
+    // An omitted duration still leaves the stored value alone.
     const untouched = await svc.update(String(trip.id), String(place.id), { name: 'Stop 2' }) as any;
     expect(untouched.duration_minutes).toBe(0);
+  });
+
+  it('PLACE-SVC-067b — an explicit null clears the planned stay length', async () => {
+    // What the write contract and the MCP tool both advertise. Behind COALESCE,
+    // null and absent were the same thing, so the field promised a reset it never
+    // performed and the day plan kept budgeting the old ninety minutes.
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const place = createPlace(testDb, trip.id, { name: 'Stop' }) as any;
+    testDb.prepare('UPDATE places SET duration_minutes = 90 WHERE id = ?').run(place.id);
+
+    const cleared = await svc.update(String(trip.id), String(place.id), { duration_minutes: null }) as any;
+    expect(cleared.duration_minutes).toBeNull();
   });
 });
 
 // ── LIKE metacharacter escaping (#1745) ───────────────────────────────────────
+
+describe('setImageFromFile (#1242)', () => {
+  const attach = (tripId: number, name: string, mime: string, size = 3) => {
+    fs.writeFileSync(path.join(placesStorageFx.root, name), 'img');
+    return Number(testDb.prepare('INSERT INTO trip_files (trip_id, filename, original_name, file_size, mime_type) VALUES (?, ?, ?, ?, ?)').run(tripId, name, name, size, mime).lastInsertRowid);
+  };
+
+  it('PLACE-SVC-IMGFILE-001 — copies an attached picture in as the place image', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const place = createPlace(testDb, trip.id);
+    const fileId = attach(trip.id, 'holiday.jpg', 'image/jpeg');
+    const updated = await svc.setImageFromFile(String(trip.id), String(place.id), fileId) as any;
+    expect(updated.image_url).toMatch(/^\/uploads\/places\/[0-9a-f-]+\.jpg$/);
+    expect(fs.existsSync(path.join(placesStorageFx.root, path.basename(updated.image_url)))).toBe(true);
+    // A copy: the attachment itself is still there.
+    expect(fs.existsSync(path.join(placesStorageFx.root, 'holiday.jpg'))).toBe(true);
+  });
+
+  it('PLACE-SVC-IMGFILE-002 — refuses a file of another trip, a document and an oversized image', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const other = createTrip(testDb, user.id);
+    const place = createPlace(testDb, trip.id);
+    expect(await svc.setImageFromFile(String(trip.id), String(place.id), attach(other.id, 'x.jpg', 'image/jpeg'))).toBe('not_found');
+    expect(await svc.setImageFromFile(String(trip.id), String(place.id), attach(trip.id, 'ticket.pdf', 'application/pdf'))).toBe('not_image');
+    expect(await svc.setImageFromFile(String(trip.id), String(place.id), attach(trip.id, 'vector.svg', 'image/svg+xml'))).toBe('not_image');
+    expect(await svc.setImageFromFile(String(trip.id), String(place.id), attach(trip.id, 'huge.jpg', 'image/jpeg', 50 * 1024 * 1024))).toBe('too_large');
+  });
+});
 
 describe('list search escaping', () => {
   it('PLACE-SVC-068 — a % or _ in the search term matches literally, not as a wildcard', () => {

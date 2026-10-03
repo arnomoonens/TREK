@@ -6,16 +6,16 @@ import type { TripFile } from '../../types'
  * realtime frames cannot manufacture duplicate attachment relationships.
  */
 export function normalizeTripFile(file: TripFile): TripFile {
-  if (!file.linked_expense_ids) return file
+  if (!file.linked_budget_item_ids) return file
 
-  const linkedExpenseIds = [...new Set(file.linked_expense_ids)]
+  const linkedExpenseIds = [...new Set(file.linked_budget_item_ids)]
   const timestamps = file.expense_attachment_created_at
-  if (!timestamps) return { ...file, linked_expense_ids: linkedExpenseIds }
+  if (!timestamps) return { ...file, linked_budget_item_ids: linkedExpenseIds }
 
   const linkedIds = new Set(linkedExpenseIds.map(String))
   return {
     ...file,
-    linked_expense_ids: linkedExpenseIds,
+    linked_budget_item_ids: linkedExpenseIds,
     expense_attachment_created_at: Object.fromEntries(
       Object.entries(timestamps).filter(([expenseId]) => linkedIds.has(expenseId)),
     ),
@@ -37,13 +37,13 @@ export function addTripFile(files: TripFile[], incoming: TripFile): TripFile[] {
 
 /** Remove one Expense relationship while retaining the File itself. */
 export function removeExpenseLink(file: TripFile, expenseId: number): TripFile {
-  if (!file.linked_expense_ids?.includes(expenseId)) return file
+  if (!file.linked_budget_item_ids?.includes(expenseId)) return file
 
   const attachmentCreatedAt = { ...(file.expense_attachment_created_at || {}) }
   delete attachmentCreatedAt[String(expenseId)]
   return normalizeTripFile({
     ...file,
-    linked_expense_ids: file.linked_expense_ids.filter(id => id !== expenseId),
+    linked_budget_item_ids: file.linked_budget_item_ids.filter(id => id !== expenseId),
     expense_attachment_created_at: attachmentCreatedAt,
   })
 }

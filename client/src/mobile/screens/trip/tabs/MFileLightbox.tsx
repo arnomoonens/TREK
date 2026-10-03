@@ -4,8 +4,8 @@ import { ChevronLeft, ChevronRight, Download, ExternalLink, X } from 'lucide-rea
 import { getAuthUrl } from '../../../../api/authUrl'
 import { downloadFile, openFile } from '../../../../utils/fileDownload'
 import { lockBodyScroll } from '../../../../utils/bodyScrollLock'
-import { fileErrorMessage, isVideo } from '../../../../components/Files/FileManager.helpers'
 import { useToast } from '../../../../components/shared/Toast'
+import { fileErrorMessage, isVideo } from '../../../../components/Files/FileManager.helpers'
 import VideoPlayer from '../../../../components/Journey/VideoPlayerLazy'
 import type { TranslationFn, TripFile } from '../../../../types'
 
@@ -34,6 +34,8 @@ export default function MFileLightbox({ files, index, onIndexChange, onClose, t 
   const [imgSrc, setImgSrc] = useState('')
   const touchStartRef = useRef<number | null>(null)
   const toast = useToast()
+  const toastRef = useRef(toast)
+  toastRef.current = toast
   const fileIsVideo = isVideo(file?.mime_type)
   const fileUrl = file?.url
   const fileMimeType = file?.mime_type
@@ -43,17 +45,15 @@ export default function MFileLightbox({ files, index, onIndexChange, onClose, t 
     // not overwrite the file the user is looking at now.
     let cancelled = false
     setImgSrc('')
-    if (!fileUrl) return
-    const resolve = isVideo(fileMimeType) ? null : getAuthUrl(fileUrl, 'download')
-    resolve?.then(url => {
-      if (!cancelled) setImgSrc(url)
-    }).catch(error => {
-      if (!cancelled) console.error('Failed to resolve image preview:', error)
-    })
-    return () => {
-      cancelled = true
+    if (fileUrl && !isVideo(fileMimeType)) {
+      void getAuthUrl(fileUrl, 'download').then(url => {
+        if (!cancelled) setImgSrc(url)
+      }, error => {
+        if (!cancelled) toastRef.current.error(fileErrorMessage(t, error))
+      })
     }
-  }, [fileUrl, fileMimeType])
+    return () => { cancelled = true }
+  }, [fileUrl, fileMimeType, t])
 
   const hasPrev = index > 0
   const hasNext = index < files.length - 1
@@ -81,7 +81,7 @@ export default function MFileLightbox({ files, index, onIndexChange, onClose, t 
       // tap-to-dismiss. Escape / arrow keys and the header buttons are the
       // keyboard equivalents, wired up in the effect above.
       role="presentation"
-      className="m-root fixed inset-0 z-[65] flex flex-col bg-black/[.92]"
+      className="m-root fixed inset-0 z-[20000] flex flex-col bg-black/[.92]"
       onClick={onClose}
       onTouchStart={e => { touchStartRef.current = e.touches[0].clientX }}
       onTouchEnd={e => {

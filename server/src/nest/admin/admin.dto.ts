@@ -10,8 +10,10 @@ import {
   adminAddonUpdateRequestSchema,
   adminCollabFeaturesRequestSchema,
   adminNotificationPreferencesRequestSchema,
+  notificationDefaultsUpdateRequestSchema,
   adminDefaultUserSettingsRequestSchema,
   adminTestNotificationRequestSchema,
+  adminTransitProviderRequestSchema,
 } from '@trek/shared';
 
 /**
@@ -20,7 +22,7 @@ import {
  * parameter typed with one of these classes by metatype — the Zod schemas in
  * shared/ remain the single source of truth for the wire contract.
  *
- * Twelve classes cover the twenty grandfathered AdminController body contracts:
+ * Thirteen classes cover the AdminController body contracts:
  * the four feature toggles share AdminFeatureToggleDto and the six
  * packing-template create/update routes share AdminTemplateNameDto.
  */
@@ -34,5 +36,7 @@ export class AdminOidcUpdateDto extends createZodDto(adminOidcUpdateRequestSchem
 export class AdminAddonUpdateDto extends createZodDto(adminAddonUpdateRequestSchema) {}
 export class AdminCollabFeaturesDto extends createZodDto(adminCollabFeaturesRequestSchema) {}
 export class AdminNotificationPreferencesDto extends createZodDto(adminNotificationPreferencesRequestSchema) {}
+export class NotificationDefaultsUpdateDto extends createZodDto(notificationDefaultsUpdateRequestSchema) {}
 export class AdminDefaultUserSettingsDto extends createZodDto(adminDefaultUserSettingsRequestSchema) {}
 export class AdminTestNotificationDto extends createZodDto(adminTestNotificationRequestSchema) {}
+export class AdminTransitProviderDto extends createZodDto(adminTransitProviderRequestSchema) {}

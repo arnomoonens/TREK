@@ -3,7 +3,7 @@ import type { Request } from 'express';
 import type { PublicApiStats } from '@trek/shared';
 import { AtlasService } from './atlas.service';
 import { ApiTokenGuard } from '../public-api/api-token.guard';
-import { enforcePublicApiRateLimit, requireUserId } from '../public-api/public-api-request';
+import { enforcePublicApiRateLimit, requireScope, requireUserId } from '../public-api/public-api-request';
 import { RateLimitService } from '../common/rate-limit.service';
 
 /**
@@ -30,9 +30,12 @@ import { RateLimitService } from '../common/rate-limit.service';
  * instead. TravelStatsController next door already does exactly this for
  * `/api/auth/travel-stats`, and for the same reason.
  *
- * What crosses the boundary is only the request handling: the guard and the shared
- * rate-limit bucket, so an integration polling `/trips` and `/stats` spends one
- * budget rather than two.
+ * What crosses the boundary is only the request handling: the guard, the shared
+ * rate-limit bucket (so an integration polling `/trips` and `/stats` spends one
+ * budget rather than two) and the key's read scopes. The scope check is not
+ * optional here: this route aggregates trips, countries, cities and flown
+ * distance, which is precisely the reach a narrowed key exists to withhold, and
+ * enforcing scopes only in public-api/ would leave the widest answer open.
  */
 @Controller('api/v1')
 @UseGuards(ApiTokenGuard)
@@ -45,10 +48,12 @@ export class PublicStatsController {
   @Get('stats')
   stats(@Req() req: Request): PublicApiStats {
     enforcePublicApiRateLimit(this.rl, req);
+    requireScope(req, 'stats');
     const userId = requireUserId(req);
 
     const travel = this.atlas.getTravelStats(userId);
     const last = this.atlas.lastTrip(userId);
+    const next = this.atlas.nextTrip(userId);
 
     // Counts, not the arrays behind them. A consumer that wants the members asks
     // /api/v1/trips; this endpoint exists for the one that wants a number.
@@ -66,6 +71,14 @@ export class PublicStatsController {
         // The list's head, so `country` and `countries[0]` can never disagree.
         country: last.countries[0] ?? null,
         countries: last.countries,
+      },
+      next_trip: next && {
+        title: next.title,
+        start_date: next.start_date,
+        end_date: next.end_date,
+        days_until: next.days_until,
+        country: next.countries[0] ?? null,
+        countries: next.countries,
       },
     };
   }

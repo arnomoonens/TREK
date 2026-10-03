@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '../../tests/helpers/render';
 import { resetAllStores, seedStore } from '../../tests/helpers/store';
 import { useSettingsStore } from '../store/settingsStore';
+import { SUPPORTED_LANGUAGES } from '../i18n';
 import LoginPage from './LoginPage';
 import { useLogin } from './login/useLogin';
 
@@ -153,7 +154,7 @@ describe('LoginPage — language switcher', () => {
 
     expect(screen.getByRole('button', { name: 'Change language' })).toHaveAttribute('aria-expanded', 'true');
     const options = screen.getAllByRole('option');
-    expect(options).toHaveLength(23);
+    expect(options).toHaveLength(SUPPORTED_LANGUAGES.length);
     expect(screen.getByRole('option', { name: 'Deutsch' })).toHaveAttribute('aria-selected', 'false');
     expect(screen.getByRole('option', { name: 'English' })).toHaveAttribute('aria-selected', 'true');
   });
@@ -203,7 +204,8 @@ describe('LoginPage — OIDC-only mode', () => {
 
     expect(screen.queryByPlaceholderText(EMAIL_PLACEHOLDER)).toBeNull();
     const link = screen.getByRole('link', { name: /sign in with authentik/i });
-    expect(link).toHaveAttribute('href', '/api/auth/oidc/login');
+    // No switch in OIDC-only mode: the link always asks for the remembered lifetime.
+    expect(link).toHaveAttribute('href', '/api/auth/oidc/login?remember=1');
     expect(
       screen.getByText('Password authentication is disabled. Please sign in using your SSO provider.'),
     ).toBeInTheDocument();
@@ -222,7 +224,7 @@ describe('LoginPage — OIDC-only mode', () => {
     expect(screen.getByText('Invalid session. Please try again.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /sign in with sso/i })).toHaveAttribute(
       'href',
-      '/api/auth/oidc/login?invite=inv%2F42',
+      '/api/auth/oidc/login?invite=inv%2F42&remember=1',
     );
   });
 

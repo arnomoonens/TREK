@@ -7,5 +7,9 @@ const pdf: TranslationStrings = {
   'pdf.preview': 'PDF Önizleme',
   'pdf.saveAsPdf': 'PDF olarak Kaydet',
   'pdf.pageBreakPerDay': 'Her gün için sayfa sonu',
+  'pdf.transportNotes': 'Ulaşım notları',
+  'pdf.mapTitle': 'Rota genel görünümü',
+  'pdf.distanceLabel': 'Mesafe',
+  'pdf.mapCredit': 'Ülke sınırları: geoBoundaries (CC BY 4.0)',
 };
 export default pdf;

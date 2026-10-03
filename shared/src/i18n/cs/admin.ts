@@ -86,16 +86,65 @@ const admin: TranslationStrings = {
   'admin.requireMfa': 'Vyžadovat dvoufázové ověření (2FA)',
   'admin.requireMfaHint': 'Uživatelé bez 2FA musí dokončit nastavení v Nastavení před použitím aplikace.',
   'admin.apiKeys': 'API klíče',
-  'admin.apiKeysHint': 'Volitelné. Povoluje rozšířená data o místech (fotky, počasí).',
+  'admin.apiKeysHint': 'Odkud pocházejí data míst. Index TREK nepotřebuje klíč; dva poskytovatelé níže jsou volitelní.',
+  'admin.trekApi.badgeDefault': 'Doporučený výchozí zdroj',
+  'admin.googleCaveat.badge': 'Nedoporučeno',
+  'admin.googleCaveat.body':
+    'TREK je otevřený software a nejsme v tom neutrální. V tomto měřítku existují hodnocení a fotografie běžných podniků jen u Googlu, a to je monopol. Pole tu je z nedostatku alternativy, ne proto, že bychom je doporučovali. Každý dotaz pak jde do Googlu.',
+  'admin.trekApi.tagline':
+    'Vlastní rejstřík míst TREKu. Hledání bez klíče od Googlu, bez kvóty a bez toho, aby někdo počítal vaše dotazy.',
+  'admin.trekApi.factPlaces':
+    '73,6 milionu míst po celém světě',
+  'admin.trekApi.factNoKey':
+    'Bez klíče, bez kvóty',
+  'admin.trekApi.factOffline':
+    'Balíčky zemí fungují offline',
+  'admin.trekApi.factPrivacy':
+    'Dotazy se nikdy nezaznamenávají',
+  'admin.trekApi.more':
+    'Co v tom je',
+  'admin.trekApi.fieldPhone':
+    'Telefon',
+  'admin.trekApi.fieldStableId':
+    'Stálý identifikátor',
+  'admin.trekApi.includedNote':
+    'Popisy pocházejí z webu samotného místa, otevírací doba z OpenStreetMap tam, kde je vyplněná.',
+  'admin.trekApi.notRatings':
+    'Hodnocení',
+  'admin.trekApi.notPhotos':
+    'Fotografie běžných podniků',
+  'admin.trekApi.notIncludedNote':
+    'Ani jedno nemá žádný otevřený zdroj, za žádnou cenu. K těmto dvěma zůstává klíč od Googlu jedinou cestou.',
+  'admin.trekApi.sourcesLabel':
+    'Zdroje',
+  'admin.trekApi.sourcesNote':
+    'Každé pole v odpovědi uvádí, ze kterého z nich pochází.',
+  'admin.trekApi.included':
+    'Obsahuje',
+  'admin.trekApi.notIncluded':
+    'Neobsahuje',
   'admin.mapsKey': 'Google Maps API klíč',
   'admin.mapsKeyHint': 'Povinné pro hledání míst. Získáte na console.cloud.google.com',
   'admin.mapsKeyHintLong':
-    'Bez API klíče se pro hledání používá OpenStreetMap. S Google klíčem lze načítat fotky, hodnocení a otevírací dobu.',
+    'Bez klíče Google API se používá doporučené API TREK. S klíčem lze navíc načíst fotografie, hodnocení a otevírací dobu. Klíč vytvoříte na console.cloud.google.com.',
   'admin.recommended': 'Doporučeno',
   'admin.weatherKey': 'OpenWeatherMap API klíč',
   'admin.weatherKeyHint': 'Pro data o počasí. Zdarma na openweathermap.org',
   'admin.unsplashKey': 'Klíč API Unsplash',
   'admin.unsplashKeyHint': 'Pro vyhledávání obrázků. Zdarma na unsplash.com/developers',
+  'admin.amapKey': 'API klíč Amap (高德地图)',
+  'admin.amapKeyHint':
+    'Pro hledání míst v kontinentální Číně, kde Google není dostupný a OpenStreetMap má málo dat. Vyžaduje klíč typu „Web 服务" (webová služba), nikoli klíč JS API. Získáte na console.amap.com.',
+  'admin.keyFromEnv': 'Nastaveno přes {name}',
+  'admin.placesProvider.title': 'Poskytovatel hledání míst',
+  'admin.placesProvider.subtitle':
+    'Vlastní index TREKu a OpenStreetMap odpovídají na každé hledání. Zde se volí, koho se zeptat navíc, když nic nenajdou: Automaticky upřednostní Google, pokud je klíč, pak Amap.',
+  'admin.placesProvider.auto': 'Automaticky',
+  'admin.placesProvider.google': 'Google Places',
+  'admin.placesProvider.amap': 'Amap (高德地图)',
+  'admin.placesProvider.openstreetmap': 'OpenStreetMap',
+  'admin.placesProvider.missingKey': 'Zvolený poskytovatel nemá nastavený API klíč, na hledání míst tak odpovídá jen index TREKu a OpenStreetMap.',
+  'admin.placesProvider.saved': 'Poskytovatel hledání míst uložen',
   'admin.validateKey': 'Testovat',
   'admin.keyValid': 'Připojeno',
   'admin.keyInvalid': 'Neplatný',
@@ -113,6 +162,8 @@ const admin: TranslationStrings = {
   'admin.fileTypesHint': 'Nastavte, které typy souborů mohou uživatelé nahrávat.',
   'admin.fileTypesFormat': 'Přípony oddělené čárkou (např. jpg,png,pdf,doc). Použijte * pro všechny typy.',
   'admin.fileTypesSaved': 'Nastavení souborů uloženo',
+  'admin.googleOptions': 'K čemu se klíč používá',
+  'admin.googleOptionsSummary': '{on} ze {total} zapnuto',
   'admin.placesPhotos.title': 'Fotografie míst',
   'admin.placesPhotos.subtitle':
     'Načítání fotografií z Google Places API. Zakázáním ušetříte kvótu API. Fotografie z Wikimedia nejsou ovlivněny.',
@@ -125,6 +176,28 @@ const admin: TranslationStrings = {
   'admin.placesEnrich.title': 'Obohacení míst',
   'admin.placesEnrich.subtitle':
     'Zobrazí obrázky a popis při přidávání místa. Wikipedie a OpenStreetMap se používají vždy; Google se přidá, když jsou zapnuté Fotky míst nebo Detaily míst.',
+  'admin.placesGoogleOnly.title': 'Hledat pouze přes Google',
+  'admin.placesGoogleOnly.subtitle': 'Každé hledání a každý návrh jde do Google Places. Vypnuto: nejprve odpovídá index TREK a OpenStreetMap, Google se ptáme jen tehdy, když nic nenajdou.',
+  'admin.placesGoogleOnly.missingKey': 'Vyžaduje klíč Google Maps API. Bez něj hledání běží přes index TREK a OpenStreetMap bez ohledu na tento přepínač.',
+  'admin.placesGoogleOnly.otherProvider': 'Vyžaduje Google jako poskytovatele míst. Při zvoleném Amapu nebo OpenStreetMap nejde na Google žádné hledání, ať je tento přepínač nastaven jakkoli.',
+  'admin.googleQuota.title': 'Denní limit volání Google',
+  'admin.googleQuota.subtitle': 'Po dosažení přestane TREK volat Google až do dalšího dne (UTC) a hledá přes OpenStreetMap. Prázdné znamená bez limitu.',
+  'admin.googleQuota.placeholder': 'Bez limitu',
+  'admin.googleQuota.usedToday': 'Dnes: {used}',
+  'admin.googleQuota.usedOfLimit': 'Dnes: {used} z {limit}',
+  'admin.googleQuota.reached': 'Limit dosažen ({used}), Google pozastaven do zítřka',
+  'admin.googleQuota.saved': 'Denní limit uložen',
+  'admin.transitProvider.title': 'Poskytovatel veřejné dopravy',
+  'admin.transitProvider.subtitle': 'Která služba odpovídá na vyhledávání veřejné dopravy.',
+  'admin.transitProvider.transitous': 'Transitous (zdarma)',
+  'admin.transitProvider.google': 'Google',
+  'admin.transitProvider.transitousHint': 'Komunitní GTFS zdroje. Zdarma a bez klíče, s nejlepším pokrytím v Evropě.',
+  'admin.transitProvider.googleHint': 'Použije výše uvedený klíč Google pro regiony, pro které Transitous nemá data. Účtuje se za každé hledání – dokud není klíč nastaven, používá se Transitous.',
+  'admin.transitProvider.noKeyWarning': 'Je vybrán Google, ale není nastaven žádný klíč Google – vyhledávání dopravy stále používá Transitous. Přidejte klíč v sekci API klíče výše.',
+  'admin.transitProvider.personalKeyWarning': 'Je nastaven jen váš vlastní klíč Google, takže ostatním členům se vyhledávání stále vrací k Transitous. Uložte klíč výše jako správce, aby platil pro celou instanci.',
+  'admin.placeShadow.title': 'Záznam vyhledávání míst',
+  'admin.placeShadow.subtitle':
+    'Zaznamenávat, který výsledek vyhledávání byl vybrán, aby bylo možné později porovnat jiný index míst na skutečných dotazech. Nic neopouští tuto instanci a správce může záznam kdykoli exportovat nebo smazat.',
   'admin.bagTracking.title': 'Sledování zavazadel',
   'admin.bagTracking.subtitle': 'Povolit váhu a přiřazení k zavazadlům u položek balení',
   'admin.collab.chat.title': 'Chat',
@@ -315,6 +388,9 @@ const admin: TranslationStrings = {
   'admin.plugins.perm.hook:photo-provider': 'Poskytovat fotky do sekce Fotky',
   'admin.plugins.perm.hook:calendar-source': 'Poskytovat události do kalendáře',
   'admin.plugins.perm.hook:place-detail-provider': 'Přidávat další podrobnosti (recenze, hodnocení, odkazy) k místu',
+  'admin.plugins.perm.hook:search-provider': 'Odpovídat na vyhledávání míst z vlastního indexu, vedle výsledků TREK',
+  'admin.plugins.perm.hook:poi-category-provider':
+    'Přidávat vlastní kategorie míst do „Objevovat místa na mapě“; výběrem některé z nich doplněk obdrží oblast mapy, kterou si právě prohlížíte',
   'admin.plugins.perm.hook:trip-warning-provider': 'Vyvolávat ověřovací upozornění u cesty (zobrazená v plánovači)',
   'admin.plugins.perm.hook:table-contributor': 'Přidávat sloupce a akce do zobrazení cesty (rezervace, místa, dny)',
   'admin.plugins.perm.hook:map-marker-provider': 'Přidávat značky na mapu cesty (např. zobrazit rezervace nebo POI)',
@@ -328,6 +404,7 @@ const admin: TranslationStrings = {
   'admin.plugins.cap.mcpTools': 'Zveřejňuje AI nástroje',
   'admin.plugins.mcpToolsTitle': 'Zveřejněné AI nástroje',
   'admin.plugins.mcpToolsHint': 'Asistent je může spustit jménem uživatele. Každý jedná s oprávněními udělenými výše.',
+  'admin.plugins.poiCategoriesTitle': 'Kategorie mapy, které přidává',
   'admin.plugins.perm.mcp:tools':
     'Zveřejňovat nástroje, které může AI asistent spustit vaším jménem (jedná s oprávněními, která zde pluginu udělíte, ne se svými)',
   'admin.plugins.perm.geolocation:read':
@@ -467,6 +544,8 @@ const admin: TranslationStrings = {
   'admin.plugins.cap.photos': 'Poskytuje fotky',
   'admin.plugins.cap.calendar': 'Poskytuje události kalendáře',
   'admin.plugins.cap.placeDetails': 'Obohacuje místa',
+  'admin.plugins.cap.search': 'Odpovídá na vyhledávání',
+  'admin.plugins.cap.poiCategories': 'Přidává kategorie na mapu',
   'admin.plugins.cap.warnings': 'Označuje problémy',
   'admin.plugins.cap.mapLayers': 'Kreslí na mapě',
   'admin.plugins.cap.routing': 'Nabízí trasování',
@@ -489,6 +568,18 @@ const admin: TranslationStrings = {
   'admin.plugins.dep.trekIncompatible': 'Vyžaduje TREK {range} — tento server běží na {host}',
   'admin.plugins.dep.trekUnknown': 'Neuvádí, které verze TREK podporuje',
   'admin.plugins.installCompatible': 'Nainstalovat {version}',
+  'admin.plugins.installAnyway': 'Přesto nainstalovat',
+  'admin.plugins.rangeBypass.pill': 'Kontroly verzí vypnuty',
+  'admin.plugins.rangeBypass.pillHint':
+    'Je nastaveno TREK_PLUGINS_IGNORE_TREK_RANGE — pluginy se mohou instalovat a spouštět mimo verze TREKu, které jejich autoři deklarovali',
+  'admin.plugins.rangeBypass.title': 'Mimo podporované verze TREKu',
+  'admin.plugins.rangeBypass.noticeTitle': 'Nainstalováno mimo podporované verze TREKu',
+  'admin.plugins.rangeBypass.body':
+    '„{name}“ deklaruje podporu TREKu {range} a tento server běží na {host}. TREK ho propouští jen proto, že je nastaveno TREK_PLUGINS_IGNORE_TREK_RANGE. Autor neaktualizoval rozsah verzí pluginu pro tento TREK, takže není zaručeno, že bude fungovat — a ve vzácných případech může nekompatibilní plugin poškodit data TREKu. Pokračujte jen tehdy, pokud toto riziko přijímáte.',
+  'admin.plugins.rangeBypass.bodyUnknown':
+    '„{name}“ neuvádí, které verze TREKu podporuje; tento server běží na {host}. TREK ho propouští jen proto, že je nastaveno TREK_PLUGINS_IGNORE_TREK_RANGE. Nic nenasvědčuje tomu, že ho autor na tomto TREKu testoval, takže není zaručeno, že bude fungovat — a ve vzácných případech může nekompatibilní plugin poškodit data TREKu. Pokračujte jen tehdy, pokud toto riziko přijímáte.',
+  'admin.plugins.dep.trekBypassed': 'Mimo svůj rozsah TREKu ({range}) — kontroly verzí vypnuty',
+  'admin.plugins.dep.trekBypassedUnknown': 'Neuvádí žádný rozsah TREKu — kontroly verzí vypnuty',
   'admin.plugins.incompatible': 'Nekompatibilní',
   'admin.plugins.accessTitle': 'K čemu má přístup',
   'admin.plugins.connectsTitle': 'Připojuje se k',
@@ -519,8 +610,18 @@ const admin: TranslationStrings = {
   'admin.addons.catalog.naver_list_import.description': 'Importujte místa ze sdíleného seznamu Naver Maps',
   'admin.addons.catalog.airtrail.name': 'AirTrail',
   'admin.addons.catalog.airtrail.description': 'Synchronizujte lety ze své instance AirTrail',
+  'admin.addons.catalog.dawarich.name': 'Dawarich',
+  'admin.addons.catalog.dawarich.description':
+    'Načtěte návštěvy a zaznamenané trasy z instance Dawarich, kterou si každý čtenář připojí sám',
   'admin.addons.catalog.llm_parsing.name': 'Analýza pomocí AI',
   'admin.addons.catalog.llm_parsing.description': 'Přečte rezervace, které vestavěný analyzátor nezvládne, pomocí zvoleného modelu AI',
+  'admin.addons.llm.vision.auto': 'Automaticky',
+  'admin.addons.llm.vision.on': 'Ano',
+  'admin.addons.llm.vision.off': 'Ne',
+  'admin.addons.llm.vision.hintLocal': 'Automaticky se zeptá serveru Ollama, zda tento model čte obrázky.',
+  'admin.addons.llm.vision.hintCloud': 'Automaticky znamená u cloudového modelu ne. Zvolte Ano, pokud tento model čte obrázky.',
+  'admin.addons.catalog.roadtrip.name': 'Cesta autem',
+  'admin.addons.catalog.roadtrip.description': 'Plánujte jízdy se zastávkami – doby jízdy a časy příjezdu se přepočítají samy',
   'admin.addons.enabled': 'Povoleno',
   'admin.addons.disabled': 'Zakázáno',
   'admin.addons.type.trip': 'Cesta',
@@ -624,6 +725,9 @@ const admin: TranslationStrings = {
   'admin.tabs.permissions': 'Oprávnění',
   'admin.notifications.emailPanel.title': 'Email (SMTP)',
   'admin.notifications.webhookPanel.title': 'Webhook',
+  'admin.notifications.webPushPanel.title': 'Web Push',
+  'admin.notifications.webPushPanel.hint':
+    'Umožňuje uživatelům přijímat oznámení na telefonech a počítačích přes prohlížeč, i když je TREK zavřený. Vyžaduje HTTPS; na iPhonu a iPadu musí být TREK přidán na plochu.',
   'admin.notifications.inappPanel.title': 'In-App',
   'admin.notifications.inappPanel.hint': 'In-app oznámení jsou vždy aktivní a nelze je globálně vypnout.',
   'admin.notifications.adminWebhookPanel.title': 'Admin webhook',
@@ -657,6 +761,12 @@ const admin: TranslationStrings = {
   'admin.notifications.adminNtfyPanel.alwaysOnHint': 'Admin Ntfy odesílá vždy, když je nakonfigurováno téma',
   'admin.notifications.adminNotificationsHint':
     'Nastavte, které kanály doručují admin oznámení (např. upozornění na verze). Webhook odesílá automaticky, pokud je nastavena URL admin webhooku.',
+  'admin.notificationDefaults.title': 'Výchozí nastavení pro uživatele',
+  'admin.notificationDefaults.hint': 'Jak začínají oznámení každého uživatele. „Vypnuto“ si uživatel může sám zapnout, „Blokováno“ vypne pro všechny a v jejich nastavení se zobrazí zamčené. Platí pro každého, kdo buňku sám nezměnil.',
+  'admin.notificationDefaults.on': 'Zapnuto',
+  'admin.notificationDefaults.off': 'Vypnuto',
+  'admin.notificationDefaults.blocked': 'Blokováno',
+  'admin.notificationDefaults.cycle': 'Kliknutím přepnete na: {next}',
   'admin.notifications.tripReminders.title': 'Připomínky výletů',
   'admin.notifications.tripReminders.hint':
     'Odešle upozornění před začátkem výletu (vyžaduje nastavené dny připomínky na výletu).',
@@ -710,5 +820,9 @@ const admin: TranslationStrings = {
   'admin.invite.tripNone': 'Žádná cesta',
   'admin.invite.tripHint': 'Nový uživatel bude po registraci přes odkaz automaticky přidán k této cestě.',
   'admin.invite.boundTo': 'přidá k {trip}',
+  'admin.placesUsageTitle': 'K čemu se klíč používá',
+  'admin.mapsKeyHintShort': 'Přidá fotky, hodnocení a otevírací dobu. Každý dotaz pak jde na Google.',
+  'admin.amapKeyHintShort': 'Pro vyhledávání míst v pevninské Číně. Potřebuje klíč webové služby, ne klíč JS API.',
+  'admin.collab.links.subtitle': 'Sdílené odkazy a záložky',
 };
 export default admin;

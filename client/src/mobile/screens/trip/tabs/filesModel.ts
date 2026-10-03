@@ -137,7 +137,7 @@ export function buildFileLinkLabels(
     }
   }
 
-  const expenseIds = new Set(file.linked_expense_ids || [])
+  const expenseIds = new Set(file.linked_budget_item_ids || [])
   for (const id of expenseIds) {
     const expense = expenses.find(item => item.id === id)
     if (expense) labels.push(`${t('files.sourceExpense')} · ${expense.name}`)

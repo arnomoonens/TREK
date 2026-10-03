@@ -9,10 +9,11 @@
 import { createElement } from 'react'
 import { renderIconMarkup } from '../../utils/iconMarkup'
 import type mapboxgl from 'mapbox-gl'
-import { Plane, Train, Ship, Car, Bus, Sailboat, Bike, CarTaxiFront, Route, TramFront } from 'lucide-react'
+import { Plane, Train, Ship, Car, Bus, Sailboat, CableCar, Bike, CarTaxiFront, Route, TramFront } from 'lucide-react'
 import { getTransitMapSegments } from './transitGeometry'
 import { geodesicArcs } from './flightGeodesy'
 import { cleanEndpointName } from './reservationName'
+import { hopIsVisible, labelFloorPx } from '../../utils/reservationRoutes'
 import { escapeHtml } from '@trek/shared'
 import type { Reservation, ReservationEndpoint } from '../../types'
 
@@ -21,8 +22,8 @@ export const RESERVATION_LINE_LAYER_ID = 'trek-reservations-lines'
 /** Sits under the coloured transit lines; named here so teardown can find it. */
 export const TRANSIT_CASING_LAYER_ID = `${RESERVATION_LINE_LAYER_ID}-transit-casing`
 
-type TransportType = 'flight' | 'train' | 'cruise' | 'car' | 'bus' | 'taxi' | 'bicycle' | 'ferry' | 'transit' | 'transport_other'
-const TRANSPORT_TYPES: TransportType[] = ['flight', 'train', 'cruise', 'car', 'bus', 'taxi', 'bicycle', 'ferry', 'transit', 'transport_other']
+type TransportType = 'flight' | 'train' | 'cruise' | 'car' | 'bus' | 'taxi' | 'bicycle' | 'ferry' | 'cable_car' | 'transit' | 'transport_other'
+const TRANSPORT_TYPES: TransportType[] = ['flight', 'train', 'cruise', 'car', 'bus', 'taxi', 'bicycle', 'ferry', 'cable_car', 'transit', 'transport_other']
 const TRANSPORT_COLOR = '#3b82f6'
 
 const TYPE_META: Record<TransportType, { icon: typeof Plane; geodesic: boolean }> = {
@@ -34,6 +35,7 @@ const TYPE_META: Record<TransportType, { icon: typeof Plane; geodesic: boolean }
   taxi: { icon: CarTaxiFront, geodesic: false },
   bicycle: { icon: Bike, geodesic: false },
   ferry: { icon: Sailboat, geodesic: true },
+  cable_car: { icon: CableCar, geodesic: false },
   transit: { icon: TramFront, geodesic: false },
   transport_other: { icon: Route, geodesic: false },
 }
@@ -259,27 +261,31 @@ export class ReservationMapboxOverlay {
     })
   }
 
+  /** What a hop will draw: the road it was routed along when there is one, else its arcs. */
+  private linesFor(item: TransportItem): [number, number][][] {
+    const road = this.roadRoutes.get(item.res.id)
+    return road && road.length >= 2 ? [road] : item.arcs
+  }
+
   private render() {
     const map = this.map
     if (!this.map.getSource(RESERVATION_SOURCE_ID)) return
 
     const show = this.opts.showConnections
 
-    // Visible filter: require the on-screen pixel distance between
-    // endpoints to exceed a type-specific minimum, same as the Leaflet
-    // overlay, so tiny no-op transport lines don't clutter the map.
+    // Visible filter: a hop draws once what it will draw is long enough on
+    // screen to be worth it, same as the Leaflet overlay, so tiny no-op
+    // transport lines don't clutter the map. Measured along the drawn line,
+    // not between the ends: a routed drive can cover half the screen while
+    // its endpoints sit close together (#2275).
+    const project = (p: readonly [number, number]) => map.project([p[1], p[0]])
     const visibleItems = show ? this.items.filter(item => {
       try {
         // A transit journey draws its real alignment, not a straight from->to line, so
         // don't let the endpoint-proximity declutter hide it when the map is zoomed out
         // (#1570). Mirrors the Leaflet overlay.
         if (item.type === 'transit' && getTransitMapSegments(item.res).length > 0) return true
-        const fromPx = map.project([item.from.lng, item.from.lat])
-        const toPx = map.project([item.to.lng, item.to.lat])
-        const dx = fromPx.x - toPx.x, dy = fromPx.y - toPx.y
-        const dist = Math.sqrt(dx * dx + dy * dy)
-        const minPx = item.type === 'flight' ? 50 : item.type === 'cruise' ? 150 : item.type === 'car' ? 80 : 200
-        return dist >= minPx
+        return hopIsVisible(item.type, this.linesFor(item), project)
       } catch { return true }
     }) : []
 
@@ -293,8 +299,7 @@ export class ReservationMapboxOverlay {
           const toPx = map.project([item.to.lng, item.to.lat])
           const dx = fromPx.x - toPx.x, dy = fromPx.y - toPx.y
           const dist = Math.sqrt(dx * dx + dy * dy)
-          const minPx = item.type === 'flight' ? 50 : item.type === 'cruise' ? 300 : item.type === 'car' ? 150 : item.type === 'transit' ? 900 : 400
-          if (dist >= minPx) labelVisibleIds.add(item.res.id)
+          if (dist >= labelFloorPx(item.type)) labelVisibleIds.add(item.res.id)
         } catch { /* ignore */ }
       }
     }
@@ -320,9 +325,7 @@ export class ReservationMapboxOverlay {
         }))
       }
       // Prefer the real road route (car/bus/taxi/bicycle) over the straight arc.
-      const road = this.roadRoutes.get(item.res.id)
-      const lines = road && road.length >= 2 ? [road] : item.arcs
-      return lines.map(seg => ({
+      return this.linesFor(item).map(seg => ({
         type: 'Feature' as const,
         properties: {
           resId: item.res.id,

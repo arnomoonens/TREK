@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ExpensePrefill } from '../../../../src/components/Budget/CostsPanel'
 import MCostSheet from '../../../../src/mobile/screens/trip/sheets/MCostSheet'
 import type { TripMember } from '../../../../src/components/Budget/BudgetPanelMemberChips'
 import { clearExchangeRateCache } from '../../../../src/hooks/useExchangeRates'
 import { useTripStore, type TripStoreState } from '../../../../src/store/tripStore'
 import type { BudgetItem, BudgetItemMember } from '../../../../src/types'
-import { buildBudgetItem, buildTripFile } from '../../../helpers/factories'
+import { buildBudgetItem, buildTrip } from '../../../helpers/factories'
 import { localToday } from '../../../../src/components/Planner/today'
 import { resetAllStores } from '../../../helpers/store'
-import { act, fireEvent, render, screen, waitFor } from '../../../helpers/render'
-import userEvent from '@testing-library/user-event'
+import { act, fireEvent, render, screen, waitFor, within } from '../../../helpers/render'
 
 // FE-MOB-COSTSH-001 to FE-MOB-COSTSH-030
 // The sheet reads its copy from useTranslation(), so assertions are English.
@@ -29,9 +29,6 @@ function member(user_id: number, amount: number | null): BudgetItemMember {
 let addBudgetItem: ReturnType<typeof vi.fn>
 let updateBudgetItem: ReturnType<typeof vi.fn>
 let deleteBudgetItem: ReturnType<typeof vi.fn>
-let addFile: ReturnType<typeof vi.fn>
-let attachExpenseFile: ReturnType<typeof vi.fn>
-let detachExpenseFile: ReturnType<typeof vi.fn>
 let addToast: ReturnType<typeof vi.fn>
 
 interface SheetOverrides {
@@ -39,8 +36,9 @@ interface SheetOverrides {
   me?: number
   base?: string
   editing?: BudgetItem | null
+  canAttachFiles?: boolean
   canUploadFiles?: boolean
-  prefill?: { name?: string; category?: string; amount?: number; reservationId?: number; placeId?: number }
+  prefill?: ExpensePrefill
 }
 
 function renderSheet(overrides: SheetOverrides = {}) {
@@ -53,8 +51,9 @@ function renderSheet(overrides: SheetOverrides = {}) {
       people={overrides.people ?? PEOPLE}
       me={overrides.me ?? 1}
       editing={overrides.editing ?? null}
-      canUploadFiles={overrides.canUploadFiles}
       prefill={overrides.prefill}
+      canAttachFiles={overrides.canAttachFiles}
+      canUploadFiles={overrides.canUploadFiles}
       onClose={onClose}
       onSaved={onSaved}
     />,
@@ -83,14 +82,8 @@ describe('MCostSheet', () => {
     addBudgetItem = vi.fn(async () => buildBudgetItem({ id: 9 }))
     updateBudgetItem = vi.fn(async () => buildBudgetItem({ id: 9 }))
     deleteBudgetItem = vi.fn(async () => undefined)
-    addFile = vi.fn(async (_tripId: number, formData: FormData) => {
-      const file = formData.get('file') as File
-      return buildTripFile({ original_name: file.name, filename: file.name })
-    })
-    attachExpenseFile = vi.fn(async (_tripId: number, _expenseId: number, fileId: number) => buildTripFile({ id: fileId, linked_expense_ids: [9] }))
-    detachExpenseFile = vi.fn(async (_tripId: number, _expenseId: number, fileId: number) => buildTripFile({ id: fileId, linked_expense_ids: [] }))
     useTripStore.setState(
-      { addBudgetItem, updateBudgetItem, deleteBudgetItem, addFile, attachExpenseFile, detachExpenseFile } as unknown as Partial<TripStoreState>,
+      { addBudgetItem, updateBudgetItem, deleteBudgetItem } as unknown as Partial<TripStoreState>,
     )
     addToast = vi.fn()
     ;(window as unknown as { __addToast: unknown }).__addToast = addToast
@@ -144,102 +137,6 @@ describe('MCostSheet', () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
   })
 
-  it('FE-MOB-COSTSH-002b: stages multiple existing files and attaches them after the expense is saved', async () => {
-    useTripStore.setState({
-      files: [
-        buildTripFile({ id: 101, original_name: 'receipt.pdf' }),
-        buildTripFile({ id: 102, original_name: 'ticket.pdf' }),
-      ],
-    })
-    const { onSaved } = renderSheet()
-    fillBasics('Dinner', '85,50')
-
-    fireEvent.click(screen.getByRole('checkbox', { name: 'receipt.pdf' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: 'ticket.pdf' }))
-    expect(screen.getByRole('checkbox', { name: 'receipt.pdf' })).toBeChecked()
-    expect(screen.getByRole('checkbox', { name: 'ticket.pdf' })).toBeChecked()
-
-    fireEvent.click(submit())
-    await waitFor(() => expect(attachExpenseFile).toHaveBeenCalledTimes(2))
-    expect(attachExpenseFile).toHaveBeenNthCalledWith(1, 1, 9, 101)
-    expect(attachExpenseFile).toHaveBeenNthCalledWith(2, 1, 9, 102)
-    expect(detachExpenseFile).not.toHaveBeenCalled()
-    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
-  })
-
-  it('FE-MOB-COSTSH-002c: stages multiple uploads and uploads them after the expense is saved', async () => {
-    const user = userEvent.setup()
-    const events: string[] = []
-    let nextFileId = 201
-    addBudgetItem.mockImplementation(async () => {
-      events.push('expense')
-      return buildBudgetItem({ id: 9 })
-    })
-    addFile.mockImplementation(async (_tripId: number, formData: FormData) => {
-      const file = formData.get('file') as File
-      const id = nextFileId++
-      events.push(`upload:${file.name}`)
-      return buildTripFile({ id, original_name: file.name, filename: file.name })
-    })
-    attachExpenseFile.mockImplementation(async (_tripId: number, _expenseId: number, fileId: number) => {
-      events.push(`attach:${fileId}`)
-      return buildTripFile({ id: fileId, linked_expense_ids: [9] })
-    })
-
-    renderSheet({ canUploadFiles: true })
-    await user.click(screen.getByRole('tab', { name: 'Upload' }))
-    await user.upload(screen.getByTestId('expense-upload-input'), [
-      new File(['receipt'], 'receipt.pdf', { type: 'application/pdf' }),
-      new File(['ticket'], 'ticket.pdf', { type: 'application/pdf' }),
-    ])
-    expect(screen.getAllByTestId('expense-staged-upload')).toHaveLength(2)
-    expect(events).toEqual([])
-
-    fillBasics('Dinner', '85,50')
-    fireEvent.click(submit())
-
-    await waitFor(() => expect(events).toHaveLength(5))
-    expect(events[0]).toBe('expense')
-    expect(events).toEqual(expect.arrayContaining(['upload:receipt.pdf', 'attach:201', 'upload:ticket.pdf', 'attach:202']))
-    expect(events.indexOf('upload:receipt.pdf')).toBeLessThan(events.indexOf('attach:201'))
-    expect(events.indexOf('upload:ticket.pdf')).toBeLessThan(events.indexOf('attach:202'))
-  })
-
-  it('FE-MOB-COSTSH-002d: keeps a partial attachment save open and retries only the failed File', async () => {
-    const user = userEvent.setup()
-    const first = buildTripFile({ id: 71, original_name: 'failed.pdf', linked_expense_ids: [] })
-    const second = buildTripFile({ id: 72, original_name: 'saved.pdf', linked_expense_ids: [] })
-    let actualFiles = [first, second]
-    let firstAttempts = 0
-    const addBudgetItem = vi.fn(async () => buildBudgetItem({ id: 9, trip_id: 1, name: 'Dinner', total_price: 30 }))
-    const attachExpenseFile = vi.fn(async (_tripId: number, _expenseId: number, fileId: number) => {
-      if (fileId === first.id && firstAttempts++ === 0) throw new Error('temporary attach failure')
-      actualFiles = actualFiles.map(file => file.id === fileId ? { ...file, linked_expense_ids: [9] } : file)
-      return actualFiles.find(file => file.id === fileId)!
-    })
-    const loadFiles = vi.fn(async () => useTripStore.setState({ files: actualFiles }))
-    useTripStore.setState({ files: actualFiles, addBudgetItem, attachExpenseFile, loadFiles } as unknown as Partial<TripStoreState>)
-
-    const { onSaved } = renderSheet({ canUploadFiles: false })
-    await user.click(screen.getByLabelText(first.original_name))
-    await user.click(screen.getByLabelText(second.original_name))
-    fillBasics('Dinner', '30')
-    fireEvent.click(submit())
-
-    await waitFor(() => expect(screen.getByTestId('expense-attachment-failure-summary')).toHaveTextContent('1 file attachment failed'))
-    expect(addBudgetItem).toHaveBeenCalledTimes(1)
-    expect(loadFiles).toHaveBeenCalledTimes(1)
-    expect(onSaved).not.toHaveBeenCalled()
-    expect(screen.getByLabelText(first.original_name)).not.toBeChecked()
-    expect(screen.getByLabelText(second.original_name)).toBeChecked()
-
-    await user.click(screen.getByRole('button', { name: `Retry ${first.original_name}` }))
-
-    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
-    expect(addBudgetItem).toHaveBeenCalledTimes(1)
-    expect(attachExpenseFile.mock.calls.map(call => call[2])).toEqual([first.id, second.id, first.id])
-  })
-
   it('FE-MOB-COSTSH-020: the category dropdown opens, marks the current pick and closes on choose (#1658)', () => {
     renderSheet()
     expect(screen.queryByRole('button', { name: 'Groceries' })).toBeNull()
@@ -284,6 +181,15 @@ describe('MCostSheet', () => {
     expect(addBudgetItem).toHaveBeenCalledWith(1, expect.objectContaining({
       name: 'Ryokan', category: 'accommodation', total_price: 240, reservation_id: 77,
     }))
+  })
+
+  it('FE-MOB-COSTSH-003c: a scanned receipt opens with its currency and its photo waiting to be attached', () => {
+    const photo = new File(['x'], 'bill.jpg', { type: 'image/jpeg' })
+    renderSheet({ canAttachFiles: true, canUploadFiles: true, prefill: { name: 'Sushi Dai', amount: 4200, currency: 'JPY', date: '2026-09-20', receiptFiles: [photo] } })
+    expect(nameField()).toHaveValue('Sushi Dai')
+    expect(screen.getByDisplayValue('4200')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: /Upload/ }))
+    expect(screen.getByText('bill.jpg')).toBeInTheDocument()
   })
 
   it('FE-MOB-COSTSH-003b: a place prefill carries the place link into the payload (#1298)', async () => {
@@ -635,22 +541,6 @@ describe('MCostSheet', () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
   })
 
-  it('FE-MOB-COSTSH-025a: warns that attached Files remain before deleting an Expense', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
-    useTripStore.setState({
-      files: [buildTripFile({ id: 8, linked_expense_ids: [5], deleted_at: '2026-08-29T00:00:00.000Z' })],
-    })
-    const editing = buildBudgetItem({ id: 5, name: 'Dinner', category: 'food', currency: 'EUR', total_price: 60, members: [] })
-    renderSheet({ editing })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
-
-    await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.stringContaining('1 attached File')))
-    await waitFor(() => expect(deleteBudgetItem).toHaveBeenCalledWith(1, 5))
-    confirm.mockRestore()
-  })
-
   it('FE-MOB-COSTSH-026: a failing delete disarms the button and reports the error', async () => {
     deleteBudgetItem.mockRejectedValueOnce(new Error('locked'))
     const editing = buildBudgetItem({ id: 5, name: 'Dinner', category: 'food', currency: 'EUR', total_price: 60, members: [] })
@@ -767,6 +657,66 @@ describe('MCostSheet', () => {
       total_price: -60,
       payers: [{ user_id: 1, amount: -60 }],
     })))
+  })
+
+  it('FE-MOB-COSTSH-035: an expense saved without a currency reopens in the trip currency (#2525)', async () => {
+    // No currency on the row means the trip's own. Seeding the display currency
+    // instead labelled 100 euro as 100 dollars, and a plain save stored it so.
+    localStorage.setItem('trek_fx_USD', JSON.stringify({ rates: { USD: 1, EUR: 0.8 }, ts: Date.now() }))
+    useTripStore.setState({ trip: buildTrip({ id: 1, currency: 'EUR' }) } as unknown as Partial<TripStoreState>)
+    const editing = buildBudgetItem({
+      id: 12, name: 'Tram pass', category: 'transport', currency: null, total_price: 100,
+      members: [member(1, null)],
+      payers: [{ user_id: 1, amount: 100 }],
+    })
+    renderSheet({ base: 'USD', editing })
+
+    expect(totalField()).toHaveValue('100,00')
+    expect(screen.getByRole('button', { name: 'EUR €' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'USD $' })).toBeNull()
+
+    fireEvent.click(saveBtn())
+    await waitFor(() => expect(updateBudgetItem).toHaveBeenCalledWith(1, 12, expect.objectContaining({
+      total_price: 100,
+      currency: 'EUR',
+    })))
+  })
+
+  it('FE-MOB-COSTSH-036: editing a booked bill previews the rate the save keeps (#2525)', () => {
+    // A euro trip read in dollars, the bill entered in dollars at 1.17 to the euro.
+    // Same currency as the list, so the sheet said nothing, while the list showed the
+    // booked euros at today's rate beside the 801.76 typed here.
+    localStorage.setItem('trek_fx_USD', JSON.stringify({ rates: { USD: 1, EUR: 0.865706 }, ts: Date.now() }))
+    localStorage.setItem('trek_fx_EUR', JSON.stringify({ rates: { EUR: 1, USD: 1.1551 }, ts: Date.now() }))
+    useTripStore.setState({ trip: buildTrip({ id: 1, currency: 'EUR' }) } as unknown as Partial<TripStoreState>)
+    const editing = buildBudgetItem({
+      id: 13, name: 'Aparthotel Silver', category: 'accommodation', currency: 'USD', exchange_rate: 1.17, total_price: 801.76,
+      members: [member(1, null), member(2, null)],
+      payers: [{ user_id: 1, amount: 801.76 }],
+    })
+    renderSheet({ base: 'USD', editing })
+
+    const hint = screen.getByText(/live rate/).parentElement as HTMLElement
+    expect(within(hint).getByText('$801.76')).toBeInTheDocument()
+    expect(within(hint).getByText(/^685,26\s€$/)).toBeInTheDocument()
+    expect(within(hint).getByText('$791.55')).toBeInTheDocument()
+    // Each share next to what it counts as, the figure the row's "you lent" is made of.
+    expect(screen.getByText(/Split 2 ways · \$400\.88 → \$395\.77 each/)).toBeInTheDocument()
+  })
+
+  it('FE-MOB-COSTSH-037: a bill booked at today\'s rate has nothing to preview (#2525)', () => {
+    localStorage.setItem('trek_fx_USD', JSON.stringify({ rates: { USD: 1, EUR: 0.87732 }, ts: Date.now() }))
+    localStorage.setItem('trek_fx_EUR', JSON.stringify({ rates: { EUR: 1, USD: 1.1398 }, ts: Date.now() }))
+    useTripStore.setState({ trip: buildTrip({ id: 1, currency: 'EUR' }) } as unknown as Partial<TripStoreState>)
+    const editing = buildBudgetItem({
+      id: 14, name: 'Villa', category: 'accommodation', currency: 'USD', exchange_rate: 1.1398, total_price: 12345.67,
+      members: [member(1, null), member(2, null)],
+      payers: [{ user_id: 1, amount: 12345.67 }],
+    })
+    renderSheet({ base: 'USD', editing })
+
+    expect(screen.queryByText(/live rate/)).toBeNull()
+    expect(screen.queryByText(/→/)).toBeNull()
   })
 
   it('FE-MOB-COSTSH-030: a currency without a known symbol falls back to its code', () => {

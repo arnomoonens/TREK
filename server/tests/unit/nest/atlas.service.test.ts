@@ -42,7 +42,7 @@ import { createUser, createTrip, createReservation } from '../../helpers/factori
 import { getCountryFromCoords, getCountryFromAddress, isPointInCountryBox, reverseGeocodeCountry, getRegionGeo, getCountryGeo } from '../../../src/nest/atlas/atlas-geo';
 import { cacheKeyFor, getCached, setCached } from '../../../src/nest/geo/nominatim.client';
 import { DatabaseService } from '../../../src/nest/database/database.service';
-import { AtlasService, BucketItemExistsError } from '../../../src/nest/atlas/atlas.service';
+import { AtlasService, BucketItemExistsError, bucketRegionCode } from '../../../src/nest/atlas/atlas.service';
 
 // Direct construction over the shared test connection — no TestingModule (repo
 // convention for DI-native service unit tests).
@@ -1155,6 +1155,60 @@ describe('getVisitedRegions', () => {
   });
 });
 
+// ── A place that moves (#2527) ───────────────────────────────────────────────
+
+describe('a place that moves keeps no stale region', () => {
+  function cachedCountryOf(placeId: number): string | undefined {
+    const row = testDb.prepare('SELECT country_code FROM place_regions WHERE place_id = ?').get(placeId) as
+      | { country_code: string }
+      | undefined;
+    return row?.country_code;
+  }
+
+  // The lookup runs in the background; the first one in a worker also loads the admin-1 bundle.
+  async function settledCountryOf(placeId: number): Promise<string | undefined> {
+    for (let i = 0; i < 150; i++) {
+      const code = cachedCountryOf(placeId);
+      if (code) return code;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    return undefined;
+  }
+
+  it('ATLAS-SVC-2527a: a lookup still running when the place moves does not write the old country back', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id, { title: 'Lyon, then Munich' });
+    const place = insertPlaceWithCoords(testDb, trip.id, 'Hotel', 45.764, 4.8357, 'Lyon, France');
+
+    // The Atlas load starts resolving Lyon, and the place is corrected before it answers.
+    const pending = atlas.visitedRegions(user.id);
+    testDb
+      .prepare('UPDATE places SET lat = ?, lng = ?, address = ? WHERE id = ?')
+      .run(48.1374, 11.5755, 'Marienplatz, Munich, Germany', place.id);
+    await pending;
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(cachedCountryOf(place.id)).toBeUndefined();
+
+    // The next load resolves where the place is now.
+    expect((await atlas.stats(user.id)).countries.map((c) => c.code)).toEqual(['DE']);
+    await atlas.visitedRegions(user.id);
+    expect(await settledCountryOf(place.id)).toBe('DE');
+  });
+
+  it('ATLAS-SVC-2527b: a place deleted while its lookup runs leaves nothing behind', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id, { title: 'Cancelled' });
+    const place = insertPlaceWithCoords(testDb, trip.id, 'Hotel', 43.2965, 5.3698, 'Marseille, France');
+
+    const pending = atlas.visitedRegions(user.id);
+    testDb.prepare('DELETE FROM places WHERE id = ?').run(place.id);
+    await pending;
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    expect(testDb.prepare('SELECT COUNT(*) AS n FROM place_regions').get()).toEqual({ n: 0 });
+  });
+});
+
 // ── unmarkRegionVisited — tombstones + country cascade ──────────────────────
 
 // Places are region-resolved by a fire-and-forget background task (see reverseGeocodeRegion
@@ -1271,9 +1325,30 @@ describe('atlas quirk fixes', () => {
 
     const result = atlas.countryPlaces(user.id, 'JP');
 
-    // status rides along since #1048 — a manual mark is a visit even with no trips.
-    expect(result).toEqual({ places: [], trips: [], manually_marked: true, status: 'visited' });
-    expect(atlas.countryPlaces(user.id, 'FR').manually_marked).toBe(false);
+    // status rides along since #1048 — a manual mark is a visit even with no
+    // trips; marked_source since #2279 says who put the mark there, and a row
+    // written before that column existed still reads as 'manual'.
+    expect(result).toEqual({
+      places: [],
+      trips: [],
+      manually_marked: true,
+      marked_source: 'manual',
+      status: 'visited',
+    });
+    const unmarked = atlas.countryPlaces(user.id, 'FR');
+    expect(unmarked.manually_marked).toBe(false);
+    expect(unmarked.marked_source).toBeNull();
+  });
+
+  it('ATLAS-SVC-031b: keeps a wished-for region of the same country, drops any other (#1901)', () => {
+    const { user } = createUser(testDb);
+    const bavaria = atlas.createBucketItem(user.id, { name: 'Bayern', country_code: 'DE', region_code: 'de-by' }) as { region_code: string | null };
+    expect(bavaria.region_code).toBe('DE-BY');
+    const foreign = atlas.createBucketItem(user.id, { name: 'Berlin', country_code: 'FR', region_code: 'DE-BE' }) as { region_code: string | null };
+    expect(foreign.region_code).toBeNull();
+    const noCountry = atlas.createBucketItem(user.id, { name: 'Somewhere', region_code: 'DE-HH' }) as { region_code: string | null };
+    expect(noCountry.region_code).toBeNull();
+    expect(bucketRegionCode('DE-BY; DROP', 'DE')).toBeNull();
   });
 
   it('ATLAS-SVC-032: updateBucketItem persists lat/lng of exactly 0 (equator/prime meridian)', () => {
@@ -1643,6 +1718,110 @@ describe('getStats — visited vs planned vs idea (#1048)', () => {
   });
 });
 
+describe('getStats first and last visit (#1535)', () => {
+  it('ATLAS-UNIT-054: one trip runs from its start to its end, not from its start to its start', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id, { title: 'Paris', start_date: PAST_START, end_date: PAST_END });
+    insertPlace(testDb, trip.id, 'Louvre', '75001 Paris, France');
+
+    const stats = await atlas.stats(user.id);
+
+    expect(stats.countries.find((c) => c.code === 'FR')).toMatchObject({ firstVisit: PAST_START, lastVisit: PAST_END });
+  });
+
+  it('ATLAS-UNIT-055: a trip only booked does not become the last visit of a country already visited', async () => {
+    const { user } = createUser(testDb);
+    const past = createTrip(testDb, user.id, { title: 'Munich 2023', start_date: PAST_START, end_date: PAST_END });
+    const future = createTrip(testDb, user.id, { title: 'Munich again', start_date: FUTURE_START, end_date: FUTURE_END });
+    insertPlace(testDb, past.id, 'Marienplatz', 'Marienplatz, Munich, Germany');
+    insertPlace(testDb, future.id, 'Englischer Garten', 'Englischer Garten, Munich, Germany');
+
+    const stats = await atlas.stats(user.id);
+
+    expect(stats.countries.find((c) => c.code === 'DE')).toMatchObject({
+      status: 'visited',
+      firstVisit: PAST_START,
+      lastVisit: PAST_END,
+    });
+  });
+
+  it('ATLAS-UNIT-056: a trip still under way ends today', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id, { title: 'Rome now', start_date: isoOffsetDays(-2), end_date: isoOffsetDays(5) });
+    insertPlace(testDb, trip.id, 'Colosseum', 'Piazza del Colosseo, Rome, Italy');
+
+    const stats = await atlas.stats(user.id);
+
+    expect(stats.countries.find((c) => c.code === 'IT')).toMatchObject({
+      firstVisit: isoOffsetDays(-2),
+      lastVisit: isoOffsetDays(0),
+    });
+  });
+
+  it('ATLAS-UNIT-057: a planned country keeps the dates of its planned trip', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id, { title: 'Tokyo soon', start_date: FUTURE_START, end_date: FUTURE_END });
+    insertPlace(testDb, trip.id, 'Senso-ji', 'Asakusa, Tokyo, Japan');
+
+    const stats = await atlas.stats(user.id);
+
+    expect(stats.countries.find((c) => c.code === 'JP')).toMatchObject({
+      status: 'planned',
+      firstVisit: FUTURE_START,
+      lastVisit: FUTURE_END,
+    });
+  });
+
+  it('ATLAS-UNIT-058: a country marked by hand takes no dates from a trip that has not happened yet', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id, { title: 'Japan, next month', start_date: FUTURE_START, end_date: FUTURE_END });
+    insertPlace(testDb, trip.id, 'Senso-ji', 'Asakusa, Tokyo, Japan');
+    testDb.prepare('INSERT INTO visited_countries (user_id, country_code) VALUES (?, ?)').run(user.id, 'JP');
+
+    const stats = await atlas.stats(user.id);
+
+    expect(stats.countries.find((c) => c.code === 'JP')).toMatchObject({
+      status: 'visited',
+      firstVisit: null,
+      lastVisit: null,
+    });
+  });
+
+  it('ATLAS-UNIT-060: a flight that makes a country with places visited dates it by its own trip', async () => {
+    const { user } = createUser(testDb);
+    const flown = createTrip(testDb, user.id, { title: 'Tokyo 2023', start_date: PAST_START, end_date: PAST_END });
+    const reservation = createReservation(testDb, flown.id, { type: 'flight' });
+    insertReservationEndpoint(testDb, reservation.id, 'from', 0, 50.9014, 4.4844); // Brussels
+    insertReservationEndpoint(testDb, reservation.id, 'to', 1, 35.6762, 139.6503); // Tokyo
+    const planned = createTrip(testDb, user.id, { title: 'Japan again', start_date: FUTURE_START, end_date: FUTURE_END });
+    insertPlace(testDb, planned.id, 'Senso-ji', 'Asakusa, Tokyo, Japan');
+
+    const stats = await atlas.stats(user.id);
+
+    expect(stats.countries.find((c) => c.code === 'JP')).toMatchObject({
+      status: 'visited',
+      tripCount: 1,
+      firstVisit: PAST_START,
+      lastVisit: PAST_END,
+    });
+  });
+
+  it('ATLAS-UNIT-059: a country reached only by a flight and a dateless idea stay without dates', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id, { title: 'Tokyo', start_date: PAST_START, end_date: PAST_END });
+    const reservation = createReservation(testDb, trip.id, { type: 'flight' });
+    insertReservationEndpoint(testDb, reservation.id, 'from', 0, 50.9014, 4.4844); // Brussels
+    insertReservationEndpoint(testDb, reservation.id, 'to', 1, 35.6762, 139.6503); // Tokyo
+    const someday = createTrip(testDb, user.id, { title: 'Someday: Paris' });
+    insertPlace(testDb, someday.id, 'Louvre', '75001 Paris, France');
+
+    const stats = await atlas.stats(user.id);
+
+    expect(stats.countries.find((c) => c.code === 'JP')).toMatchObject({ tripCount: 0, firstVisit: null, lastVisit: null });
+    expect(stats.countries.find((c) => c.code === 'FR')).toMatchObject({ status: 'idea', firstVisit: null, lastVisit: null });
+  });
+});
+
 describe('getCountryPlaces — status (#1048)', () => {
   it('ATLAS-UNIT-040: the country sheet reports the same status the map paints', async () => {
     const { user } = createUser(testDb);
@@ -1775,5 +1954,61 @@ describe('lastTrip', () => {
     createTrip(testDb, user.id, { title: 'Second', start_date: PAST_START, end_date: PAST_END });
     // The id is the tie-break, so the answer cannot depend on storage order.
     expect(atlas.lastTrip(user.id)?.title).toBe('Second');
+  });
+});
+
+// ── nextTrip (#2542, feeds GET /api/v1/stats) ───────────────────────────────
+
+describe('nextTrip', () => {
+  it('ATLAS-NEXT-001: returns null when nothing is ahead', () => {
+    const { user } = createUser(testDb);
+    expect(atlas.nextTrip(user.id)).toBeNull();
+    createTrip(testDb, user.id, { title: 'Been there', start_date: PAST_START, end_date: PAST_END });
+    expect(atlas.nextTrip(user.id)).toBeNull();
+  });
+
+  it('ATLAS-NEXT-002: picks the nearest trip that has not started, with the days until it', () => {
+    const { user } = createUser(testDb);
+    createTrip(testDb, user.id, { title: 'Later', start_date: isoOffsetDays(90), end_date: isoOffsetDays(95) });
+    const soon = createTrip(testDb, user.id, { title: 'Soon', start_date: FUTURE_START, end_date: FUTURE_END });
+    const stamp = testDb.prepare('INSERT OR REPLACE INTO place_regions (place_id, country_code, region_code, region_name) VALUES (?, ?, ?, ?)');
+    stamp.run(insertPlaceWithCoords(testDb, soon.id, 'Lisboa', 38.72, -9.14).id, 'pt', 'PT-11', 'Lisboa');
+
+    expect(atlas.nextTrip(user.id)).toEqual({
+      title: 'Soon',
+      start_date: FUTURE_START,
+      end_date: FUTURE_END,
+      days_until: 30,
+      countries: ['PT'],
+    });
+  });
+
+  it('ATLAS-NEXT-003: a trip under way is the last trip, not the next one', () => {
+    const { user } = createUser(testDb);
+    createTrip(testDb, user.id, { title: 'Now', start_date: isoOffsetDays(-2), end_date: isoOffsetDays(3) });
+    expect(atlas.nextTrip(user.id)).toBeNull();
+    expect(atlas.lastTrip(user.id)?.title).toBe('Now');
+  });
+
+  it('ATLAS-NEXT-004: a trip starting tomorrow is one day away', () => {
+    const { user } = createUser(testDb);
+    createTrip(testDb, user.id, { title: 'Tomorrow', start_date: isoOffsetDays(1) });
+    expect(atlas.nextTrip(user.id)).toMatchObject({ title: 'Tomorrow', days_until: 1, end_date: null });
+  });
+
+  it('ATLAS-NEXT-005: a trip without a start date has nothing to count down to', () => {
+    const { user } = createUser(testDb);
+    createTrip(testDb, user.id, { title: 'Someday', end_date: FUTURE_END });
+    expect(atlas.nextTrip(user.id)).toBeNull();
+  });
+
+  it('ATLAS-NEXT-006: a shared trip counts for the member, and equal starts resolve by id', () => {
+    const { user: owner } = createUser(testDb);
+    const { user: member } = createUser(testDb);
+    const first = createTrip(testDb, owner.id, { title: 'First', start_date: FUTURE_START, end_date: FUTURE_END });
+    const second = createTrip(testDb, owner.id, { title: 'Second', start_date: FUTURE_START, end_date: FUTURE_END });
+    testDb.prepare('INSERT INTO trip_members (trip_id, user_id) VALUES (?, ?)').run(first.id, member.id);
+    testDb.prepare('INSERT INTO trip_members (trip_id, user_id) VALUES (?, ?)').run(second.id, member.id);
+    expect(atlas.nextTrip(member.id)?.title).toBe('First');
   });
 });

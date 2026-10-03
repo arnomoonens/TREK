@@ -11,7 +11,13 @@
  */
 import { z } from 'zod';
 import { SUPPORTED_LANGUAGE_CODES } from '@trek/shared';
-import { parseDurationMs } from './parsers';
+import {
+  isP256PrivateKey,
+  isUncompressedP256Key,
+  isVapidSubject,
+  parseDurationMs,
+  parseLinkLocalAllowList,
+} from './parsers';
 
 /** Present-but-malformed fails; unset/blank always passes (defaults apply). */
 function optionalWith(test: (v: string) => boolean, message: string) {
@@ -74,6 +80,11 @@ export const envSchema = z.object({
   HSTS_INCLUDE_SUBDOMAINS: boolStr,
   TRUST_PROXY: integer(0, 2 ** 31, 'must be an integer (number of trusted proxy hops)'),
   ALLOW_INTERNAL_NETWORK: boolStr,
+  ALLOW_LINK_LOCAL_IPS: optionalWith(
+    (v) => parseLinkLocalAllowList(v).invalid.length === 0,
+    'must be a comma-separated list of IPv4 addresses in 169.254.0.0/16, such as 169.254.1.2; ' +
+      '169.254.169.x and 169.254.170.x (cloud metadata) cannot be listed',
+  ),
   IDEMPOTENCY_TTL_SECONDS: positiveNumber,
 
   // OIDC
@@ -86,6 +97,7 @@ export const envSchema = z.object({
   OIDC_ONLY: boolStr,
   OIDC_ADMIN_CLAIM: anyString,
   OIDC_ADMIN_VALUE: anyString,
+  OIDC_USERNAME_CLAIM: anyString,
 
   // SMTP
   SMTP_HOST: anyString,
@@ -99,6 +111,18 @@ export const envSchema = z.object({
   WEBAUTHN_RP_ID: anyString,
   WEBAUTHN_ORIGINS: anyString,
 
+  // Web Push (VAPID). All optional: without them the server keeps a pair of its
+  // own in the database. Only the shape is checked here; whether the two keys
+  // belong together is checked where they are used, which turns push off while
+  // they do not (never signing with a stored pair in their place) and says so
+  // in the log instead of refusing to boot.
+  VAPID_PUBLIC_KEY: optionalWith(
+    isUncompressedP256Key,
+    'must be a base64url-encoded P-256 public key (65 bytes, uncompressed, starting with 0x04)',
+  ),
+  VAPID_PRIVATE_KEY: optionalWith(isP256PrivateKey, 'must be a base64url-encoded P-256 private key (32 bytes)'),
+  VAPID_SUBJECT: optionalWith(isVapidSubject, 'must be a mailto: address or an https:// URL'),
+
   // MCP
   MCP_SESSION_TTL: positiveNumber,
   MCP_MAX_SESSION_PER_USER: positiveNumber,
@@ -108,10 +132,16 @@ export const envSchema = z.object({
   // Integrations
   UNSPLASH_ACCESS_KEY: anyString,
   TRANSIT_API_URL: url,
+  NOMINATIM_URL: url,
   // OVERPASS_URL accepts a comma-separated endpoint list and silently drops
   // non-http(s) entries today — left unvalidated to keep that behavior.
   OVERPASS_URL: anyString,
   OVERPASS_TIMEOUT_MS: positiveNumber,
+  // Whole milliseconds, and inside setTimeout's 32-bit range. A fractional value
+  // would floor to 0 and abort every model call on the next tick; anything past
+  // 2^31-1 makes Node clamp the delay to 1 ms and do the same. Both refuse at
+  // boot rather than degrading into a timeout of zero.
+  LLM_TIMEOUT_MS: integer(1, 2_147_483_647, 'must be a whole number of milliseconds between 1 and 2147483647'),
   KITINERARY_EXTRACTOR_PATH: anyString,
   // The OS search path. Not configuration anybody sets for TREK — it is here so
   // the kitinerary probe can resolve its binary to an absolute path itself
@@ -131,14 +161,22 @@ export const envSchema = z.object({
   TREK_WIKI_DIR: anyString,
   TREK_PLACE_PHOTO_DIR: anyString,
   BACKUP_UPLOAD_LIMIT_MB: positiveNumber,
+  FILE_UPLOAD_LIMIT_MB: positiveNumber,
   BACKUP_MAX_DECOMPRESSED_MB: positiveNumber,
+  // A backup archive to restore on the very first start, before any setup (#1089).
+  RESTORE_FROM_BACKUP: anyString,
 
   // Admin / demo
   ADMIN_EMAIL: anyString,
   ADMIN_PASSWORD: anyString,
   TREK_MANAGED: boolStr,
   PLACES_API_BASE: url,
+  TREK_PLACES_URL: url,
+  TREK_PLACES_ENABLED: boolStr,
   PLACES_API_KEY: anyString,
+  AMAP_API_BASE: url,
+  AMAP_API_KEY: anyString,
+  AMAP_API_SECRET: anyString,
   MAPBOX_ACCESS_TOKEN: anyString,
   CARTO_API_KEY: anyString,
   DEMO_MODE: boolStr,
@@ -150,6 +188,7 @@ export const envSchema = z.object({
   TREK_API_DOCS_ENABLED: boolStr,
   TREK_PLUGINS_ENABLED: boolStr,
   TREK_PLUGINS_DEV_LINK: boolStr,
+  TREK_PLUGINS_IGNORE_TREK_RANGE: boolStr,
   TREK_PLUGINS_DIR: anyString,
   TREK_PLUGINS_DATA_DIR: anyString,
   TREK_PLUGIN_PERMISSIONS: boolStr,

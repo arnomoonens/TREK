@@ -13,6 +13,7 @@ const map: TranslationStrings = {
   'poi.cat.museums': 'Museus e cultura',
   'poi.cat.nature': 'Natureza e parques',
   'poi.cat.activities': 'Atividades',
+  'poi.pluginCategories': 'Categorias de plugins',
   'map.showAllConnections': 'Mostrar todas as rotas de reservas',
   'map.hideAllConnections': 'Ocultar todas as rotas de reservas',
   'map.baseLayer.default': 'Mapa',
@@ -22,5 +23,13 @@ const map: TranslationStrings = {
   'map.location.denied': 'O acesso à localização está bloqueado. Verifique as configurações do aparelho; um app instalado tem permissão de localização própria, separada do navegador.',
   'map.location.unavailable': 'Não foi possível determinar sua localização.',
   'map.location.timeout': 'A localização demorou demais. Tente de novo com uma visão mais aberta do céu.',
+  'map.overview.show': 'Mostrar a viagem inteira',
+  'map.lock.lock': 'Travar a visualização do mapa',
+  'map.lock.unlock': 'Deixar o mapa seguir a seleção',
+  'map.overview.hide': 'Ocultar a viagem inteira',
+  'map.overview.total': 'Distância total',
+  'map.attribution': 'Créditos do mapa',
+  'map.overview.unrouted': 'Não foi possível calcular {count} troço(s), por isso as distâncias estão incompletas.',
+  'map.overview.dayUnrouted': 'Não foi possível calcular {count} troço(s) deste dia',
 };
 export default map;

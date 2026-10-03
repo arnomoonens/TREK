@@ -4,8 +4,10 @@ import {
   assignmentReorderRequestSchema,
   assignmentMoveRequestSchema,
   assignmentTimeRequestSchema,
+  assignmentEndDayRequestSchema,
   assignmentNotesRequestSchema,
   assignmentTransportRequestSchema,
+  assignmentRouteRequestSchema,
   assignmentParticipantsRequestSchema,
 } from '@trek/shared';
 
@@ -20,6 +22,8 @@ export class AssignmentCreateDto extends createZodDto(assignmentCreateRequestSch
 export class AssignmentReorderDto extends createZodDto(assignmentReorderRequestSchema) {}
 export class AssignmentMoveDto extends createZodDto(assignmentMoveRequestSchema) {}
 export class AssignmentTimeDto extends createZodDto(assignmentTimeRequestSchema) {}
+export class AssignmentEndDayDto extends createZodDto(assignmentEndDayRequestSchema) {}
 export class AssignmentNotesDto extends createZodDto(assignmentNotesRequestSchema) {}
 export class AssignmentTransportDto extends createZodDto(assignmentTransportRequestSchema) {}
+export class AssignmentRouteDto extends createZodDto(assignmentRouteRequestSchema) {}
 export class AssignmentParticipantsDto extends createZodDto(assignmentParticipantsRequestSchema) {}

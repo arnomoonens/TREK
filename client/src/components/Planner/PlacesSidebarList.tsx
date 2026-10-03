@@ -1,44 +1,65 @@
-import { Fragment } from 'react'
+import { Fragment, type ReactNode } from 'react'
+import EmptyState from '../shared/EmptyState'
 import { MemoPlaceRow } from './PlacesSidebarRow'
 import type { SidebarState } from './usePlacesSidebar'
 import { usePluginViewContributions, PluginCardFooter } from '../Plugins/PluginContributions'
 
-export function PlacesList(S: SidebarState) {
+export function PlacesList({ header, ...S }: SidebarState & {
+  /**
+   * A block that sits above the places and scrolls WITH them.
+   *
+   * The Dawarich panel lives here rather than in a band of its own above the list. As its
+   * own band it could not grow: the list is the flex child that scrolls, so a panel with
+   * ten stays in it squeezed the list to nothing and took the rail's scrolling with it,
+   * and capping the panel left half its stays below a fold with no way to reach them.
+   * Inside the scroller it simply opens to its full height and the rail scrolls past it.
+   */
+  header?: ReactNode
+}) {
   const {
     filtered, scrollContainerRef, onScrollTopChange, filter, t, canEditPlaces, onAddPlace,
     categories, selectedPlaceId, plannedIds, inDaySet, selectedIds, selectMode, selectedDayId,
-    isMobile, onPlaceClick, openContextMenu, onAssignToDay, toggleSelected, setDayPickerPlace, registerPlaceRow, tripId,
+    isMobile, onPlaceClick, openContextMenu, placeMenuItems, onAssignToDay, toggleSelected, setDayPickerPlace, registerPlaceRow, tripId,
   } = S
   // Plugin-contributed columns/actions for the places view, keyed by place id (#plugins).
   const contribFor = usePluginViewContributions('places', tripId)
   return (
-    <div className="trek-stagger" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }} ref={scrollContainerRef} onScroll={(e) => onScrollTopChange?.((e.currentTarget as HTMLElement).scrollTop)}>
+    <div className="trek-stagger min-h-0 flex-1 overflow-y-auto px-2 pb-2" ref={scrollContainerRef} onScroll={(e) => onScrollTopChange?.((e.currentTarget as HTMLElement).scrollTop)}>
+      {header}
       {filtered.length === 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 16px', gap: 8 }}>
-          <span className="text-content-faint" style={{ fontSize: 'calc(13px * var(--fs-scale-body, 1))' }}>
-            {filter === 'unplanned' ? t('places.allPlanned') : t('places.noneFound')}
-          </span>
-          {canEditPlaces && <button type="button" onClick={onAddPlace} className="text-content" style={{ fontSize: 'calc(12px * var(--fs-scale-body, 1))', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit' }}>
-            {t('places.addPlace')}
-          </button>}
-        </div>
+        /* The mascot and one line, the shape every other empty state in TREK has.
+           The add link stays as the state's action: an empty list of places is
+           one of the few that has an obvious next step. */
+        <EmptyState
+          scene="search"
+          mood="sad"
+          size={92}
+          fill
+          surface="var(--bg-secondary)"
+          title={filter === 'unplanned' ? t('places.allPlanned') : t('places.noneFound')}
+          action={canEditPlaces ? (
+            <button
+              type="button"
+              onClick={onAddPlace}
+              className="text-caption text-content underline underline-offset-2 hover:text-accent"
+            >
+              {t('places.addPlace')}
+            </button>
+          ) : undefined}
+        />
       ) : (
         filtered.map(place => {
           const cat = categories.find(c => c.id === place.category_id)
-          const isSelected = place.id === selectedPlaceId
-          const isPlanned = plannedIds.has(place.id)
-          const inDay = inDaySet.has(place.id)
-          const isChecked = selectedIds.has(place.id)
           const contributions = contribFor(place.id)
           return (
             <Fragment key={place.id}>
               <MemoPlaceRow
                 place={place}
                 category={cat}
-                isSelected={isSelected}
-                isPlanned={isPlanned}
-                inDay={inDay}
-                isChecked={isChecked}
+                isSelected={place.id === selectedPlaceId}
+                isPlanned={plannedIds.has(place.id)}
+                inDay={inDaySet.has(place.id)}
+                isChecked={selectedIds.has(place.id)}
                 selectMode={selectMode}
                 selectedDayId={selectedDayId}
                 canEditPlaces={canEditPlaces}
@@ -46,13 +67,14 @@ export function PlacesList(S: SidebarState) {
                 t={t}
                 onPlaceClick={onPlaceClick}
                 onContextMenu={openContextMenu}
+                menuItems={placeMenuItems}
                 onAssignToDay={onAssignToDay}
                 toggleSelected={toggleSelected}
                 setDayPickerPlace={setDayPickerPlace}
                 registerPlaceRow={registerPlaceRow}
               />
               {contributions.length > 0 && (
-                <div style={{ padding: '0 14px 8px 16px' }}><PluginCardFooter items={contributions} tripId={tripId} /></div>
+                <div className="px-2.5 pb-2"><PluginCardFooter items={contributions} tripId={tripId} /></div>
               )}
             </Fragment>
           )

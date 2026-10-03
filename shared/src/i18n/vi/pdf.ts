@@ -7,5 +7,9 @@ const pdf: TranslationStrings = {
   'pdf.preview': 'PDF Xem trước',
   'pdf.saveAsPdf': 'Lưu dưới dạng PDF',
   'pdf.pageBreakPerDay': 'Ngắt trang cho mỗi ngày',
+  'pdf.transportNotes': 'Ghi chú phương tiện',
+  'pdf.mapTitle': 'Tổng quan lộ trình',
+  'pdf.distanceLabel': 'Quãng đường',
+  'pdf.mapCredit': 'Đường viền quốc gia: geoBoundaries (CC BY 4.0)',
 };
 export default pdf;

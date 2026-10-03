@@ -1,8 +1,22 @@
 import React from 'react'
 import { adminApi, authApi } from '../../api/client'
 import { getApiErrorMessage } from '../../types'
-import { Eye, EyeOff, Save, CheckCircle, XCircle, Loader2, Sun, RefreshCw, AlertTriangle } from 'lucide-react'
+import {
+  AlertTriangle, CheckCircle, Eye, EyeOff, FileType, Fingerprint, KeyRound, Loader2, LockKeyhole, LogIn,
+  RefreshCw, Save, ShieldCheck, XCircle,
+} from 'lucide-react'
 import ToggleSwitch from '../../components/Settings/ToggleSwitch'
+import CustomSelect from '../../components/shared/CustomSelect'
+import { fs } from '../../components/shared/DialogShell'
+import { EditorField, GRID_2, INPUT } from '../../components/shared/dialogParts'
+import {
+  SETTINGS_BUTTON, SETTINGS_BUTTON_DANGER, SETTINGS_BUTTON_PRIMARY, SettingRow, SettingRows, SettingsCard, SettingsHint, StatusPill,
+} from '../../components/Settings/settingsKit'
+import GoogleOptions from './GoogleOptions'
+import GoogleDailyLimitRow from '../../components/Admin/GoogleDailyLimitRow'
+import ProviderBlock from './ProviderBlock'
+import TrekApiCard from './TrekApiCard'
+import { placesGoogleOnlyHint } from '../../utils/placeSource'
 import type { TranslationFn } from '../../types'
 import type { useAdmin } from './useAdmin'
 
@@ -11,16 +25,102 @@ interface AdminSettingsTabProps {
   t: TranslationFn
 }
 
+/**
+ * ToggleSwitch's look for the login switches that can be locked: the last way
+ * in may not be switched off, and an OIDC_ONLY environment pins the password
+ * ones. ToggleSwitch itself has no disabled state, so the same track and knob
+ * are drawn here with one. The title carries the lockout reason.
+ */
+function LockableSwitch({ on, onToggle, label, disabled, title }: {
+  on: boolean
+  onToggle: () => void
+  label: string
+  disabled?: boolean
+  title?: string
+}) {
+  return (
+    <button type="button" onClick={onToggle} disabled={disabled} title={title} aria-pressed={on} aria-label={label}
+      className="group relative h-6 w-11 flex-none cursor-pointer rounded-full border-0 p-0 outline-none transition-colors duration-200 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] focus-visible:ring-2 focus-visible:ring-[color:var(--text-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--bg-card)] disabled:cursor-default disabled:opacity-50"
+      style={{
+        background: on ? 'var(--accent)' : 'var(--border-primary)',
+        boxShadow: 'inset 0 1px 2px color-mix(in srgb, var(--text-primary) 12%, transparent)',
+      }}>
+      <span className="absolute top-0.5 h-5 w-5 rounded-full transition-[left,transform] duration-200 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] group-enabled:group-active:scale-95"
+        style={{ left: on ? 22 : 2, background: on ? 'var(--accent-text)' : 'var(--bg-card)', boxShadow: 'var(--shadow-sm)' }} />
+    </button>
+  )
+}
+
+/** A warning in a card body: what a setting will not do as things stand. */
+function Callout({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="m-0 flex items-start gap-2 rounded-[12px] bg-warning-soft px-3 py-2.5 leading-snug text-warning" style={fs(12, 'body')}>
+      <AlertTriangle size={14} strokeWidth={2.2} className="mt-px flex-none" />
+      <span className="min-w-0">{children}</span>
+    </p>
+  )
+}
+
+/**
+ * A secret key field with its show/hide eye inside the box. The eye carries the
+ * key's name as its accessible name and is the input's sibling, which is how
+ * the tests find each field.
+ */
+function KeyField({ shown, value, onChange, inputProps, label, onToggle }: {
+  shown: boolean
+  value: string
+  onChange: (value: string) => void
+  inputProps: React.InputHTMLAttributes<HTMLInputElement>
+  label: string
+  onToggle: () => void
+}) {
+  return (
+    <div className="relative min-w-0 flex-1">
+      <input
+        type={shown ? 'text' : 'password'}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        {...inputProps}
+        className={`${INPUT} pr-10 font-geist`}
+      />
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={label}
+        className="absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-[8px] text-content-faint hover:bg-surface-hover hover:text-content"
+      >
+        {shown ? <EyeOff size={15} /> : <Eye size={15} />}
+      </button>
+    </div>
+  )
+}
+
+/** The save at the foot of a card body, on the right like a dialog's main action. */
+function SaveBar({ onClick, saving, label }: { onClick: () => void; saving: boolean; label: string }) {
+  return (
+    <div className="flex justify-end">
+      <button type="button" onClick={onClick} disabled={saving} className={SETTINGS_BUTTON_PRIMARY} style={fs(13, 'body')}>
+        {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+        {label}
+      </button>
+    </div>
+  )
+}
+
 // "Settings" admin tab: auth methods, require-MFA, allowed file types, API keys,
 // OIDC config and the danger zone. Pure layout around the useAdmin hook.
 export default function AdminSettingsTab({ admin, t }: AdminSettingsTabProps): React.ReactElement {
   const {
     toast,
-    setPlacesPhotosEnabled, setPlacesAutocompleteEnabled, setPlacesDetailsEnabled, setPlacesEnrichEnabled,
+    setPlacesPhotosEnabled, setPlacesAutocompleteEnabled, setPlacesDetailsEnabled, setPlacesEnrichEnabled, setPlaceShadowEnabled,
     placesPhotosEnabled, setPlacesPhotosEnabledState,
     placesAutocompleteEnabled, setPlacesAutocompleteEnabledState,
     placesDetailsEnabled, setPlacesDetailsEnabledState,
     placesEnrichEnabled, setPlacesEnrichEnabledState,
+    placesGoogleOnly, handleTogglePlacesGoogleOnly,
+    transitProvider, setTransitProviderState,
+    transitGoogleKeySource, setTransitGoogleKeySource,
+    placeShadowEnabled, setPlaceShadowEnabledState,
     oidcConfig, setOidcConfig, savingOidc, setSavingOidc,
     passwordLogin, setPasswordLogin, passwordRegistration, setPasswordRegistration,
     oidcLogin, setOidcLogin, oidcRegistration, setOidcRegistration,
@@ -28,132 +128,108 @@ export default function AdminSettingsTab({ admin, t }: AdminSettingsTabProps): R
     passkeyLogin, setPasskeyLogin, passkeyConfigured,
     webauthnRpId, setWebauthnRpId, webauthnOrigins, setWebauthnOrigins, savingWebauthn, handleSaveWebauthn,
     allowedFileTypes, setAllowedFileTypes, savingFileTypes, setSavingFileTypes,
-    mapsKey, setMapsKey, unsplashKey, setUnsplashKey, showKeys, savingKeys, validating, validation,
+    mapsKey, setMapsKey, unsplashKey, setUnsplashKey, amapKey, setAmapKey, hasMapsKey, hasAmapKey, keyInputProps, mapsKeyTestable, showKeys, savingKeys, validating, validation,
+    placesProvider, savingPlacesProvider, handleSavePlacesProvider,
     managed,
     setShowRotateJwtModal,
     handleToggleAuthSetting, handleToggleRequireMfa,
     toggleKey, handleSaveApiKeys, handleValidateKey,
   } = admin
 
+  const passwordLoginLocked = !passwordLogin && !oidcLogin
+  const oidcLoginLocked = !passwordLogin && oidcLogin
+
   return (
-    <div className="space-y-6">
-      {/* Authentication Methods */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100">
-          <h2 className="font-semibold text-slate-900">{t('admin.authMethods')}</h2>
-        </div>
-        <div className="p-6 space-y-5">
-          {envOverrideOidcOnly && (
-            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              {t('admin.envOverrideHint')}
-            </p>
-          )}
-          {/* Password Login */}
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-700">{t('admin.passwordLogin')}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{t('admin.passwordLoginHint')}</p>
-            </div>
-            <button type="button"
-              disabled={envOverrideOidcOnly || (!passwordLogin && !oidcLogin)}
-              onClick={() => handleToggleAuthSetting('password_login', !passwordLogin, setPasswordLogin)}
-              title={!passwordLogin && !oidcLogin ? t('admin.lockoutWarning') : undefined}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 ${passwordLogin ? 'bg-content' : 'bg-edge'}`}
-            >
-              <span
-                className="absolute left-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-200"
-                style={{ transform: passwordLogin ? 'translateX(20px)' : 'translateX(0)' }}
-              />
-            </button>
-          </div>
-          {/* Password Registration */}
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-700">{t('admin.passwordRegistration')}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{t('admin.passwordRegistrationHint')}</p>
-            </div>
-            <button type="button"
-              disabled={envOverrideOidcOnly}
-              onClick={() => handleToggleAuthSetting('password_registration', !passwordRegistration, setPasswordRegistration)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 ${passwordRegistration ? 'bg-content' : 'bg-edge'}`}
-            >
-              <span
-                className="absolute left-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-200"
-                style={{ transform: passwordRegistration ? 'translateX(20px)' : 'translateX(0)' }}
-              />
-            </button>
-          </div>
-          {/* SSO Login (only when OIDC configured) */}
-          {oidcConfigured && (
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-700">{t('admin.oidcLogin')}</p>
-                <p className="text-xs text-slate-400 mt-0.5">{t('admin.oidcLoginHint')}</p>
-              </div>
-              <button type="button"
-                disabled={!passwordLogin && oidcLogin}
-                onClick={() => handleToggleAuthSetting('oidc_login', !oidcLogin, setOidcLogin)}
-                title={!passwordLogin && oidcLogin ? t('admin.lockoutWarning') : undefined}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 ${oidcLogin ? 'bg-content' : 'bg-edge'}`}
-              >
-                <span
-                  className="absolute left-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-200"
-                  style={{ transform: oidcLogin ? 'translateX(20px)' : 'translateX(0)' }}
+        <div>
+      {/* Two columns from xl up. Nearly every card here is "label left,
+          switch right", so on a wide screen the middle stayed empty while the
+          page scrolled for ages. Two explicit columns rather than a grid over
+          the flat list: a plain grid pairs cards row by row and leaves a hole
+          under whichever of the pair is shorter, and these differ by hundreds
+          of pixels. Grouped by subject, not by height — access and identity
+          left, integrations and data right. The cards carry their own bottom
+          margin, so only the column gap is set here. */}
+      <div className="grid grid-cols-1 gap-x-5 xl:grid-cols-2 xl:items-start">
+        <div className="min-w-0">
+        {/* Authentication Methods */}
+        <SettingsCard icon={LockKeyhole} title={t('admin.authMethods')}>
+          {envOverrideOidcOnly && <Callout>{t('admin.envOverrideHint')}</Callout>}
+          <SettingRows>
+            <SettingRow
+              label={t('admin.passwordLogin')}
+              hint={t('admin.passwordLoginHint')}
+              control={
+                <LockableSwitch
+                  on={passwordLogin}
+                  label={t('admin.passwordLogin')}
+                  disabled={envOverrideOidcOnly || passwordLoginLocked}
+                  title={passwordLoginLocked ? t('admin.lockoutWarning') : undefined}
+                  onToggle={() => handleToggleAuthSetting('password_login', !passwordLogin, setPasswordLogin)}
                 />
-              </button>
-            </div>
-          )}
-          {/* SSO Registration (only when OIDC configured) */}
-          {oidcConfigured && (
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-700">{t('admin.oidcRegistration')}</p>
-                <p className="text-xs text-slate-400 mt-0.5">{t('admin.oidcRegistrationHint')}</p>
-              </div>
-              <button type="button"
-                onClick={() => handleToggleAuthSetting('oidc_registration', !oidcRegistration, setOidcRegistration)}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${oidcRegistration ? 'bg-content' : 'bg-edge'}`}
-              >
-                <span
-                  className="absolute left-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-200"
-                  style={{ transform: oidcRegistration ? 'translateX(20px)' : 'translateX(0)' }}
+              }
+            />
+            <SettingRow
+              label={t('admin.passwordRegistration')}
+              hint={t('admin.passwordRegistrationHint')}
+              control={
+                <LockableSwitch
+                  on={passwordRegistration}
+                  label={t('admin.passwordRegistration')}
+                  disabled={envOverrideOidcOnly}
+                  onToggle={() => handleToggleAuthSetting('password_registration', !passwordRegistration, setPasswordRegistration)}
                 />
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Passkey (WebAuthn) login */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100">
-          <h2 className="font-semibold text-slate-900">{t('admin.passkey.title')}</h2>
-          <p className="text-xs text-slate-400 mt-1">{t('admin.passkey.cardHint')}</p>
-        </div>
-        <div className="p-6 space-y-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-700">{t('admin.passkey.login')}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{t('admin.passkey.loginHint')}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => handleToggleAuthSetting('passkey_login', !passkeyLogin, setPasskeyLogin)}
-              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${passkeyLogin ? 'bg-content' : 'bg-edge'}`}
-            >
-              <span
-                className="absolute left-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-200"
-                style={{ transform: passkeyLogin ? 'translateX(20px)' : 'translateX(0)' }}
+              }
+            />
+            {/* SSO Login (only when OIDC configured) */}
+            {oidcConfigured && (
+              <SettingRow
+                label={t('admin.oidcLogin')}
+                hint={t('admin.oidcLoginHint')}
+                control={
+                  <LockableSwitch
+                    on={oidcLogin}
+                    label={t('admin.oidcLogin')}
+                    disabled={oidcLoginLocked}
+                    title={oidcLoginLocked ? t('admin.lockoutWarning') : undefined}
+                    onToggle={() => handleToggleAuthSetting('oidc_login', !oidcLogin, setOidcLogin)}
+                  />
+                }
               />
-            </button>
-          </div>
+            )}
+            {/* SSO Registration (only when OIDC configured) */}
+            {oidcConfigured && (
+              <SettingRow
+                label={t('admin.oidcRegistration')}
+                hint={t('admin.oidcRegistrationHint')}
+                control={
+                  <ToggleSwitch
+                    on={oidcRegistration}
+                    label={t('admin.oidcRegistration')}
+                    onToggle={() => handleToggleAuthSetting('oidc_registration', !oidcRegistration, setOidcRegistration)}
+                  />
+                }
+              />
+            )}
+          </SettingRows>
+        </SettingsCard>
 
-          {passkeyLogin && !passkeyConfigured && (
-            <p className="flex items-start gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
-              {t('admin.passkey.notConfigured')}
-            </p>
-          )}
+        {/* Passkey (WebAuthn) login */}
+        <SettingsCard icon={Fingerprint} title={t('admin.passkey.title')} hint={t('admin.passkey.cardHint')}>
+          <SettingRows>
+            <SettingRow
+              label={t('admin.passkey.login')}
+              hint={t('admin.passkey.loginHint')}
+              control={
+                <ToggleSwitch
+                  on={passkeyLogin}
+                  label={t('admin.passkey.login')}
+                  onToggle={() => handleToggleAuthSetting('passkey_login', !passkeyLogin, setPasskeyLogin)}
+                />
+              }
+            />
+          </SettingRows>
+
+          {passkeyLogin && !passkeyConfigured && <Callout>{t('admin.passkey.notConfigured')}</Callout>}
 
           {/* The domain passkeys bind to and the origins that may present them
               follow from the address the instance is served on, which the operator
@@ -162,82 +238,148 @@ export default function AdminSettingsTab({ admin, t }: AdminSettingsTabProps): R
               entirely — so they are pinned per container, not offered here. The
               switch above stays: whether to offer passkeys at all is a house rule. */}
           {!managed && (<>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">{t('admin.passkey.rpId')}</label>
-            <p className="text-xs text-slate-400 mb-1.5">{t('admin.passkey.rpIdHint')}</p>
-            <input
-              type="text"
-              value={webauthnRpId}
-              onChange={e => setWebauthnRpId(e.target.value)}
-              placeholder="trek.example.org"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">{t('admin.passkey.origins')}</label>
-            <p className="text-xs text-slate-400 mb-1.5">{t('admin.passkey.originsHint')}</p>
-            <input
-              type="text"
-              value={webauthnOrigins}
-              onChange={e => setWebauthnOrigins(e.target.value)}
-              placeholder="https://trek.example.org"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={handleSaveWebauthn}
-            disabled={savingWebauthn}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700 disabled:opacity-50"
-          >
-            {savingWebauthn ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-            {t('common.save')}
-          </button>
-          </>)}
-        </div>
-      </div>
-
-      {/* Require 2FA for all users */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100">
-          <h2 className="font-semibold text-slate-900">{t('admin.requireMfa')}</h2>
-        </div>
-        <div className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-700">{t('admin.requireMfa')}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{t('admin.requireMfaHint')}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => handleToggleRequireMfa(!requireMfa)}
-              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${requireMfa ? 'bg-content' : 'bg-edge'}`}
-            >
-              <span
-                className="absolute left-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-200"
-                style={{ transform: requireMfa ? 'translateX(20px)' : 'translateX(0)' }}
+            <EditorField label={t('admin.passkey.rpId')} htmlFor="admin-webauthn-rp-id" hint={t('admin.passkey.rpIdHint')}>
+              <input
+                id="admin-webauthn-rp-id"
+                type="text"
+                value={webauthnRpId}
+                onChange={e => setWebauthnRpId(e.target.value)}
+                placeholder="trek.example.org"
+                className={`${INPUT} font-geist`}
               />
-            </button>
-          </div>
-        </div>
-      </div>
+            </EditorField>
+            <EditorField label={t('admin.passkey.origins')} htmlFor="admin-webauthn-origins" hint={t('admin.passkey.originsHint')}>
+              <input
+                id="admin-webauthn-origins"
+                type="text"
+                value={webauthnOrigins}
+                onChange={e => setWebauthnOrigins(e.target.value)}
+                placeholder="https://trek.example.org"
+                className={`${INPUT} font-geist`}
+              />
+            </EditorField>
+            <SaveBar onClick={handleSaveWebauthn} saving={savingWebauthn} label={t('common.save')} />
+          </>)}
+        </SettingsCard>
 
-      {/* Allowed File Types */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100">
-          <h2 className="font-semibold text-slate-900">{t('admin.fileTypes')}</h2>
-          <p className="text-xs text-slate-400 mt-1">{t('admin.fileTypesHint')}</p>
+        {/* Require 2FA for all users */}
+        <SettingsCard icon={ShieldCheck} title={t('admin.requireMfa')}>
+          <SettingRows>
+            <SettingRow
+              label={t('admin.requireMfa')}
+              hint={t('admin.requireMfaHint')}
+              control={
+                <ToggleSwitch
+                  on={requireMfa}
+                  label={t('admin.requireMfa')}
+                  onToggle={() => handleToggleRequireMfa(!requireMfa)}
+                />
+              }
+            />
+          </SettingRows>
+        </SettingsCard>
+
+          {/* An issuer the instance names can assert any address as verified, and the
+              discovery calls leave from inside the operator’s network. Sign-on is theirs
+              to wire, so the fields are not offered. */}
+          {!managed && (
+          /* OIDC / SSO Configuration */
+          <SettingsCard icon={LogIn} title={t('admin.oidcTitle')} hint={t('admin.oidcSubtitle')}>
+            <div className={GRID_2}>
+              <EditorField label={t('admin.oidcDisplayName')} htmlFor="oidc-display-name">
+                <input
+                  id="oidc-display-name"
+                  type="text"
+                  value={oidcConfig.display_name}
+                  onChange={e => setOidcConfig(c => ({ ...c, display_name: e.target.value }))}
+                  placeholder='z.B. Google, Authentik, Keycloak'
+                  className={INPUT}
+                />
+              </EditorField>
+              <EditorField label={t('admin.oidcIssuer')} htmlFor="oidc-issuer" hint={t('admin.oidcIssuerHint')}>
+                <input
+                  id="oidc-issuer"
+                  type="url"
+                  value={oidcConfig.issuer}
+                  onChange={e => setOidcConfig(c => ({ ...c, issuer: e.target.value }))}
+                  placeholder='https://accounts.google.com'
+                  className={`${INPUT} font-geist`}
+                />
+              </EditorField>
+            </div>
+            <EditorField
+              label={<>Discovery URL <span className="normal-case tracking-normal">(optional)</span></>}
+              htmlFor="oidc-discovery-url"
+              hint={<>Override the auto-constructed discovery URL. Required for providers like Authentik where the endpoint is not at <code className="rounded-[4px] bg-surface-tertiary px-1 font-geist">{'<issuer>/.well-known/openid-configuration'}</code>.</>}
+            >
+              <input
+                id="oidc-discovery-url"
+                type="url"
+                value={oidcConfig.discovery_url}
+                onChange={e => setOidcConfig(c => ({ ...c, discovery_url: e.target.value }))}
+                placeholder='https://auth.example.com/application/o/trek/.well-known/openid-configuration'
+                className={`${INPUT} font-geist`}
+              />
+            </EditorField>
+            <div className={GRID_2}>
+              <EditorField label="Client ID" htmlFor="oidc-client-id">
+                <input
+                  id="oidc-client-id"
+                  type="text"
+                  value={oidcConfig.client_id}
+                  onChange={e => setOidcConfig(c => ({ ...c, client_id: e.target.value }))}
+                  className={`${INPUT} font-geist`}
+                />
+              </EditorField>
+              <EditorField label="Client Secret" htmlFor="oidc-client-secret">
+                <input
+                  id="oidc-client-secret"
+                  type="password"
+                  value={oidcConfig.client_secret}
+                  onChange={e => setOidcConfig(c => ({ ...c, client_secret: e.target.value }))}
+                  placeholder={oidcConfig.client_secret_set ? '••••••••' : ''}
+                  className={`${INPUT} font-geist`}
+                />
+              </EditorField>
+            </div>
+            <SaveBar
+              label={t('common.save')}
+              saving={savingOidc}
+              onClick={async () => {
+                setSavingOidc(true)
+                try {
+                  const payload: Record<string, unknown> = { issuer: oidcConfig.issuer, client_id: oidcConfig.client_id, display_name: oidcConfig.display_name, discovery_url: oidcConfig.discovery_url }
+                  if (oidcConfig.client_secret) payload.client_secret = oidcConfig.client_secret
+                  await adminApi.updateOidc(payload)
+                  toast.success(t('admin.oidcSaved'))
+                } catch (err: unknown) {
+                  toast.error(getApiErrorMessage(err, t('common.error')))
+                } finally {
+                  setSavingOidc(false)
+                }
+              }}
+            />
+          </SettingsCard>
+          )}
         </div>
-        <div className="p-6">
-          <input
-            type="text"
-            value={allowedFileTypes}
-            onChange={e => setAllowedFileTypes(e.target.value)}
-            placeholder="jpg,png,pdf,doc,docx,xls,xlsx,txt,csv"
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-          />
-          <p className="text-xs text-slate-400 mt-2">{t('admin.fileTypesFormat')}</p>
-          <button type="button"
+
+        <div className="min-w-0">
+        {/* Allowed File Types */}
+        <SettingsCard icon={FileType} title={t('admin.fileTypes')} hint={t('admin.fileTypesHint')}>
+          <div>
+            <input
+              type="text"
+              aria-label={t('admin.fileTypes')}
+              value={allowedFileTypes}
+              onChange={e => setAllowedFileTypes(e.target.value)}
+              placeholder="jpg,png,pdf,doc,docx,xls,xlsx,txt,csv"
+              className={`${INPUT} font-geist`}
+            />
+            <SettingsHint className="mt-1.5">{t('admin.fileTypesFormat')}</SettingsHint>
+          </div>
+          <SaveBar
+            label={t('common.save')}
+            saving={savingFileTypes}
             onClick={async () => {
               setSavingFileTypes(true)
               try {
@@ -246,339 +388,326 @@ export default function AdminSettingsTab({ admin, t }: AdminSettingsTabProps): R
               } catch { toast.error(t('common.error')) }
               finally { setSavingFileTypes(false) }
             }}
-            disabled={savingFileTypes}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700 disabled:bg-slate-400 mt-3"
-          >
-            {savingFileTypes ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
-            {t('common.save')}
-          </button>
-        </div>
-      </div>
+          />
+        </SettingsCard>
 
-      {/* Google and Unsplash come with the instance, and so does what a lookup costs;
-          the per-place toggles only ever traded away quota that is not the customer’s
-          to spend. Weather needs no key at all and has nothing to configure. */}
-      {!managed && (<>
-      {/* API Keys */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100">
-          <h2 className="font-semibold text-slate-900">{t('admin.apiKeys')}</h2>
-          <p className="text-xs text-slate-400 mt-1">{t('admin.apiKeysHint')}</p>
-        </div>
-        <div className="p-6 space-y-4">
-          {/* The two key fields, not the toggles below them: on a centrally
-              administered install the operator supplies the keys, while whether
-              photos and lookups are offered at all stays the admin’s call. */}
+          {/* API Keys.
+              The card itself stays on a managed install: the TREK index needs no key,
+              and which keyed provider answers place search is the admin's call there
+              too (server managed.ts). What folds away is the operator's: the keys,
+              what a lookup costs, and the per-place Google switches. Those switches
+              sit under the keys rather than flat beside them because they are set
+              once and then never touched, and side by side a rarely-used option
+              looked as important as the key it depends on. Weather is a quiet row
+              for the same reason in reverse: it had the loudest treatment on the
+              card and is the one thing here with nothing to configure. */}
+          <SettingsCard icon={KeyRound} title={t('admin.apiKeys')} hint={t('admin.apiKeysHint')}>
+          {/* Three comparable blocks, in the order we would have people choose
+              them. Weather moved out entirely: it needs no key and had nothing
+              to configure, so it had no business in a card about keys. */}
+          <TrekApiCard t={t} />
+
           {!managed && (<>
-          {/* Google Maps Key */}
-          <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1.5">
-              {t('admin.mapsKey')}
-              <span className="text-[9px] font-medium px-1.5 py-px rounded-full bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200">{t('admin.recommended')}</span>
-            </label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <input
-                  type={showKeys.maps ? 'text' : 'password'}
+          <ProviderBlock title={t('admin.mapsKey')}>
+            {/* Said before the field, not after it. Someone about to paste a key
+                should read this while deciding, not once they already have. */}
+            <SettingsHint>{t('admin.googleCaveat.body')}</SettingsHint>
+
+            <div className="flex flex-col gap-1.5">
+              <div className="flex gap-2">
+                <KeyField
+                  shown={showKeys.maps}
                   value={mapsKey}
-                  onChange={e => setMapsKey(e.target.value)}
-                  placeholder={t('settings.keyPlaceholder')}
-                  className="w-full pr-10 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                  onChange={setMapsKey}
+                  inputProps={keyInputProps('maps')}
+                  label={t('admin.mapsKey')}
+                  onToggle={() => toggleKey('maps')}
                 />
-                <button
-                  type="button"
-                  onClick={() => toggleKey('maps')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                <button type="button"
+                  onClick={() => handleValidateKey('maps')}
+                  disabled={!mapsKeyTestable || validating.maps}
+                  className={`${SETTINGS_BUTTON} flex-none whitespace-nowrap`}
+                  style={fs(13, 'body')}
                 >
-                  {showKeys.maps ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {validating.maps ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : validation.maps === true ? (
+                    <CheckCircle size={14} className="text-success" />
+                  ) : validation.maps === false ? (
+                    <XCircle size={14} className="text-danger" />
+                  ) : null}
+                  {t('admin.validateKey')}
                 </button>
               </div>
-              <button type="button"
-                onClick={() => handleValidateKey('maps')}
-                disabled={!mapsKey || validating.maps}
-                className="px-3 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
-              >
-                {validating.maps ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : validation.maps === true ? (
-                  <CheckCircle className="w-4 h-4 text-emerald-500" />
-                ) : validation.maps === false ? (
-                  <XCircle className="w-4 h-4 text-red-500" />
-                ) : null}
-                {t('admin.validateKey')}
-              </button>
+              <SettingsHint>{t('admin.mapsKeyHintLong')}</SettingsHint>
+              {validation.maps === true && (
+                <div><StatusPill tone="success" icon={<span className="mr-0.5 h-1.5 w-1.5 rounded-full bg-success" />}>{t('admin.keyValid')}</StatusPill></div>
+              )}
+              {validation.maps === false && (
+                <div><StatusPill tone="danger" icon={<span className="mr-0.5 h-1.5 w-1.5 rounded-full bg-danger" />}>{t('admin.keyInvalid')}</StatusPill></div>
+              )}
             </div>
-            <p className="text-xs text-slate-400 mt-1">{t('admin.mapsKeyHintLong')}</p>
-            {validation.maps === true && (
-              <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
-                <span className="w-2 h-2 bg-emerald-500 rounded-full inline-block"></span>
-                {t('admin.keyValid')}
-              </p>
-            )}
-            {validation.maps === false && (
-              <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-                <span className="w-2 h-2 bg-red-500 rounded-full inline-block"></span>
-                {t('admin.keyInvalid')}
-              </p>
-            )}
-          </div>
 
-          {/* Unsplash Key */}
-          <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1.5">
-              {t('admin.unsplashKey')}
-            </label>
-            <div className="relative">
-              <input
-                type={showKeys.unsplash ? 'text' : 'password'}
-                value={unsplashKey}
-                onChange={e => setUnsplashKey(e.target.value)}
-                placeholder={t('settings.keyPlaceholder')}
-                className="w-full pr-10 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+            {/* What the key may be spent on, inside the block that owns the key
+                rather than beside it. Each row's own subtitle says which of them
+                still work without one; enrichment always does, from Wikipedia
+                and OpenStreetMap. */}
+            <GoogleOptions
+              title={t('admin.googleOptions')}
+              summary={t('admin.googleOptionsSummary', {
+                on: [placesPhotosEnabled, placesAutocompleteEnabled, placesDetailsEnabled, placesEnrichEnabled, placesGoogleOnly].filter(Boolean).length,
+                total: 5,
+              })}
+            >
+              <SettingRow
+                label={t('admin.placesPhotos.title')}
+                hint={t('admin.placesPhotos.subtitle')}
+                control={
+                  <ToggleSwitch
+                    on={placesPhotosEnabled}
+                    label={t('admin.placesPhotos.title')}
+                    onToggle={async () => {
+                      const next = !placesPhotosEnabled
+                      setPlacesPhotosEnabledState(next)
+                      setPlacesPhotosEnabled(next)
+                      try { await adminApi.updatePlacesPhotos(next) } catch { setPlacesPhotosEnabledState(!next); setPlacesPhotosEnabled(!next) }
+                    }}
+                  />
+                }
               />
-              <button
-                type="button"
-                onClick={() => toggleKey('unsplash')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                {showKeys.unsplash ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-            <p className="text-xs text-slate-400 mt-1">{t('admin.unsplashKeyHint')}</p>
-          </div>
+              <SettingRow
+                label={t('admin.placesAutocomplete.title')}
+                hint={t('admin.placesAutocomplete.subtitle')}
+                control={
+                  <ToggleSwitch
+                    on={placesAutocompleteEnabled}
+                    label={t('admin.placesAutocomplete.title')}
+                    onToggle={async () => {
+                      const next = !placesAutocompleteEnabled
+                      setPlacesAutocompleteEnabledState(next)
+                      setPlacesAutocompleteEnabled(next)
+                      try { await adminApi.updatePlacesAutocomplete(next) } catch { setPlacesAutocompleteEnabledState(!next); setPlacesAutocompleteEnabled(!next) }
+                    }}
+                  />
+                }
+              />
+              <SettingRow
+                label={t('admin.placesDetails.title')}
+                hint={t('admin.placesDetails.subtitle')}
+                control={
+                  <ToggleSwitch
+                    on={placesDetailsEnabled}
+                    label={t('admin.placesDetails.title')}
+                    onToggle={async () => {
+                      const next = !placesDetailsEnabled
+                      setPlacesDetailsEnabledState(next)
+                      setPlacesDetailsEnabled(next)
+                      try { await adminApi.updatePlacesDetails(next) } catch { setPlacesDetailsEnabledState(!next); setPlacesDetailsEnabled(!next) }
+                    }}
+                  />
+                }
+              />
+              <SettingRow
+                label={t('admin.placesEnrich.title')}
+                hint={t('admin.placesEnrich.subtitle')}
+                control={
+                  <ToggleSwitch
+                    on={placesEnrichEnabled}
+                    label={t('admin.placesEnrich.title')}
+                    onToggle={async () => {
+                      const next = !placesEnrichEnabled
+                      setPlacesEnrichEnabledState(next)
+                      setPlacesEnrichEnabled(next)
+                      try { await adminApi.updatePlacesEnrich(next) } catch { setPlacesEnrichEnabledState(!next); setPlacesEnrichEnabled(!next) }
+                    }}
+                  />
+                }
+              />
+              {/* The one row here that is about where a search goes rather than
+                  what the key may be spent on. Without a key, or with Amap or
+                  OpenStreetMap holding the slot, it is a promise the search
+                  cannot keep, and the subtitle says so. */}
+              <SettingRow
+                label={t('admin.placesGoogleOnly.title')}
+                hint={t(placesGoogleOnlyHint(hasMapsKey, placesProvider))}
+                control={
+                  <ToggleSwitch
+                    on={placesGoogleOnly}
+                    label={t('admin.placesGoogleOnly.title')}
+                    onToggle={handleTogglePlacesGoogleOnly}
+                  />
+                }
+              />
+              <GoogleDailyLimitRow />
+            </GoogleOptions>
+          </ProviderBlock>
+
+          <ProviderBlock title={t('admin.unsplashKey')}>
+            <KeyField
+              shown={showKeys.unsplash}
+              value={unsplashKey}
+              onChange={setUnsplashKey}
+              inputProps={keyInputProps('unsplash')}
+              label={t('admin.unsplashKey')}
+              onToggle={() => toggleKey('unsplash')}
+            />
+            <SettingsHint className="-mt-1.5">{t('admin.unsplashKeyHint')}</SettingsHint>
+          </ProviderBlock>
+
+          {/* Amap Key. No Test button: /auth/validate-keys only knows how to
+              probe Google Places and OpenWeatherMap, and a button that silently
+              tests something else is worse than no button. */}
+          <ProviderBlock title={t('admin.amapKey')}>
+            <KeyField
+              shown={showKeys.amap}
+              value={amapKey}
+              onChange={setAmapKey}
+              inputProps={keyInputProps('amap')}
+              label={t('admin.amapKey')}
+              onToggle={() => toggleKey('amap')}
+            />
+            <SettingsHint className="-mt-1.5">{t('admin.amapKeyHint')}</SettingsHint>
+          </ProviderBlock>
+          {/* Transit Backend (#1699) — Transitous has no GTFS for much of Asia,
+              so an install can point transit search at Google instead, on the
+              same key. Falls back to Transitous when no key resolves. A block of
+              its own rather than a row inside the Google one: picking Transitous
+              is a decision about a provider that has nothing to do with a key. */}
+          <ProviderBlock title={t('admin.transitProvider.title')}>
+            <SettingsHint>{t('admin.transitProvider.subtitle')}</SettingsHint>
+            {/* The app's own select rather than the browser's: a native option list
+                is drawn by the OS, so it ignores the scheme, the radius and the
+                text-size setting the rest of this card follows. The menu portals to
+                the body, which is what lets it escape the card's overflow-hidden. */}
+            <CustomSelect
+              value={transitProvider}
+              onChange={async value => {
+                // A native select stayed silent when the option already selected was
+                // picked again; this one reports every pick, and a no-op PUT is still
+                // a write on an audited settings route.
+                if (value === transitProvider) return
+                const next = value === 'google' ? 'google' : 'transitous'
+                const previous = transitProvider
+                setTransitProviderState(next)
+                try {
+                  const saved = await adminApi.updateTransitProvider(next)
+                  setTransitGoogleKeySource(saved.googleKeySource)
+                } catch (err: unknown) {
+                  // The select springs back on its own; without a word that reads
+                  // as a broken control, not as a save that failed.
+                  setTransitProviderState(previous)
+                  toast.error(getApiErrorMessage(err, t('common.error')))
+                }
+              }}
+              options={[
+                { value: 'transitous', label: t('admin.transitProvider.transitous') },
+                { value: 'google', label: t('admin.transitProvider.google') },
+              ]}
+            />
+            <SettingsHint className="-mt-1.5">
+              {transitProvider === 'google' ? t('admin.transitProvider.googleHint') : t('admin.transitProvider.transitousHint')}
+            </SettingsHint>
+
+            {/* Picking Google without a key that resolves changes nothing — the
+                request-time fallback is silent, so this is the only place it can
+                be said. 'user-row' is the subtler half: the resolver's last step
+                is the caller's own row, so a personal key serves this admin and
+                nobody else. */}
+            {transitProvider === 'google' && transitGoogleKeySource === null && (
+              <Callout>{t('admin.transitProvider.noKeyWarning')}</Callout>
+            )}
+            {transitProvider === 'google' && transitGoogleKeySource === 'user-row' && (
+              <Callout>{t('admin.transitProvider.personalKeyWarning')}</Callout>
+            )}
+          </ProviderBlock>
           </>)}
 
-          {/* Place Photos Toggle */}
-          <div className="flex items-center justify-between gap-4 py-3 border-t border-slate-100">
-            <div>
-              <p className="text-sm font-medium text-slate-700">{t('admin.placesPhotos.title')}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{t('admin.placesPhotos.subtitle')}</p>
+          {/* Which keyed provider answers place search. Outside the managed guard
+              on purpose: the operator owns the credentials, but what their users
+              search against is still the admin's call (see server managed.ts). */}
+          <ProviderBlock title={t('admin.placesProvider.title')}>
+            <SettingsHint>{t('admin.placesProvider.subtitle')}</SettingsHint>
+            <div className={savingPlacesProvider ? 'opacity-60' : undefined}>
+              <CustomSelect
+                value={placesProvider}
+                disabled={savingPlacesProvider}
+                onChange={value => {
+                  if (value === placesProvider) return
+                  void handleSavePlacesProvider(String(value))
+                }}
+                options={[
+                  { value: 'auto', label: t('admin.placesProvider.auto') },
+                  { value: 'google', label: t('admin.placesProvider.google') },
+                  { value: 'amap', label: t('admin.placesProvider.amap') },
+                  { value: 'openstreetmap', label: t('admin.placesProvider.openstreetmap') },
+                ]}
+              />
             </div>
-            <ToggleSwitch
-              on={placesPhotosEnabled}
-              label={t('admin.placesPhotos.title')}
-              onToggle={async () => {
-                const next = !placesPhotosEnabled
-                setPlacesPhotosEnabledState(next)
-                setPlacesPhotosEnabled(next)
-                try { await adminApi.updatePlacesPhotos(next) } catch { setPlacesPhotosEnabledState(!next); setPlacesPhotosEnabled(!next) }
-              }}
-            />
-          </div>
+            {/* A provider chosen without a key behind it answers with
+                OpenStreetMap rather than failing, which is quiet enough to be
+                mistaken for the provider working. Say so. Asked of app-config
+                and not of the fields above: those are empty on a managed
+                install and on an operator key that came from the environment,
+                and saying "falls back to OpenStreetMap" to an admin whose
+                search works is worse than saying nothing. */}
+            {((placesProvider === 'google' && !hasMapsKey) || (placesProvider === 'amap' && !hasAmapKey)) && (
+              <Callout>{t('admin.placesProvider.missingKey')}</Callout>
+            )}
+          </ProviderBlock>
 
-          {/* Place Autocomplete Toggle */}
-          <div className="flex items-center justify-between gap-4 py-3 border-t border-slate-100">
-            <div>
-              <p className="text-sm font-medium text-slate-700">{t('admin.placesAutocomplete.title')}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{t('admin.placesAutocomplete.subtitle')}</p>
-            </div>
-            <ToggleSwitch
-              on={placesAutocompleteEnabled}
-              label={t('admin.placesAutocomplete.title')}
-              onToggle={async () => {
-                const next = !placesAutocompleteEnabled
-                setPlacesAutocompleteEnabledState(next)
-                setPlacesAutocompleteEnabled(next)
-                try { await adminApi.updatePlacesAutocomplete(next) } catch { setPlacesAutocompleteEnabledState(!next); setPlacesAutocompleteEnabled(!next) }
-              }}
-            />
-          </div>
-
-          {/* Place Details Toggle */}
-          <div className="flex items-center justify-between gap-4 py-3 border-t border-slate-100">
-            <div>
-              <p className="text-sm font-medium text-slate-700">{t('admin.placesDetails.title')}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{t('admin.placesDetails.subtitle')}</p>
-            </div>
-            <ToggleSwitch
-              on={placesDetailsEnabled}
-              label={t('admin.placesDetails.title')}
-              onToggle={async () => {
-                const next = !placesDetailsEnabled
-                setPlacesDetailsEnabledState(next)
-                setPlacesDetailsEnabled(next)
-                try { await adminApi.updatePlacesDetails(next) } catch { setPlacesDetailsEnabledState(!next); setPlacesDetailsEnabled(!next) }
-              }}
-            />
-          </div>
-
-          {/* Place Enrichment Toggle */}
-          <div className="flex items-center justify-between gap-4 py-3 border-t border-slate-100">
-            <div>
-              <p className="text-sm font-medium text-slate-700">{t('admin.placesEnrich.title')}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{t('admin.placesEnrich.subtitle')}</p>
-            </div>
-            <ToggleSwitch
-              on={placesEnrichEnabled}
-              label={t('admin.placesEnrich.title')}
-              onToggle={async () => {
-                const next = !placesEnrichEnabled
-                setPlacesEnrichEnabledState(next)
-                setPlacesEnrichEnabled(next)
-                try { await adminApi.updatePlacesEnrich(next) } catch { setPlacesEnrichEnabledState(!next); setPlacesEnrichEnabled(!next) }
-              }}
-            />
-          </div>
-
-          {/* Open-Meteo Weather Info */}
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-800 overflow-hidden">
-            <div className="px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center flex-shrink-0">
-                  <Sun className="w-3.5 h-3.5 text-white" />
-                </div>
-                <span className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">{t('admin.weather.title')}</span>
-              </div>
-              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200">{t('admin.weather.badge')}</span>
-            </div>
-            <div className="px-4 pb-3">
-              <p className="text-xs text-emerald-800 dark:text-emerald-300 leading-relaxed">{t('admin.weather.description')}</p>
-              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1.5 leading-relaxed">{t('admin.weather.locationHint')}</p>
-              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <div className="rounded-md bg-white dark:bg-emerald-900/40 px-3 py-2 border border-emerald-100 dark:border-emerald-800">
-                  <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-200">{t('admin.weather.forecast')}</p>
-                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5">{t('admin.weather.forecastDesc')}</p>
-                </div>
-                <div className="rounded-md bg-white dark:bg-emerald-900/40 px-3 py-2 border border-emerald-100 dark:border-emerald-800">
-                  <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-200">{t('admin.weather.climate')}</p>
-                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5">{t('admin.weather.climateDesc')}</p>
-                </div>
-                <div className="rounded-md bg-white dark:bg-emerald-900/40 px-3 py-2 border border-emerald-100 dark:border-emerald-800">
-                  <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-200">{t('admin.weather.requests')}</p>
-                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5">{t('admin.weather.requestsDesc')}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <button type="button"
-            onClick={handleSaveApiKeys}
-            disabled={savingKeys}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700 disabled:bg-slate-400"
-          >
-            {savingKeys ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
-            {t('common.save')}
-          </button>
-        </div>
-      </div>
-
-      {/* An issuer the instance names can assert any address as verified, and the
-          discovery calls leave from inside the operator’s network. Sign-on is theirs
-          to wire, so the fields are not offered. */}
-      {!managed && (<>
-      </>)}
-      {/* OIDC / SSO Configuration */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100">
-          <h2 className="font-semibold text-slate-900">{t('admin.oidcTitle')}</h2>
-          <p className="text-xs text-slate-400 mt-1">{t('admin.oidcSubtitle')}</p>
-        </div>
-        <div className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">{t('admin.oidcDisplayName')}</label>
-            <input
-              type="text"
-              value={oidcConfig.display_name}
-              onChange={e => setOidcConfig(c => ({ ...c, display_name: e.target.value }))}
-              placeholder='z.B. Google, Authentik, Keycloak'
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">{t('admin.oidcIssuer')}</label>
-            <input
-              type="url"
-              value={oidcConfig.issuer}
-              onChange={e => setOidcConfig(c => ({ ...c, issuer: e.target.value }))}
-              placeholder='https://accounts.google.com'
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-            />
-            <p className="text-xs text-slate-400 mt-1">{t('admin.oidcIssuerHint')}</p>
-          </div>
-          <div>
-            <label htmlFor="oidc-discovery-url" className="block text-sm font-medium text-slate-700 mb-1.5">Discovery URL <span className="text-slate-400 font-normal">(optional)</span></label>
-            <input
-              id="oidc-discovery-url"
-              type="url"
-              value={oidcConfig.discovery_url}
-              onChange={e => setOidcConfig(c => ({ ...c, discovery_url: e.target.value }))}
-              placeholder='https://auth.example.com/application/o/trek/.well-known/openid-configuration'
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-            />
-            <p className="text-xs text-slate-400 mt-1">Override the auto-constructed discovery URL. Required for providers like Authentik where the endpoint is not at <code className="bg-slate-100 px-1 rounded">{'<issuer>/.well-known/openid-configuration'}</code>.</p>
-          </div>
-          <div>
-            <label htmlFor="oidc-client-id" className="block text-sm font-medium text-slate-700 mb-1.5">Client ID</label>
-            <input
-              id="oidc-client-id"
-              type="text"
-              value={oidcConfig.client_id}
-              onChange={e => setOidcConfig(c => ({ ...c, client_id: e.target.value }))}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-            />
-          </div>
-          <div>
-            <label htmlFor="oidc-client-secret" className="block text-sm font-medium text-slate-700 mb-1.5">Client Secret</label>
-            <input
-              id="oidc-client-secret"
-              type="password"
-              value={oidcConfig.client_secret}
-              onChange={e => setOidcConfig(c => ({ ...c, client_secret: e.target.value }))}
-              placeholder={oidcConfig.client_secret_set ? '••••••••' : ''}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-            />
-          </div>
-          <button type="button"
-            onClick={async () => {
-              setSavingOidc(true)
-              try {
-                const payload: Record<string, unknown> = { issuer: oidcConfig.issuer, client_id: oidcConfig.client_id, display_name: oidcConfig.display_name, discovery_url: oidcConfig.discovery_url }
-                if (oidcConfig.client_secret) payload.client_secret = oidcConfig.client_secret
-                await adminApi.updateOidc(payload)
-                toast.success(t('admin.oidcSaved'))
-              } catch (err: unknown) {
-                toast.error(getApiErrorMessage(err, t('common.error')))
-              } finally {
-                setSavingOidc(false)
+          {/* The search log sits with the index rather than with a provider:
+              it records which result somebody picked, so a candidate index can
+              be judged against real searches later. Off unless switched on,
+              and nothing it records leaves the instance. */}
+          <SettingRows>
+            <SettingRow
+              label={t('admin.placeShadow.title')}
+              hint={t('admin.placeShadow.subtitle')}
+              control={
+                <ToggleSwitch
+                  on={placeShadowEnabled}
+                  label={t('admin.placeShadow.title')}
+                  onToggle={async () => {
+                    const next = !placeShadowEnabled
+                    setPlaceShadowEnabledState(next)
+                    setPlaceShadowEnabled(next)
+                    try { await adminApi.updatePlaceShadow(next) } catch { setPlaceShadowEnabledState(!next); setPlaceShadowEnabled(!next) }
+                  }}
+                />
               }
-            }}
-            disabled={savingOidc}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700 disabled:bg-slate-400"
-          >
-            {savingOidc ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
-            {t('common.save')}
-          </button>
+            />
+          </SettingRows>
+
+          {!managed && <SaveBar onClick={handleSaveApiKeys} saving={savingKeys} label={t('common.save')} />}
+          </SettingsCard>
         </div>
       </div>
+
+      {/* Full width, and last. A destructive action should not sit beside a
+          harmless toggle where a mis-aimed click can reach it. */}
       {/* Rotating the secret signs every user out and fixes nothing an instance admin
           can reach: the file it writes belongs to the host. */}
-      {!managed && (<>
-      </>)}
-      {/* Danger Zone */}
-      <div className="bg-white rounded-xl border border-red-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-red-100 bg-red-50">
-          <h2 className="font-semibold text-red-700 flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4" />
-            Danger Zone
-          </h2>
-        </div>
-        <div className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-700">Rotate JWT Secret</p>
-              <p className="text-xs text-slate-400 mt-0.5">Generate a new JWT signing secret. All active sessions will be invalidated immediately.</p>
-            </div>
-            <button type="button"
-              onClick={() => setShowRotateJwtModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Rotate
-            </button>
-          </div>
-        </div>
-      </div>
-      </>)}
+      {!managed && (
+      /* Danger Zone */
+      <SettingsCard icon={AlertTriangle} title="Danger Zone" tone="danger">
+        <SettingRows>
+          <SettingRow
+            label="Rotate JWT Secret"
+            hint="Generate a new JWT signing secret. All active sessions will be invalidated immediately."
+            control={
+              <button type="button"
+                onClick={() => setShowRotateJwtModal(true)}
+                className={SETTINGS_BUTTON_DANGER}
+                style={fs(13, 'body')}
+              >
+                <RefreshCw size={14} />
+                Rotate
+              </button>
+            }
+          />
+        </SettingRows>
+      </SettingsCard>
+      )}
     </div>
   )
 }

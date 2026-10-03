@@ -39,6 +39,12 @@ const admin: TranslationStrings = {
   'admin.notifications.adminNtfyPanel.alwaysOnHint': 'يُرسل Ntfy للمسؤول دائمًا عند تهيئة موضوع',
   'admin.notifications.adminNotificationsHint':
     'حدد القنوات التي تُسلّم إشعارات المسؤول (مثل تنبيهات الإصدارات). يُرسل الـ Webhook تلقائيًا عند تعيين رابط URL لـ Webhook المسؤول.',
+  'admin.notificationDefaults.title': 'الإعدادات الافتراضية للمستخدمين',
+  'admin.notificationDefaults.hint': 'ما تبدأ به إشعارات كل مستخدم. «إيقاف» يمكن للمستخدم تشغيله بنفسه، و«محظور» يوقفه للجميع ويظهر مقفلًا في إعداداتهم. يسري على كل من لم يغيّر الخانة بنفسه.',
+  'admin.notificationDefaults.on': 'تشغيل',
+  'admin.notificationDefaults.off': 'إيقاف',
+  'admin.notificationDefaults.blocked': 'محظور',
+  'admin.notificationDefaults.cycle': 'انقر للتبديل إلى: {next}',
   'admin.notifications.tripReminders.title': 'تذكيرات الرحلات',
   'admin.notifications.tripReminders.hint': 'إرسال تذكير قبل بدء الرحلة (يتطلب تعيين أيام التذكير على الرحلة).',
   'admin.notifications.tripReminders.enabled': 'تم تفعيل تذكيرات الرحلات',
@@ -108,16 +114,65 @@ const admin: TranslationStrings = {
   'admin.requireMfa': 'فرض المصادقة الثنائية (2FA)',
   'admin.requireMfaHint': 'يجب على المستخدمين الذين لا يملكون 2FA إكمال الإعداد في الإعدادات قبل استخدام التطبيق.',
   'admin.apiKeys': 'مفاتيح API',
-  'admin.apiKeysHint': 'اختياري. يُفعّل بيانات الأماكن الموسعة مثل الصور والطقس.',
+  'admin.apiKeysHint': 'من أين تأتي بيانات الأماكن. فهرس TREK لا يحتاج مفتاحًا؛ والمزوّدان أدناه اختياريان.',
+  'admin.trekApi.badgeDefault': 'الافتراضي الموصى به',
+  'admin.googleCaveat.badge': 'غير مُستحسَن',
+  'admin.googleCaveat.body':
+    'TREK مفتوح المصدر ولسنا محايدين هنا. بهذا الحجم لا توجد التقييمات وصور المحال العادية إلا لدى Google، وهذا هو الاحتكار. الحقل موجود لانعدام البديل، لا لأننا نوصي به. عندئذ يذهب كل استعلام إلى Google.',
+  'admin.trekApi.tagline':
+    'فهرس الأماكن الخاص بـ TREK. بحث بلا مفتاح من Google، بلا حصة، وبلا أن يُحصي أحد عمليات بحثك.',
+  'admin.trekApi.factPlaces':
+    '73.6 مليون مكان حول العالم',
+  'admin.trekApi.factNoKey':
+    'بلا مفتاح وبلا حصة',
+  'admin.trekApi.factOffline':
+    'حِزَم الدول تعمل دون اتصال',
+  'admin.trekApi.factPrivacy':
+    'لا تُسجَّل عمليات البحث أبدًا',
+  'admin.trekApi.more':
+    'ماذا يحتوي',
+  'admin.trekApi.fieldPhone':
+    'هاتف',
+  'admin.trekApi.fieldStableId':
+    'معرّف ثابت',
+  'admin.trekApi.includedNote':
+    'الأوصاف تأتي من موقع المكان نفسه، وساعات العمل من OpenStreetMap حيث تكون مُدخَلة.',
+  'admin.trekApi.notRatings':
+    'التقييمات',
+  'admin.trekApi.notPhotos':
+    'صور المحال العادية',
+  'admin.trekApi.notIncludedNote':
+    'لا يوفّر أيًّا منهما أي مصدر مفتوح بأي ثمن. يبقى مفتاح Google هو السبيل الوحيد إليهما.',
+  'admin.trekApi.sourcesLabel':
+    'المصادر',
+  'admin.trekApi.sourcesNote':
+    'كل حقل في الاستجابة يذكر من أيٍّ منها جاء.',
+  'admin.trekApi.included':
+    'مشمول',
+  'admin.trekApi.notIncluded':
+    'غير مشمول',
   'admin.mapsKey': 'مفتاح Google Maps API',
   'admin.mapsKeyHint': 'مطلوب للبحث عن الأماكن. احصل عليه من console.cloud.google.com',
   'admin.mapsKeyHintLong':
-    'بدون مفتاح API، يُستخدم OpenStreetMap للبحث. مع مفتاح Google يمكن تحميل الصور والتقييمات وساعات العمل أيضًا. احصل عليه من console.cloud.google.com.',
+    'بدون مفتاح Google API يُستخدَم TREK API المُوصى به. ومع المفتاح يمكن إضافةً تحميل الصور والتقييمات وساعات العمل. أنشئ مفتاحًا على console.cloud.google.com.',
   'admin.recommended': 'مُوصى به',
   'admin.weatherKey': 'مفتاح OpenWeatherMap API',
   'admin.weatherKeyHint': 'لبيانات الطقس. مجاني من openweathermap.org',
   'admin.unsplashKey': 'مفتاح واجهة برمجة تطبيقات Unsplash',
   'admin.unsplashKeyHint': 'للبحث عن الصور. مجاني من unsplash.com/developers',
+  'admin.amapKey': 'مفتاح واجهة برمجة تطبيقات Amap (高德地图)',
+  'admin.amapKeyHint':
+    'للبحث عن الأماكن في البر الرئيسي للصين، حيث لا يمكن الوصول إلى Google وتكون بيانات OpenStreetMap شحيحة. يتطلب مفتاحًا من نوع «Web 服务» (خدمة ويب)، وليس مفتاح JS API. يمكن الحصول عليه من console.amap.com.',
+  'admin.keyFromEnv': 'مُعيَّن عبر {name}',
+  'admin.placesProvider.title': 'مزوّد البحث عن الأماكن',
+  'admin.placesProvider.subtitle':
+    'يجيب فهرس TREK الخاص وOpenStreetMap عن كل بحث. هنا يُختار من يُسأل أيضاً عندما لا يجدان شيئاً: «تلقائي» يفضّل Google عند وجود مفتاح، ثم Amap.',
+  'admin.placesProvider.auto': 'تلقائي',
+  'admin.placesProvider.google': 'Google Places',
+  'admin.placesProvider.amap': 'Amap (高德地图)',
+  'admin.placesProvider.openstreetmap': 'OpenStreetMap',
+  'admin.placesProvider.missingKey': 'لا يوجد مفتاح API للمزوّد المختار، لذا يجيب عن البحث عن الأماكن فهرس TREK وOpenStreetMap وحدهما.',
+  'admin.placesProvider.saved': 'تم حفظ مزوّد البحث عن الأماكن',
   'admin.validateKey': 'اختبار',
   'admin.keyValid': 'متصل',
   'admin.keyInvalid': 'غير صالح',
@@ -135,6 +190,8 @@ const admin: TranslationStrings = {
   'admin.fileTypesHint': 'حدد أنواع الملفات التي يمكن للمستخدمين رفعها.',
   'admin.fileTypesFormat': 'امتدادات مفصولة بفواصل (مثل jpg,png,pdf,doc). استخدم * للسماح بجميع الأنواع.',
   'admin.fileTypesSaved': 'تم حفظ إعدادات أنواع الملفات',
+  'admin.googleOptions': 'فيمَ يُستخدَم المفتاح',
+  'admin.googleOptionsSummary': '{on} من {total} مُفعَّل',
   'admin.placesPhotos.title': 'صور الأماكن',
   'admin.placesPhotos.subtitle': 'جلب الصور من Google Places API. عطّلها للحفاظ على حصة API. صور Wikimedia غير متأثرة.',
   'admin.placesAutocomplete.title': 'الإكمال التلقائي للأماكن',
@@ -145,6 +202,28 @@ const admin: TranslationStrings = {
   'admin.placesEnrich.title': 'إثراء الأماكن',
   'admin.placesEnrich.subtitle':
     'يعرض صورًا ووصفًا أثناء إضافة مكان. تُستخدم ويكيبيديا وOpenStreetMap دائمًا، وتُضاف Google عند تفعيل صور الأماكن أو تفاصيل الأماكن.',
+  'admin.placesGoogleOnly.title': 'البحث عبر Google فقط',
+  'admin.placesGoogleOnly.subtitle': 'كل بحث وكل اقتراح يذهب إلى Google Places. عند الإيقاف يجيب فهرس TREK وOpenStreetMap أولًا، ولا يُسأل Google إلا إذا لم يجدا شيئًا.',
+  'admin.placesGoogleOnly.missingKey': 'يتطلب مفتاح Google Maps API. من دونه يعمل البحث عبر فهرس TREK وOpenStreetMap مهما كان وضع هذا المفتاح.',
+  'admin.placesGoogleOnly.otherProvider': 'يتطلب Google كمزود للأماكن. عند اختيار Amap أو OpenStreetMap لا يذهب أي بحث إلى Google مهما كان وضع هذا المفتاح.',
+  'admin.googleQuota.title': 'الحد اليومي لطلبات Google',
+  'admin.googleQuota.subtitle': 'عند بلوغه يتوقف TREK عن طلب Google حتى اليوم التالي (UTC) ويبحث عبر OpenStreetMap بدلًا منه. اتركه فارغًا لعدم وجود حد.',
+  'admin.googleQuota.placeholder': 'بلا حد',
+  'admin.googleQuota.usedToday': 'اليوم: {used}',
+  'admin.googleQuota.usedOfLimit': 'اليوم: {used} من {limit}',
+  'admin.googleQuota.reached': 'تم بلوغ الحد ({used})، Google متوقف حتى الغد',
+  'admin.googleQuota.saved': 'تم حفظ الحد اليومي',
+  'admin.transitProvider.title': 'مزود النقل العام',
+  'admin.transitProvider.subtitle': 'الخدمة التي تجيب على بحث النقل العام.',
+  'admin.transitProvider.transitous': 'Transitous (مجاني)',
+  'admin.transitProvider.google': 'Google',
+  'admin.transitProvider.transitousHint': 'تغذيات GTFS مجتمعية. مجانية وبدون مفتاح، وأفضل تغطية في أوروبا.',
+  'admin.transitProvider.googleHint': 'يستخدم مفتاح Google أعلاه للمناطق التي لا تتوفر لها بيانات في Transitous. يُحاسب على كل بحث — ويُستخدم Transitous ما دام لا يوجد مفتاح.',
+  'admin.transitProvider.noKeyWarning': 'تم اختيار Google، لكن لا يوجد مفتاح Google مُهيأ — لا يزال بحث النقل يستخدم Transitous. أضف مفتاحًا ضمن مفاتيح API أعلاه.',
+  'admin.transitProvider.personalKeyWarning': 'مفتاح Google الخاص بك وحده مضبوط، لذا يعود بحث النقل لبقية الأعضاء إلى Transitous. احفظ المفتاح أعلاه كمسؤول لتطبيقه على مستوى المثيل.',
+  'admin.placeShadow.title': 'سجل البحث عن الأماكن',
+  'admin.placeShadow.subtitle':
+    'تسجيل نتيجة البحث التي جرى اختيارها، حتى يمكن لاحقًا قياس فهرس أماكن آخر على عمليات بحث حقيقية. لا يغادر أي شيء هذا الخادم، ويمكن للمشرف تصدير السجل أو حذفه في أي وقت.',
   'admin.bagTracking.title': 'تتبع الأمتعة',
   'admin.bagTracking.subtitle': 'تفعيل الوزن وتعيين الأمتعة للعناصر',
   'admin.collab.chat.title': 'الدردشة',
@@ -329,6 +408,9 @@ const admin: TranslationStrings = {
   'admin.plugins.perm.hook:photo-provider': 'توفير الصور لميزة الذكريات',
   'admin.plugins.perm.hook:calendar-source': 'توفير الأحداث للتقويم',
   'admin.plugins.perm.hook:place-detail-provider': 'المساهمة بتفاصيل إضافية (مراجعات، تقييمات، روابط) لمكان ما',
+  'admin.plugins.perm.hook:search-provider': 'الإجابة على عمليات البحث عن الأماكن من فهرس خاص به، إلى جانب نتائج TREK',
+  'admin.plugins.perm.hook:poi-category-provider':
+    'إضافة فئات أماكن خاصة بها إلى «استكشاف الأماكن على الخريطة»؛ وعند اختيار إحداها تتلقى الإضافة منطقة الخريطة التي تعرضها',
   'admin.plugins.perm.hook:trip-warning-provider': 'إظهار تحذيرات التحقق على الرحلة (تظهر في المخطط)',
   'admin.plugins.perm.hook:table-contributor': 'إضافة أعمدة وإجراءات إلى عروض الرحلة (الحجوزات، الأماكن، الأيام)',
   'admin.plugins.perm.hook:map-marker-provider': 'إضافة علامات إلى خريطة الرحلة (مثل عرض الحجوزات أو نقاط الاهتمام)',
@@ -341,6 +423,7 @@ const admin: TranslationStrings = {
   'admin.plugins.cap.mcpTools': 'ينشر أدوات ذكاء اصطناعي',
   'admin.plugins.mcpToolsTitle': 'أدوات الذكاء الاصطناعي المنشورة',
   'admin.plugins.mcpToolsHint': 'يمكن لمساعد ذكي تشغيلها نيابة عن المستخدم. وتعمل كل أداة بالصلاحيات الممنوحة أعلاه.',
+  'admin.plugins.poiCategoriesTitle': 'فئات الخريطة التي يضيفها',
   'admin.plugins.perm.mcp:tools':
     'نشر أدوات يمكن لمساعد ذكاء اصطناعي تشغيلها نيابة عنك (يعمل بالصلاحيات التي تمنحها للإضافة هنا، وليس بصلاحياته هو)',
   'admin.plugins.perm.geolocation:read':
@@ -480,6 +563,8 @@ const admin: TranslationStrings = {
   'admin.plugins.cap.photos': 'يوفّر الصور',
   'admin.plugins.cap.calendar': 'يوفّر أحداث التقويم',
   'admin.plugins.cap.placeDetails': 'يُثري الأماكن',
+  'admin.plugins.cap.search': 'يجيب على عمليات البحث',
+  'admin.plugins.cap.poiCategories': 'يضيف فئات إلى الخريطة',
   'admin.plugins.cap.warnings': 'يرصد المشكلات',
   'admin.plugins.cap.mapLayers': 'يرسم على الخريطة',
   'admin.plugins.cap.routing': 'يوفّر التوجيه',
@@ -502,6 +587,18 @@ const admin: TranslationStrings = {
   'admin.plugins.dep.trekIncompatible': 'يتطلب TREK {range} — يعمل هذا الخادم بالإصدار {host}',
   'admin.plugins.dep.trekUnknown': 'لا يحدد إصدارات TREK المدعومة',
   'admin.plugins.installCompatible': 'تثبيت {version}',
+  'admin.plugins.installAnyway': 'التثبيت على أي حال',
+  'admin.plugins.rangeBypass.pill': 'فحوصات الإصدار متوقفة',
+  'admin.plugins.rangeBypass.pillHint':
+    'تم ضبط TREK_PLUGINS_IGNORE_TREK_RANGE — يمكن تثبيت الإضافات وتشغيلها خارج إصدارات TREK التي أعلنها مطوروها',
+  'admin.plugins.rangeBypass.title': 'خارج إصدارات TREK المدعومة',
+  'admin.plugins.rangeBypass.noticeTitle': 'تم التثبيت خارج إصدارات TREK المدعومة',
+  'admin.plugins.rangeBypass.body':
+    'تعلن «{name}» دعم TREK {range}، بينما يعمل هذا الخادم بالإصدار {host}. يسمح TREK بذلك فقط لأن TREK_PLUGINS_IGNORE_TREK_RANGE مضبوط. لم يحدّث المطوّر نطاق إصدارات الإضافة لهذا الإصدار من TREK، لذا لا يوجد ضمان أنها ستعمل — وفي حالات نادرة قد تُتلف إضافة غير متوافقة بيانات TREK. تابع فقط إذا كنت تقبل هذه المخاطرة.',
+  'admin.plugins.rangeBypass.bodyUnknown':
+    'لا تعلن «{name}» أي إصدارات TREK تدعمها؛ يعمل هذا الخادم بالإصدار {host}. يسمح TREK بذلك فقط لأن TREK_PLUGINS_IGNORE_TREK_RANGE مضبوط. لا شيء يدل على أن المطوّر اختبرها على هذا الإصدار من TREK، لذا لا يوجد ضمان أنها ستعمل — وفي حالات نادرة قد تُتلف إضافة غير متوافقة بيانات TREK. تابع فقط إذا كنت تقبل هذه المخاطرة.',
+  'admin.plugins.dep.trekBypassed': 'خارج نطاق TREK الخاص بها ({range}) — فحوصات الإصدار متوقفة',
+  'admin.plugins.dep.trekBypassedUnknown': 'لا تعلن أي نطاق TREK — فحوصات الإصدار متوقفة',
   'admin.plugins.incompatible': 'غير متوافق',
   'admin.plugins.accessTitle': 'ما الذي يمكنها الوصول إليه',
   'admin.plugins.connectsTitle': 'يتصل بـ',
@@ -526,6 +623,8 @@ const admin: TranslationStrings = {
   'admin.addons.catalog.atlas.description': 'خريطة العالم مع الدول التي تمت زيارتها وإحصائيات السفر',
   'admin.addons.catalog.collab.name': 'التعاون',
   'admin.addons.catalog.collab.description': 'ملاحظات واستطلاعات ومحادثة واقتراحات للتخطيط المشترك',
+  'admin.addons.catalog.roadtrip.name': 'رحلة برية',
+  'admin.addons.catalog.roadtrip.description': 'خطّط رحلات القيادة مع محطات توقف، وتُحدَّث أوقات القيادة والوصول تلقائيًا',
   'admin.addons.catalog.memories.name': 'صور (Immich)',
   'admin.addons.catalog.memories.description': 'شارك صور رحلتك عبر Immich',
   'admin.addons.catalog.mcp.description': 'بروتوكول سياق النموذج لتكامل مساعد الذكاء الاصطناعي',
@@ -535,8 +634,16 @@ const admin: TranslationStrings = {
   'admin.addons.catalog.naver_list_import.description': 'استيراد الأماكن من قائمة Naver Maps مشتركة',
   'admin.addons.catalog.airtrail.name': 'AirTrail',
   'admin.addons.catalog.airtrail.description': 'مزامنة الرحلات من خادم AirTrail الخاص بك',
+  'admin.addons.catalog.dawarich.name': 'Dawarich',
+  'admin.addons.catalog.dawarich.description':
+    'قراءة الزيارات والمسارات المسجَّلة من خادم Dawarich يربطه كل قارئ بنفسه',
   'admin.addons.catalog.llm_parsing.name': 'التحليل بالذكاء الاصطناعي',
   'admin.addons.catalog.llm_parsing.description': 'يقرأ الحجوزات التي يعجز المحلل المدمج عن فهمها، بنموذج ذكاء اصطناعي تختاره',
+  'admin.addons.llm.vision.auto': 'تلقائي',
+  'admin.addons.llm.vision.on': 'نعم',
+  'admin.addons.llm.vision.off': 'لا',
+  'admin.addons.llm.vision.hintLocal': 'يسأل الخيار «تلقائي» خادم Ollama عمّا إذا كان هذا النموذج يقرأ الصور.',
+  'admin.addons.llm.vision.hintCloud': 'يعني «تلقائي» «لا» للنموذج السحابي. اختر «نعم» إذا كان هذا النموذج يقرأ الصور.',
   'admin.addons.enabled': 'مفعّل',
   'admin.addons.disabled': 'معطّل',
   'admin.addons.type.trip': 'رحلة',
@@ -635,6 +742,9 @@ const admin: TranslationStrings = {
   'admin.notifications.ntfy': 'Ntfy', // en-fallback
   'admin.notifications.emailPanel.title': 'Email (SMTP)', // en-fallback
   'admin.notifications.webhookPanel.title': 'Webhook', // en-fallback
+  'admin.notifications.webPushPanel.title': 'إشعارات الويب الفورية',
+  'admin.notifications.webPushPanel.hint':
+    'تتيح للمستخدمين تلقي الإشعارات على هواتفهم وحواسيبهم عبر المتصفح، حتى عندما يكون TREK مغلقًا. يتطلب HTTPS؛ وعلى iPhone وiPad يجب إضافة TREK إلى الشاشة الرئيسية.',
   'admin.notifications.inappPanel.title': 'In-App', // en-fallback
   'admin.notifications.adminNtfyPanel.serverPlaceholder': 'https://ntfy.sh', // en-fallback
   'admin.notifications.adminNtfyPanel.topicPlaceholder': 'trek-admin-alerts', // en-fallback
@@ -698,5 +808,9 @@ const admin: TranslationStrings = {
   'admin.invite.tripNone': 'بدون رحلة',
   'admin.invite.tripHint': 'تتم إضافة المستخدم الجديد تلقائيًا إلى هذه الرحلة عند تسجيله عبر الرابط.',
   'admin.invite.boundTo': 'يُضاف إلى {trip}',
+  'admin.placesUsageTitle': 'فيمَ يُستخدم المفتاح',
+  'admin.mapsKeyHintShort': 'يضيف الصور والتقييمات وساعات العمل. عندها يذهب كل بحث إلى Google.',
+  'admin.amapKeyHintShort': 'للبحث عن الأماكن داخل الصين القارية. يحتاج مفتاح خدمة ويب، لا مفتاح JS API.',
+  'admin.collab.links.subtitle': 'الروابط المشتركة والإشارات المرجعية',
 };
 export default admin;

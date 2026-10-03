@@ -26,7 +26,7 @@ import { StorageService } from '../storage/storage.service';
 import { journeyThumbName } from '../memories/thumbnail.service';
 import { JourneyService } from './journey.service';
 import { JourneyBookService } from './journey-book.service';
-import { PhotoCaptureBackfillService } from '../memories/photo-capture-backfill.service';
+import { JourneyPhotoCaptureService } from './journey-photo-capture.service';
 import { AddonGuard } from '../addons/addon.guard';
 import { RequireAddon } from '../addons/require-addon.decorator';
 import { ADDON_IDS } from '../../addons';
@@ -36,7 +36,8 @@ import {
   JourneyAddTripDto, JourneyContributorAddDto, JourneyContributorUpdateDto, JourneyCreateDto,
   JourneyEntryCreateDto, JourneyEntryPhotoUploadDto, JourneyEntryUpdateDto, JourneyGalleryVideoDto,
   JourneyLinkPhotoDto, JourneyPhotoUpdateDto, JourneyPreferencesDto, JourneyProviderPhotosDto,
-  JourneyReorderEntriesDto, JourneyShareLinkDto, JourneyUpdateDto,
+  JourneyReorderEntriesDto,
+  JourneyReorderEntryPhotosDto, JourneyShareLinkDto, JourneyUpdateDto,
   BookSaveDto,
 } from './journey.dto';
 import { isVideoMime, isVideoExtension, MAX_VIDEO_SIZE } from '../files/files.constants';
@@ -130,7 +131,7 @@ export class JourneyController {
     private readonly journey: JourneyService,
     private readonly storage: StorageService,
     private readonly books: JourneyBookService,
-    private readonly captureBackfill: PhotoCaptureBackfillService,
+    private readonly photoCapture: JourneyPhotoCaptureService,
   ) {}
 
   /**
@@ -164,16 +165,6 @@ export class JourneyController {
       if (f.path) { try { fs.unlinkSync(f.path); } catch { /* best-effort */ } }
       await this.storage.delete('journey', f.filename).catch(() => {});
     }
-  }
-
-  // The add call carries only an asset id, so when and where the picture was taken
-  // are fetched from the provider afterwards rather than trusted from the client
-  // (#1614). Detached: a slow or unreachable provider must not hold up the add.
-  private backfillCapture(photos: unknown[], userId: number): void {
-    const ids = photos
-      .map(p => (p as { photo_id?: number } | null)?.photo_id)
-      .filter((id): id is number => typeof id === 'number');
-    this.captureBackfill.schedule(ids, userId);
   }
 
   // ── Static prefix routes (before /:id) ──────────────────────────────────
@@ -214,6 +205,14 @@ export class JourneyController {
       throw new HttpException({ error: 'Entry not found' }, 404);
     }
     return result;
+  }
+
+  @Put('entries/:entryId/photos/reorder')
+  reorderEntryPhotos(@CurrentUser() user: User, @Param('entryId') entryId: string, @Body() body: JourneyReorderEntryPhotosDto, @Headers('x-socket-id') socketId?: string) {
+    if (!this.journey.reorderEntryPhotos(Number(entryId), user.id, body.orderedIds, socketId)) {
+      throw new HttpException({ error: 'Entry not found' }, 404);
+    }
+    return { success: true };
   }
 
   @Delete('entries/:entryId')
@@ -263,8 +262,62 @@ export class JourneyController {
     if (!results.length) {
       throw new HttpException({ error: 'Not allowed' }, 403);
     }
-    this.backfillCapture(results, user.id);
+    // When and where the picture was taken is read from the file afterwards
+    // (#1614). Detached, so the add never waits for it, and without the journey
+    // refresh the provider adds send (#1587): the client uploads one file per
+    // request and reloads once after the last.
+    this.photoCapture.scheduleUpload(results, user.id);
     return { photos: results };
+  }
+
+  /**
+   * A clip on an entry.
+   *
+   * The gallery has taken video since #823 and an entry could not: everything an
+   * entry uploaded went through the images-only filter above, so picking an mp4
+   * in the editor came back 400 and the save reported "1 of 1 photos failed"
+   * (issue #2341). Same two parts as the gallery route — the clip plus the poster
+   * frame the browser grabbed — and the same absence of transcoding.
+   */
+  @Post('entries/:entryId/video')
+  @UseInterceptors(FileFieldsInterceptor(
+    [{ name: 'video', maxCount: 1 }, { name: 'poster', maxCount: 1 }],
+    { limits: { fileSize: MAX_VIDEO_SIZE }, fileFilter: VIDEO_FILE_FILTER },
+  ))
+  async uploadEntryVideo(
+    @CurrentUser() user: User,
+    @Param('entryId') entryId: string,
+    @UploadedFiles() files: { video?: Express.Multer.File[]; poster?: Express.Multer.File[] } | undefined,
+    @Body() body: JourneyGalleryVideoDto,
+  ) {
+    const video = files?.video?.[0];
+    const poster = files?.poster?.[0];
+    const cleanup = () => {
+      for (const f of [video, poster]) {
+        if (f?.path) { try { fs.unlinkSync(f.path); } catch { /* best-effort */ } }
+      }
+    };
+    if (!video) {
+      cleanup();
+      throw new HttpException({ error: 'No video uploaded' }, 400);
+    }
+    await this.commitJourneyUploads(poster ? [video, poster] : [video]);
+    const durationMs = body?.duration_ms != null ? Number(body.duration_ms) : null;
+    const photo = this.journey.addPhoto(
+      Number(entryId),
+      user.id,
+      `journey/${video.filename}`,
+      poster ? `journey/${poster.filename}` : undefined,
+      undefined,
+      { mediaType: 'video', durationMs: durationMs != null && Number.isFinite(durationMs) ? durationMs : null },
+    );
+    if (!photo) {
+      // Committed already, so the pre-commit unlink would orphan the bytes.
+      await this.storage.delete('journey', video.filename).catch(() => {});
+      if (poster) await this.storage.delete('journey', poster.filename).catch(() => {});
+      throw new HttpException({ error: 'Not allowed' }, 403);
+    }
+    return { photos: [photo] };
   }
 
   @Post('entries/:entryId/provider-photos')
@@ -277,7 +330,7 @@ export class JourneyController {
         const photo = this.journey.addProviderPhoto(Number(entryId), user.id, String(body.provider), String(id), body.caption as string | undefined, pp, mt);
         if (photo) added.push(photo);
       });
-      this.backfillCapture(added, user.id);
+      this.photoCapture.scheduleForEntry(Number(entryId), added, user.id);
       return { photos: added, added: added.length };
     }
     if (!body.provider || !body.asset_id) {
@@ -287,7 +340,7 @@ export class JourneyController {
     if (!photo) {
       throw new HttpException({ error: 'Not allowed or duplicate' }, 403);
     }
-    this.backfillCapture([photo], user.id);
+    this.photoCapture.scheduleForEntry(Number(entryId), [photo], user.id);
     return photo;
   }
 
@@ -374,8 +427,9 @@ export class JourneyController {
       throw new HttpException({ error: 'Not allowed' }, 403);
     }
     // An uploaded file carries its own EXIF; reading it is what puts the photo on
-    // the map later. Detached, like the provider branch.
-    this.backfillCapture(photos, user.id);
+    // the map later. Detached, like the provider branch, but without its journey
+    // refresh: one file per request would mean one reload per photo (#1587).
+    this.photoCapture.scheduleUpload(photos, user.id);
     return { photos };
   }
 
@@ -434,7 +488,7 @@ export class JourneyController {
         const photo = this.journey.addProviderPhotoToGallery(Number(id), user.id, String(body.provider), String(aid), undefined, pp, mt);
         if (photo) added.push(photo);
       });
-      this.backfillCapture(added, user.id);
+      this.photoCapture.scheduleForJourney(Number(id), added, user.id);
       return { photos: added, added: added.length };
     }
     if (!body.provider || !body.asset_id) {
@@ -444,7 +498,7 @@ export class JourneyController {
     if (!photo) {
       throw new HttpException({ error: 'Not allowed or duplicate' }, 403);
     }
-    this.backfillCapture([photo], user.id);
+    this.photoCapture.scheduleForJourney(Number(id), [photo], user.id);
     return photo;
   }
 
@@ -692,6 +746,17 @@ export class JourneyController {
       throw new HttpException({ error: 'Not allowed' }, 403);
     }
     return { success: true };
+  }
+
+  // ── Suggestions ─────────────────────────────────────────────────────────
+  @Post(':id/suggestions/restore')
+  @HttpCode(200)
+  restoreSuggestions(@CurrentUser() user: User, @Param('id') id: string) {
+    const result = this.journey.restoreDismissedSuggestions(Number(id), user.id);
+    if (!result) {
+      throw new HttpException({ error: 'Not allowed' }, 403);
+    }
+    return result;
   }
 
   // ── User Preferences ────────────────────────────────────────────────────

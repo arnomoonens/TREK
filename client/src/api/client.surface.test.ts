@@ -1,4 +1,4 @@
-// FE-APISURF-001 to FE-APISURF-054
+// FE-APISURF-001 to FE-APISURF-060
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import type { AxiosResponse } from 'axios'
 import { http, HttpResponse } from 'msw'
@@ -10,6 +10,7 @@ import {
   mapsApi, airportsApi, budgetApi, filesApi, reservationsApi, healthApi, weatherApi,
   configApi, helpApi, settingsApi, accommodationsApi, dayNotesApi, collabApi, backupApi,
   shareApi, transitApi, tripInviteApi, notificationsApi, inAppNotificationsApi, memoriesApi,
+  docsyncApi, DOCSYNC_RUN_TIMEOUT_MS, DOCSYNC_UPSTREAM_TIMEOUT_MS,
 } from './client'
 
 interface Recorded { method: string; url: string; body: unknown }
@@ -413,9 +414,22 @@ describe('client > endpoint wiring', () => {
     expect(rec.url).toBe('/api/integrations/memories/synologyphotos/albums/alb-2/photos?passphrase=p%2Fw%3F')
   })
 
+  /**
+   * The one call in this file that is deliberately TWO requests, which is why it is not
+   * in the list above: a search asks TREK's own indexes and any installed search-provider
+   * plugin at the same time, and the caller gets one list back (#2221).
+   */
+  it('FE-APISURF-055: mapsApi.search asks the core index and the plugin providers side by side', async () => {
+    log = []
+    await mapsApi.search('Rome')
+    expect(log.map(r => `${r.method} ${r.url.split('?')[0]}`).sort()).toEqual([
+      'GET /api/plugin-search',
+      'POST /api/maps/search',
+    ])
+  })
+
   it('FE-APISURF-016: mapsApi and airportsApi map the geo endpoints', async () => {
     await assertCalls([
-      { n: 'maps.search', r: () => mapsApi.search('Rome'), e: 'POST /api/maps/search' },
       { n: 'maps.autocomplete', r: () => mapsApi.autocomplete('Rom'), e: 'POST /api/maps/autocomplete' },
       { n: 'maps.details', r: () => mapsApi.details('place/1'), e: 'GET /api/maps/details/place%2F1' },
       { n: 'maps.placePhoto', r: () => mapsApi.placePhoto('place/1'), e: 'GET /api/maps/place-photo/place%2F1' },
@@ -441,6 +455,7 @@ describe('client > endpoint wiring', () => {
       { n: 'createSettlement', r: () => budgetApi.createSettlement(1, { from_user_id: 4, to_user_id: 5, amount: 10 }), e: 'POST /api/trips/1/budget/settlements' },
       { n: 'updateSettlement', r: () => budgetApi.updateSettlement(1, 6, { from_user_id: 4, to_user_id: 5, amount: 12 }), e: 'PUT /api/trips/1/budget/settlements/6' },
       { n: 'deleteSettlement', r: () => budgetApi.deleteSettlement(1, 6), e: 'DELETE /api/trips/1/budget/settlements/6' },
+      { n: 'freezeRates', r: () => budgetApi.freezeRates(1, {}), e: 'POST /api/trips/1/budget/freeze-rates' },
       { n: 'reorderItems', r: () => budgetApi.reorderItems(1, [2, 3]), e: 'PUT /api/trips/1/budget/reorder/items' },
       { n: 'reorderCategories', r: () => budgetApi.reorderCategories(1, ['Food']), e: 'PUT /api/trips/1/budget/reorder/categories' },
     ])
@@ -558,6 +573,19 @@ describe('client > request payloads', () => {
     expect((await traceOne(() => journeyApi.reorderEntries(2, [8, 7]))).body).toEqual({ orderedIds: [8, 7] })
   })
 
+  it('FE-APISURF-060: the settlement carries the display rate only when the caller has one', async () => {
+    expect((await traceOne(() => budgetApi.settlement(1, 'EUR', 0.61))).url).toBe('/api/trips/1/budget/settlement?base=EUR&base_rate=0.61')
+    expect((await traceOne(() => budgetApi.settlement(1, 'EUR', null))).url).toBe('/api/trips/1/budget/settlement?base=EUR')
+    expect((await traceOne(() => budgetApi.settlement(1))).url).toBe('/api/trips/1/budget/settlement')
+    const lent = { fallback_fx: { base: 'AUD', rates: { VND: 18241.3 } } }
+    expect((await traceOne(() => budgetApi.freezeRates(1, lent))).body).toEqual(lent)
+  })
+
+  it('FE-APISURF-058: a dated day is asked for with the dated flag alone', async () => {
+    const rec = await traceOne(() => daysApi.create(1, { dated: true }))
+    expect(rec).toMatchObject({ method: 'POST', url: '/api/trips/1/days', body: { dated: true } })
+  })
+
   it('FE-APISURF-023: user-id collections are sent as user_ids', async () => {
     expect((await traceOne(() => assignmentsApi.setParticipants(1, 7, [4, 5]))).body).toEqual({ user_ids: [4, 5] })
     expect((await traceOne(() => budgetApi.setMembers(1, 2, [4]))).body).toEqual({ user_ids: [4] })
@@ -626,6 +654,41 @@ describe('client > request payloads', () => {
       .toEqual({ provider: 'immich', asset_ids: ['a1'], caption: 'cap', passphrase: 'secret', media_types: ['image', 'video'] })
   })
 
+  it('FE-APISURF-059: a provider-photo add past the batch size goes out in batches and answers as one (#1587)', async () => {
+    const bodies: Array<{ url: string; body: Record<string, unknown> }> = []
+    server.use(http.post(/\/provider-photos$/, async ({ request }) => {
+      const body = await request.json() as { asset_ids: string[] }
+      bodies.push({ url: new URL(request.url).pathname, body })
+      return HttpResponse.json({ photos: body.asset_ids.map(id => ({ asset_id: id })), added: body.asset_ids.length })
+    }))
+    const ids = Array.from({ length: 1001 }, (_, i) => `a${i}`)
+    const types = ids.map((_, i) => (i % 3 === 0 ? 'video' : 'image'))
+
+    const entry = await journeyApi.addProviderPhotos(9, 'immich', ids, 'cap', 'pw', types)
+
+    // One request of 2,180 Immich ids already hit the 100 kB body limit.
+    expect(bodies.map(b => (b.body.asset_ids as string[]).length)).toEqual([500, 500, 1])
+    for (const { url, body } of bodies) {
+      expect(url).toBe('/api/journeys/entries/9/provider-photos')
+      expect(body).toMatchObject({ provider: 'immich', caption: 'cap', passphrase: 'pw' })
+      // Each id keeps its own media type across the cut.
+      const sent = body.asset_ids as string[]
+      expect(body.media_types).toEqual(sent.map(id => types[Number(id.slice(1))]))
+    }
+    expect(bodies.flatMap(b => b.body.asset_ids as string[])).toEqual(ids)
+    expect(entry.added).toBe(1001)
+    expect(entry.photos).toHaveLength(1001)
+
+    bodies.length = 0
+    const gallery = await journeyApi.addProviderPhotosToGallery(2, 'immich', ids.slice(0, 501))
+    expect(bodies.map(b => b.url)).toEqual(['/api/journeys/2/gallery/provider-photos', '/api/journeys/2/gallery/provider-photos'])
+    expect(bodies.map(b => b.body)).toEqual([
+      { provider: 'immich', asset_ids: ids.slice(0, 500) },
+      { provider: 'immich', asset_ids: ids.slice(500, 501) },
+    ])
+    expect(gallery.added).toBe(501)
+  })
+
   it('FE-APISURF-030: adminApi.pluginActivate only sends consent when granted', async () => {
     expect((await traceOne(() => adminApi.pluginActivate('koffi'))).body).toEqual({})
     expect((await traceOne(() => adminApi.pluginActivate('koffi', true))).body).toEqual({ consent: true })
@@ -651,6 +714,12 @@ describe('client > request payloads', () => {
     const rec = await traceOne(() => authApi.passkey.delete(3, 'hunter2'))
     expect(rec.method).toBe('DELETE')
     expect(rec.body).toEqual({ password: 'hunter2' })
+  })
+
+  it('FE-APISURF-056: docsyncApi.createScope names the connection in the path only', async () => {
+    const rec = await traceOne(() => docsyncApi.createScope(1, 5, 'Norway'))
+    expect(`${rec.method} ${rec.url}`).toBe('POST /api/trips/1/docsync/connections/5/scopes')
+    expect(rec.body).toEqual({ name: 'Norway' })
   })
 })
 
@@ -881,5 +950,48 @@ describe('client > multipart uploads', () => {
     for (const call of post.mock.calls) {
       expect(call[2]).toMatchObject({ timeout: 40000 })
     }
+  })
+
+  it('FE-APISURF-057: every document-sync call that reaches the store outlives the 8s global timeout', async () => {
+    const post = spyPost()
+    const get = vi.spyOn(apiClient, 'get').mockResolvedValue({ data: { ok: true } } as unknown as AxiosResponse)
+    const del = vi.spyOn(apiClient, 'delete').mockResolvedValue({ data: { ok: true } } as unknown as AxiosResponse)
+
+    // The server allows each request to a store 15 s, and a run waits for the
+    // whole listing and every transfer; cut off at 8 s the browser reported a
+    // failure while the server carried on and finished.
+    await docsyncApi.testConnection(1, { providerId: 'paperless' })
+    await docsyncApi.createScope(1, 5, 'Norway')
+    await docsyncApi.createLink(1, { connectionId: 5 })
+    await docsyncApi.listScopes(1, 5)
+    await docsyncApi.deleteLink(1, 9)
+
+    expect(post.mock.calls.map(c => c[0])).toEqual([
+      '/trips/1/docsync/connections/test',
+      '/trips/1/docsync/connections/5/scopes',
+      '/trips/1/docsync/links',
+    ])
+    for (const call of post.mock.calls) {
+      expect(call[2]).toMatchObject({ timeout: DOCSYNC_UPSTREAM_TIMEOUT_MS })
+    }
+    expect(get.mock.calls[0][0]).toBe('/trips/1/docsync/connections/5/scopes')
+    expect(get.mock.calls[0][1]).toMatchObject({ timeout: DOCSYNC_UPSTREAM_TIMEOUT_MS })
+    expect(del.mock.calls[0][0]).toBe('/trips/1/docsync/links/9')
+    expect(del.mock.calls[0][1]).toMatchObject({ timeout: DOCSYNC_UPSTREAM_TIMEOUT_MS })
+    expect(DOCSYNC_UPSTREAM_TIMEOUT_MS).toBeGreaterThan(8000)
+
+    // A run, and a conflict choice that runs the binding afterwards.
+    post.mockClear()
+    await docsyncApi.syncNow(1, 9)
+    await docsyncApi.resolve(1, 4, 'trek')
+
+    expect(post.mock.calls.map(c => c[0])).toEqual([
+      '/trips/1/docsync/links/9/sync',
+      '/trips/1/docsync/items/4/resolve',
+    ])
+    for (const call of post.mock.calls) {
+      expect(call[2]).toMatchObject({ timeout: DOCSYNC_RUN_TIMEOUT_MS })
+    }
+    expect(DOCSYNC_RUN_TIMEOUT_MS).toBeGreaterThan(DOCSYNC_UPSTREAM_TIMEOUT_MS)
   })
 })

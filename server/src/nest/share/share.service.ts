@@ -8,6 +8,7 @@ import { PlacePhotoCacheService } from '../place-photos/place-photo-cache.servic
 import { publicReservationSql, publicStaySql } from '../reservations/reservation-visibility';
 import { SettingsService } from '../settings/settings.service';
 import type { User } from '../../types';
+import { travelOnly, withoutImages } from './share-view.helpers';
 
 type Trip = TripAccess;
 
@@ -34,6 +35,8 @@ export interface SharePermissions {
   share_packing?: boolean;
   share_budget?: boolean;
   share_collab?: boolean;
+  share_travel_only?: boolean;
+  share_hide_images?: boolean;
 }
 
 export interface ShareTokenInfo {
@@ -44,6 +47,8 @@ export interface ShareTokenInfo {
   share_packing: boolean;
   share_budget: boolean;
   share_collab: boolean;
+  share_travel_only: boolean;
+  share_hide_images: boolean;
 }
 
 /**
@@ -51,6 +56,102 @@ export interface ShareTokenInfo {
  * DatabaseService. Trip access and the 'share_manage' permission gate
  * create/delete; the shared read is public.
  */
+/**
+ * What a place shows the public: where it is, what it is, how to reach it.
+ *
+ * Left out on purpose: the owner's booking notes and status on the place, the
+ * Google identifiers, the routing bookkeeping and the fill figures a road trip
+ * keeps for itself. `notes` stays — it is the note somebody wrote to be read
+ * on the plan, and the plan is what a link shares.
+ */
+const PUBLIC_PLACE_COLUMNS = [
+  'id', 'trip_id', 'name', 'description', 'lat', 'lng', 'address', 'category_id', 'price', 'currency',
+  'place_time', 'end_time', 'duration_minutes', 'notes', 'image_url', 'website', 'phone',
+  'transport_mode', 'created_at', 'updated_at',
+].map(c => `p.${c}`).join(', ');
+
+/**
+ * What a booking shows the public: when, where, what kind, and the note and
+ * link the owner attached to it. Never the confirmation number, never the
+ * import trail, never who is travelling on it.
+ */
+const PUBLIC_RESERVATION_COLUMNS = [
+  'id', 'trip_id', 'day_id', 'end_day_id', 'place_id', 'accommodation_id', 'title', 'type', 'status', 'location',
+  'reservation_time', 'reservation_end_time', 'notes', 'url', 'metadata', 'created_at',
+].map(c => `r.${c}`).join(', ');
+
+/** A stay: which place, which nights, when the desk opens. Not the confirmation. */
+const PUBLIC_ACCOMMODATION_COLUMNS = [
+  'id', 'trip_id', 'place_id', 'start_day_id', 'end_day_id', 'check_in', 'check_in_end', 'check_out', 'notes',
+].map(c => `a.${c}`).join(', ');
+
+/**
+ * The parts of a booking's metadata that describe the journey rather than the
+ * ticket. Legs keep their route, carrier and times; the record locator on a
+ * leg, the seat, the price and anything this list does not name stay behind.
+ * An allow-list rather than a block-list, because the import writes whatever a
+ * provider's confirmation carried, and a new field must not become public by
+ * appearing.
+ */
+const PUBLIC_METADATA_KEYS = new Set([
+  'airline', 'flight_number', 'departure_airport', 'arrival_airport',
+  'train_number', 'platform', 'operator', 'from', 'to',
+  'check_in_time', 'check_in_end_time', 'check_out_time', 'hotel',
+  'pickup_location', 'dropoff_location', 'vehicle',
+]);
+const PUBLIC_LEG_KEYS = new Set([
+  'from', 'to', 'airline', 'flight_number', 'train_number', 'platform', 'operator',
+  'dep_day_id', 'dep_time', 'arr_day_id', 'arr_time',
+]);
+
+function pickKeys(source: Record<string, unknown>, keys: Set<string>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of keys) {
+    if (source[key] !== undefined) out[key] = source[key];
+  }
+  return out;
+}
+
+/** The public face of a booking's metadata, as the JSON string the row stores. */
+export function publicReservationMetadata(raw: unknown): string | null {
+  if (raw == null) return null;
+  let parsed: unknown = raw;
+  if (typeof raw === 'string') {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  const source = parsed as Record<string, unknown>;
+  const out = pickKeys(source, PUBLIC_METADATA_KEYS);
+  if (Array.isArray(source.legs)) {
+    out.legs = source.legs
+      .filter((leg): leg is Record<string, unknown> => !!leg && typeof leg === 'object' && !Array.isArray(leg))
+      .map(leg => pickKeys(leg, PUBLIC_LEG_KEYS));
+  }
+  return JSON.stringify(out);
+}
+
+/**
+ * A link the page may render as one: http or https, nothing else.
+ *
+ * The owner types these, and a `javascript:` or `data:` value would otherwise
+ * become an anchor on a page anyone with the link can open.
+ */
+export function publicHttpUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? trimmed : null;
+  } catch {
+    return null;
+  }
+}
+
 @Injectable()
 export class ShareService {
   constructor(
@@ -85,23 +186,26 @@ export class ShareService {
       share_packing = false,
       share_budget = false,
       share_collab = false,
+      share_travel_only = false,
+      share_hide_images = false,
     } = permissions;
+    const flags = [share_map, share_bookings, share_packing, share_budget, share_collab, share_travel_only, share_hide_images].map(f => (f ? 1 : 0));
 
     const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
     return this.dbs.transaction(() => {
       const existing = this.dbs.get<{ token: string }>('SELECT token FROM share_tokens WHERE trip_id = ?', tripId);
       if (existing) {
         this.dbs.run(
-          'UPDATE share_tokens SET share_map = ?, share_bookings = ?, share_packing = ?, share_budget = ?, share_collab = ?, expires_at = ? WHERE trip_id = ?',
-          share_map ? 1 : 0, share_bookings ? 1 : 0, share_packing ? 1 : 0, share_budget ? 1 : 0, share_collab ? 1 : 0, expiresAt, tripId,
+          'UPDATE share_tokens SET share_map = ?, share_bookings = ?, share_packing = ?, share_budget = ?, share_collab = ?, share_travel_only = ?, share_hide_images = ?, expires_at = ? WHERE trip_id = ?',
+          ...flags, expiresAt, tripId,
         );
         return { token: existing.token, created: false };
       }
 
       const token = crypto.randomBytes(24).toString('base64url');
       this.dbs.run(
-        'INSERT INTO share_tokens (trip_id, token, created_by, share_map, share_bookings, share_packing, share_budget, share_collab, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        tripId, token, userId, share_map ? 1 : 0, share_bookings ? 1 : 0, share_packing ? 1 : 0, share_budget ? 1 : 0, share_collab ? 1 : 0, expiresAt,
+        'INSERT INTO share_tokens (trip_id, token, created_by, share_map, share_bookings, share_packing, share_budget, share_collab, share_travel_only, share_hide_images, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        tripId, token, userId, ...flags, expiresAt,
       );
       return { token, created: true };
     });
@@ -121,6 +225,8 @@ export class ShareService {
       share_packing: !!row.share_packing,
       share_budget: !!row.share_budget,
       share_collab: !!row.share_collab,
+      share_travel_only: !!row.share_travel_only,
+      share_hide_images: !!row.share_hide_images,
     };
   }
 
@@ -140,6 +246,28 @@ export class ShareService {
    * is never even queried. share_map covers the whole itinerary: days, their
    * assignments/notes, and the place list with coordinates, addresses and notes.
    */
+  /**
+   * The ordered stops of every public booking on the trip, by booking id.
+   *
+   * One query for the lot rather than one per booking: the map draws the
+   * route from these, and a trip with forty bookings is not forty round trips
+   * to the database.
+   */
+  private publicEndpointsByReservation(tripId: number): Map<number, Array<Record<string, unknown>>> {
+    const rows = this.dbs.all<{ reservation_id: number } & Record<string, unknown>>(
+      `SELECT e.reservation_id, e.role, e.sequence, e.name, e.code, e.lat, e.lng, e.timezone, e.local_date, e.local_time
+         FROM reservation_endpoints e JOIN reservations r ON r.id = e.reservation_id
+        WHERE r.trip_id = ? ORDER BY e.reservation_id ASC, e.sequence ASC`,
+      tripId,
+    );
+    const out = new Map<number, Array<Record<string, unknown>>>();
+    for (const { reservation_id, ...endpoint } of rows) {
+      if (!out.has(reservation_id)) out.set(reservation_id, []);
+      out.get(reservation_id)!.push(endpoint);
+    }
+    return out;
+  }
+
   getSharedTripData(token: string): Record<string, any> | null {
     const shareRow = this.dbs.get<any>(
       "SELECT * FROM share_tokens WHERE token = ? AND (expires_at IS NULL OR expires_at > datetime('now'))",
@@ -162,6 +290,8 @@ export class ShareService {
       share_packing: !!shareRow.share_packing,
       share_budget: !!shareRow.share_budget,
       share_collab: !!shareRow.share_collab,
+      share_travel_only: !!shareRow.share_travel_only,
+      share_hide_images: !!shareRow.share_hide_images,
     };
 
     // Itinerary — days with assignments/notes, and the place pool
@@ -181,6 +311,7 @@ export class ShareService {
             COALESCE(da.assignment_time, p.place_time) as place_time,
             COALESCE(da.assignment_end_time, p.end_time) as end_time,
             p.duration_minutes, p.notes as place_notes, p.image_url, p.transport_mode,
+            p.website, p.phone,
             c.name as category_name, c.color as category_color, c.icon as category_icon
           FROM day_assignments da
           JOIN places p ON da.place_id = p.id
@@ -197,10 +328,15 @@ export class ShareService {
           if (!byDay[a.day_id]) byDay[a.day_id] = [];
           byDay[a.day_id].push({
             id: a.id, day_id: a.day_id, order_index: a.order_index, notes: a.notes,
+            // The shared page shows the booking as its own chip on the day, so it needs
+            // to know which stop is that booking and leave it out of the list.
+            accommodation_id: a.accommodation_id ?? null,
             place: {
               id: a.place_id, name: a.place_name, description: a.place_description,
               lat: a.lat, lng: a.lng, address: a.address, category_id: a.category_id,
               price: a.price, place_time: a.place_time, end_time: a.end_time,
+              duration_minutes: a.duration_minutes, notes: a.place_notes,
+              website: publicHttpUrl(a.website), phone: a.phone,
               image_url: rewritePlacePhotoUrl(a.image_url, token), transport_mode: a.transport_mode,
               category: a.category_id ? { id: a.category_id, name: a.category_name, color: a.category_color, icon: a.category_icon } : null,
               tags: tagsByPlace[a.place_id] ?? [],
@@ -218,11 +354,18 @@ export class ShareService {
         dayNotes = notesByDay;
       }
 
+      // Named columns, not p.*: the pool used to travel whole, which put the
+      // owner's booking notes on the place, the Google ids and the import
+      // bookkeeping in front of anybody holding the link (#2320).
       places = this.dbs.all<any>(`
-        SELECT p.*, c.name as category_name, c.color as category_color, c.icon as category_icon
+        SELECT ${PUBLIC_PLACE_COLUMNS}, c.name as category_name, c.color as category_color, c.icon as category_icon
         FROM places p LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.trip_id = ? ORDER BY p.created_at DESC
-      `, tripId).map((p) => ({ ...p, image_url: rewritePlacePhotoUrl(p.image_url, token) }));
+      `, tripId).map((p) => ({
+        ...p,
+        image_url: rewritePlacePhotoUrl(p.image_url, token),
+        website: publicHttpUrl(p.website),
+      }));
     }
 
     // Bookings — reservations carry per-day positions so the client can render
@@ -244,14 +387,27 @@ export class ShareService {
       }
       // The alias is not cosmetic: the visibility predicate qualifies its column,
       // and this query had no alias to qualify against.
+      // Named columns here too. r.* carried the confirmation number, the
+      // import bookkeeping and the raw metadata — and the metadata is where
+      // an imported ticket keeps its seat and its record locator. A public
+      // link shows what the booking is, not what it would take to change it
+      // (#2320). The endpoints ride along, since the map draws from them.
+      const endpoints = this.publicEndpointsByReservation(tripId);
       reservations = this.dbs.all<any>(
-        `SELECT r.* FROM reservations r
+        `SELECT ${PUBLIC_RESERVATION_COLUMNS} FROM reservations r
          WHERE r.trip_id = ? AND ${publicReservationSql('r')}
          ORDER BY r.reservation_time ASC`, tripId)
-        .map((r) => ({ ...r, day_positions: posMap.get(r.id) ?? null }));
+        .map((r) => ({
+          ...r,
+          url: publicHttpUrl(r.url),
+          metadata: publicReservationMetadata(r.metadata),
+          endpoints: endpoints.get(r.id) ?? [],
+          day_positions: posMap.get(r.id) ?? null,
+        }));
 
       accommodations = this.dbs.all(`
-        SELECT a.*, p.name as place_name, p.address as place_address, p.lat as place_lat, p.lng as place_lng
+        SELECT ${PUBLIC_ACCOMMODATION_COLUMNS},
+          p.name as place_name, p.address as place_address, p.lat as place_lat, p.lng as place_lng
         FROM day_accommodations a JOIN places p ON a.place_id = p.id
         WHERE a.trip_id = ? AND ${publicStaySql('a')}
       `, tripId);
@@ -305,10 +461,20 @@ export class ShareService {
     const ownerCartoKey = ownerSettings['carto_api_key'];
     const cartoApiKey = typeof ownerCartoKey === 'string' ? ownerCartoKey.trim() : '';
 
+    // The owner's narrowing options (#1712) apply last, over what the flags
+    // above already let through.
+    let view = { assignments, dayNotes, places, reservations };
+    if (permissions.share_travel_only) {
+      const stayPlaceIds = new Set(this.dbs.all<{ place_id: number }>(
+        `SELECT DISTINCT a.place_id FROM day_accommodations a WHERE a.trip_id = ? AND ${publicStaySql('a')}`, tripId,
+      ).map(r => r.place_id));
+      view = travelOnly(view, stayPlaceIds);
+    }
+    if (permissions.share_hide_images) view = withoutImages(view);
+
     return {
       trip, baseCurrency, cartoApiKey, categories, permissions,
-      days, assignments, dayNotes, places,
-      reservations, accommodations,
+      days, ...view, accommodations,
       packing, budget,
       collab: collabMessages,
     };
@@ -324,11 +490,13 @@ export class ShareService {
    * mirroring the authenticated bytes endpoint.
    */
   async getSharedPlacePhotoKey(token: string, placeId: string): Promise<string | null> {
-    const shareRow = this.dbs.get<{ trip_id: string; share_map: number }>(
-      "SELECT trip_id, share_map FROM share_tokens WHERE token = ? AND (expires_at IS NULL OR expires_at > datetime('now'))",
+    const shareRow = this.dbs.get<{ trip_id: string; share_map: number; share_hide_images?: number }>(
+      "SELECT trip_id, share_map, share_hide_images FROM share_tokens WHERE token = ? AND (expires_at IS NULL OR expires_at > datetime('now'))",
       token,
     );
     if (!shareRow) return null;
+    // A link that leaves the photos out (#1712) does not serve them either.
+    if (shareRow.share_hide_images) return null;
     // Place photos belong to the map/itinerary section — withhold them when the
     // owner disabled the map, matching getSharedTripData which no longer returns
     // the places (and thus their ids) in that case.

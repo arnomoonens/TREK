@@ -18,7 +18,20 @@ TREK must be served over **HTTPS** — the install prompt does not appear on pla
 
 Once installed, TREK launches in **standalone** mode (fullscreen, no browser UI) using the TREK icon.
 
-The installed app starts at the app root, so the **Start page** setting decides what you see when you tap the icon — the dashboard, or straight into your active trip on a tab of your choice. See [Display-Settings](Display-Settings).
+The installed app starts at the app root, so the **Start page** setting decides what you see when you tap the icon: the dashboard, or straight into your active trip on a tab of your choice. See [Display-Settings](Display-Settings).
+
+### The app reopens where it was
+
+Phones close an installed app in the background soon after you switch away from it, for example to a map app for directions. When you open TREK again within six hours, the installed app goes back to where you were instead of the start page: the same trip, on the same tab and the same day of the plan, or the Journey, Collections, Vacay, Atlas or Files page you had open. After six hours, or after logging out, it starts at the start page again. This only happens in the installed app; in a browser tab, opening the address starts as usual.
+
+### Push notifications
+
+Web Push shows TREK notifications on a phone or computer even while TREK is closed. It needs two things from the setup above:
+
+- **HTTPS everywhere.** Browsers only allow push on a secure origin. On plain `http://` (for example a LAN address) the card under **Settings → Notifications** says that push needs HTTPS.
+- **The installed app on iPhone and iPad.** iOS and iPadOS 16.4 or later deliver push only to TREK added to the Home Screen. Install it as described above, open it from the Home Screen icon, and switch push on there. In a Safari tab the card asks you to add TREK to the Home Screen first.
+
+Push is switched on per device: each phone, tablet or browser you want to receive notifications on needs its own **Turn on for this device**. Logging out switches it off for that device. The admin has to enable the Web Push channel first, and which events arrive follows the **Push** column. See [Notifications](Notifications).
 
 ## What works offline
 
@@ -45,14 +58,16 @@ On login, when the browser comes back online, and when you lift **Force offline 
 
 - Trips, days, places, packing items, to-dos, budget items, reservations, accommodations, trip members, tags, and categories.
 - File attachments that are neither photos nor videos (PDFs, documents, etc.) are downloaded and stored as blobs in IndexedDB. Videos are deliberately skipped — a single clip can be hundreds of megabytes and would evict the trip's real documents.
-- Map tiles are pre-fetched into the service-worker `map-tiles` cache for zoom levels 10–16 across each trip's bounding box, stopping at the zoom level that would push the total past 12 288 tiles (roughly 180 MB).
+- Map tiles are pre-fetched into the service-worker `map-tiles` cache for zoom levels 0 to 16 across each trip's bounding box, stopping at the zoom level that would push the total past 12 288 tiles (roughly 180 MB). If the browser refused persistent storage, prefetching stops at zoom 12 so the app shell cannot be evicted.
+- The places around each trip, up to 3000 from the [TREK Places API](TREK-Places-API) in one request (about a megabyte for a city), so place search and suggestions still answer offline. They are downloaded whether or not **Store map tiles offline** is on, refreshed only when the trip's area changes, and removed with the trip. See [Searching offline](Places-and-Search#searching-offline).
 
 > **Note:** A WebSocket reconnect does *not* run this sync. It replays your queued changes and then re-reads the trip you currently have open — days, places, packing items, to-dos, budget items, reservations and files — which refreshes that one trip's cached rows. It never re-downloads the bundles for your other trips, the file blobs or the map tiles; skipping the full sync there is deliberate, so a dropped socket on an otherwise online device doesn't run into the server's rate limiter.
 
 **Sync scope and eviction**
 
-- Only ongoing and future trips are cached (trips whose `end_date` is today or later, or has no end date).
+- Ongoing and future trips are cached (trips whose `end_date` is today or later, or has no end date).
 - Trips that ended more than 7 days ago are automatically evicted from IndexedDB on the next sync.
+- A finished trip is cached too when you switch it on yourself under **Settings → Offline → What to store offline**, and it is then kept regardless of its dates.
 
 ## Settings → Offline
 
@@ -69,7 +84,7 @@ The **Offline** tab gives you control over what is stored on this device and let
 ### What to store offline
 
 - **Store map tiles offline** — map tiles use the most storage by far. Turn this off to keep only trip data and documents on the device; the pre-downloaded tile cache is cleared immediately.
-- **Per-trip toggle** — each trip has its own on/off switch. Turning a trip off evicts its cached read data from the device (your unsynced edits are kept and still sync).
+- **Trips**: each trip has its own switch, with **Stored offline** or **Not stored** under its name. Turning a trip off evicts its cached read data from the device (your unsynced edits are kept and still sync). A finished trip is marked *Finished. Only stored if you switch it on.*: it is left out by default, and switching it on keeps it on the device.
 
 ### Sync conflicts
 
@@ -77,11 +92,11 @@ If a change you made offline collides with a newer change on the server, it is s
 
 ### Stats & cache
 
-The stats panel shows cached trips, pending changes, conflicts and failed changes. **Clear cache** removes all offline data from IndexedDB (you can re-sync any time while online). Each cached trip entry shows its date range, place/file count and last successful sync.
+The stats panel shows cached trips, pending changes, conflicts and failed changes. **Clear cache** removes all offline data from IndexedDB after you confirm it in TREK's dialog (you can re-sync any time while online). Each cached trip entry shows its date range, place/file count and last successful sync.
 
 ## Limitations
 
-- Offline **editing** is supported for places and packing items (with conflict detection). Other entities — budget, to-dos, reservations, days — require connectivity to edit; while forced offline those edits still go to the live server when a connection is actually present.
+- Offline **editing** is supported for places and packing items (with conflict detection), plus a visit's start and end time, its **End the day here** flag and the road trip **Driving settings** (queued, without conflict detection). Other entities — budget, to-dos, reservations, days — require connectivity to edit; while forced offline those edits still go to the live server when a connection is actually present.
 - A change you made offline that **deletes** an item wins over a concurrent server edit of that same item ("delete wins"); only edit-vs-edit conflicts are surfaced for resolution.
 - The conflict token has one-second resolution, so two edits to the same field within the same second can't be told apart and fall back to last-write-wins (only relevant to sub-second races; normal offline windows are unaffected).
 - Creating a trip requires connectivity. Trip creation is not queued, so a new trip cannot be started while offline.
@@ -93,3 +108,4 @@ The stats panel shows cached trips, pending changes, conflicts and failed change
 
 - [User-Settings](User-Settings)
 - [Display-Settings](Display-Settings)
+- [Notifications](Notifications)

@@ -447,6 +447,10 @@ describe('getPublicJourney', () => {
     expect(result).not.toBeNull();
     expect(result!.journey.title).toBe('Japan 2026');
     expect(result!.journey.subtitle).toBe('Cherry blossom season');
+    // The "this journey does not use that field" switches travel with the share:
+    // the phone card reads them, and reading an absent one made every field look
+    // switched on, so a reader saw chips the owner had turned off.
+    expect(result!.journey).toMatchObject({ show_verdict: 1, show_mood: 1, show_weather: 1 });
     expect(result!.entries).toHaveLength(2);
     expect(result!.stats.entries).toBe(2);
     expect(result!.stats.photos).toBe(1);
@@ -454,6 +458,20 @@ describe('getPublicJourney', () => {
     expect(result!.permissions.share_timeline).toBe(true);
     expect(result!.permissions.share_gallery).toBe(true);
     expect(result!.permissions.share_map).toBe(false);
+  });
+
+  it('JOURNEY-SHARE-017b: a field the owner switched off is switched off for the reader too', () => {
+    const { user } = createUser(testDb);
+    const journey = createJourney(testDb, user.id);
+    testDb.prepare('UPDATE journeys SET show_mood = 0, show_weather = 0 WHERE id = ?').run(journey.id);
+    createJourneyEntry(testDb, journey.id, user.id, { type: 'entry', title: 'Tag 1', entry_date: '2026-03-20' });
+    const { token } = svc.createOrUpdateJourneyShareLink(journey.id, user.id, {
+      share_timeline: true, share_gallery: false, share_map: true,
+    });
+
+    const result = svc.getPublicJourney(token)!;
+
+    expect(result.journey).toMatchObject({ show_mood: 0, show_weather: 0, show_verdict: 1 });
   });
 
   it('JOURNEY-SHARE-018: excludes skeleton entries from public view', () => {
@@ -476,6 +494,29 @@ describe('getPublicJourney', () => {
     expect(result).not.toBeNull();
     expect(result!.entries).toHaveLength(1);
     expect(result!.entries[0].title).toBe('Visible Entry');
+  });
+
+  it('JOURNEY-SHARE-018b: leaves drafts and the photos only they hold off the public page (#696)', () => {
+    const { user } = createUser(testDb);
+    const journey = createJourney(testDb, user.id);
+    const published = createJourneyEntry(testDb, journey.id, user.id, { title: 'Published', entry_date: '2026-01-10' });
+    const draft = createJourneyEntry(testDb, journey.id, user.id, { title: 'Draft', entry_date: '2026-01-11' });
+    testDb.prepare('UPDATE journey_entries SET is_draft = 1 WHERE id = ?').run(draft.id);
+    const shownPhoto = insertJourneyPhoto(published.id, { ownerId: user.id });
+    const draftPhoto = insertJourneyPhoto(draft.id, { ownerId: user.id });
+    // A photo on both a draft and a published entry is published.
+    const sharedPhoto = insertJourneyPhoto(draft.id, { ownerId: user.id, filePath: '/photos/both.jpg' });
+    const sharedRow = testDb.prepare('SELECT id FROM journey_photos WHERE photo_id = ?').get(sharedPhoto) as { id: number };
+    testDb.prepare('INSERT INTO journey_entry_photos (entry_id, journey_photo_id, sort_order, created_at) VALUES (?, ?, 1, 0)').run(published.id, sharedRow.id);
+    const { token } = svc.createOrUpdateJourneyShareLink(journey.id, user.id, { share_timeline: true, share_gallery: true });
+
+    const result = svc.getPublicJourney(token)!;
+    expect(result.entries.map((e: any) => e.title)).toEqual(['Published']);
+    expect(result.stats.entries).toBe(1);
+    const galleryIds = (result as any).gallery.map((p: any) => p.photo_id).sort();
+    expect(galleryIds).toEqual([shownPhoto, sharedPhoto].sort());
+    expect(svc.validateShareTokenForPhoto(token, draftPhoto)).toBeNull();
+    expect(svc.validateShareTokenForPhoto(token, shownPhoto)).not.toBeNull();
   });
 
   it('JOURNEY-SHARE-019: enriches entries with parsed tags and photos', () => {

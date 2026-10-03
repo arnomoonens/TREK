@@ -23,7 +23,7 @@ function attachmentFiles(): TripFile[] {
       original_name: 'late-receipt.pdf',
       file_size: 2048,
       description: 'Final receipt',
-      linked_expense_ids: [7],
+      linked_budget_item_ids: [7],
       expense_attachment_created_at: { '7': '2026-08-30 11:00:00' },
     }),
     buildTripFile({
@@ -31,17 +31,17 @@ function attachmentFiles(): TripFile[] {
       original_name: 'early-receipt.jpg',
       mime_type: 'image/jpeg',
       file_size: 1024,
-      linked_expense_ids: [7],
+      linked_budget_item_ids: [7],
       expense_attachment_created_at: { '7': '2026-08-30 10:00:00' },
     }),
     buildTripFile({
       id: 3,
       original_name: 'trashed-receipt.txt',
       deleted_at: '2026-08-30 09:00:00',
-      linked_expense_ids: [7],
+      linked_budget_item_ids: [7],
       expense_attachment_created_at: { '7': '2026-08-30 09:00:00' },
     }),
-    buildTripFile({ id: 4, original_name: 'other-expense.pdf', linked_expense_ids: [8] }),
+    buildTripFile({ id: 4, original_name: 'other-expense.pdf', linked_budget_item_ids: [8] }),
   ]
 }
 

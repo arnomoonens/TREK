@@ -1,21 +1,33 @@
-import { useEffect, useState, type ComponentType } from 'react'
+import { useEffect, useId, useState, type ComponentType } from 'react'
 import { adminApi } from '../../api/client'
 import { useTranslation } from '../../i18n'
 import { useAddonStore } from '../../store/addonStore'
 import { useIsDark } from '../../hooks/useIsDark'
 import { useToast } from '../shared/Toast'
-import { Puzzle, ListChecks, Wallet, FileText, CalendarDays, Globe, Briefcase, Image, Terminal, Link2, Compass, BookOpen, MessageCircle, StickyNote, BarChart3, Sparkles, Luggage, Plane, Server, Cloud, Bookmark, Users, Loader2 } from 'lucide-react'
+import { Puzzle, ListChecks, Wallet, FileText, CalendarDays, Globe, Briefcase, Image, Terminal, Link2, Compass, BookOpen, MessageCircle, StickyNote, BarChart3, Sparkles, Luggage, Plane, Server, Cloud, Bookmark, Users, Loader2, RefreshCw } from 'lucide-react'
 import CustomSelect from '../shared/CustomSelect'
+import { asLlmVision, LLM_VISION_MODES, type LlmVision } from '@trek/shared'
 import EmptyState from '../shared/EmptyState'
+import DawarichIcon from '../shared/DawarichIcon'
+import AirTrailIcon from '../shared/AirTrailIcon'
+import { DOCUMENT_PROVIDER_ICONS } from '../shared/DocumentProviderIcons'
 import AddonTile from './AddonTile'
 import AddonSubRow from './AddonSubRow'
+import { Tooltip } from '../shared/Tooltip'
+import { fs } from '../shared/DialogShell'
+import { EditorField, INPUT, Segmented } from '../shared/dialogParts'
+import { SettingsCard, SettingsHint, StatusPill, SETTINGS_BUTTON_PRIMARY } from '../Settings/settingsKit'
 
 // Keys are the `icon` column from the addons table (see server seeds.ts); anything
 // unknown falls back to Puzzle. Users/Sparkles cover collab and llm_parsing, which
 // used to land on the fallback.
 const ICON_MAP = {
   ListChecks, Wallet, FileText, CalendarDays, Puzzle, Globe, Briefcase, Image, Terminal, Link2, Compass, BookOpen, Plane, Bookmark, Users, Sparkles,
+  // Dawarich ships a brand mark rather than a lucide name, the same way the photo
+  // providers below do. Keyed by the string in the addons table.
+  Dawarich: DawarichIcon,
 }
+
 function ImmichIcon({ size = 14 }: { size?: number }) {
   return (
     <svg viewBox="0 0 24 24" width={size} height={size} style={{ flexShrink: 0 }}>
@@ -35,6 +47,9 @@ function SynologyIcon({ size = 14 }: { size?: number }) {
 const PROVIDER_ICONS: Record<string, ComponentType<{ size?: number }>> = {
   immich: ImmichIcon,
   synologyphotos: SynologyIcon,
+  // The document providers' own marks, single-colour so they read as glyphs in
+  // a row of lucide icons and invert with the theme.
+  ...DOCUMENT_PROVIDER_ICONS,
 }
 
 interface Addon {
@@ -58,9 +73,20 @@ interface ProviderOption {
 interface AddonIconProps {
   name: string
   size?: number
+  /** A switched-off addon greys its icon out, brand marks included. */
+  enabled?: boolean
 }
 
-function AddonIcon({ name, size = 20 }: AddonIconProps) {
+function AddonIcon({ name, size = 20, enabled = true }: AddonIconProps) {
+  // The brand marks are badges, not glyphs: they fill the framed slot instead of
+  // sitting in the middle of it at glyph size, and they grey out when the addon
+  // is off — the lucide glyphs get that from the slot's text colour, an <img>
+  // has to be told.
+  if (name === 'Dawarich') return <DawarichIcon fill muted={!enabled} />
+  // 'Plane' is the icon string airtrail was seeded with, and INSERT OR IGNORE
+  // means every existing install still carries it — so the brand is keyed on
+  // that rather than on a new name no row would ever have.
+  if (name === 'Plane') return <AirTrailIcon fill muted={!enabled} />
   const Icon = ICON_MAP[name] || Puzzle
   return <Icon size={size} />
 }
@@ -73,11 +99,12 @@ const TYPE_META: Record<string, { icon: ComponentType<{ size?: number }>; labelK
   integration: { icon: Link2, labelKey: 'admin.addons.type.integration', hintKey: 'admin.addons.integrationHint' },
 }
 
-interface CollabFeatures { chat: boolean; notes: boolean; polls: boolean; whatsnext: boolean }
+interface CollabFeatures { chat: boolean; notes: boolean; links?: boolean; polls: boolean; whatsnext: boolean }
 
 const COLLAB_SUB_FEATURES = [
   { key: 'chat', icon: MessageCircle, titleKey: 'admin.collab.chat.title', subtitleKey: 'admin.collab.chat.subtitle' },
   { key: 'notes', icon: StickyNote, titleKey: 'admin.collab.notes.title', subtitleKey: 'admin.collab.notes.subtitle' },
+  { key: 'links', icon: Link2, titleKey: 'collab.tabs.links', subtitleKey: 'admin.collab.links.subtitle' },
   { key: 'polls', icon: BarChart3, titleKey: 'admin.collab.polls.title', subtitleKey: 'admin.collab.polls.subtitle' },
   { key: 'whatsnext', icon: Sparkles, titleKey: 'admin.collab.whatsnext.title', subtitleKey: 'admin.collab.whatsnext.subtitle' },
 ] as const
@@ -91,7 +118,7 @@ export default function AddonManager({ bagTrackingEnabled, onToggleBagTracking, 
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    loadAddons().finally(() => setLoading(false))
+    void loadAddons().finally(() => setLoading(false))
   }, [])
 
   const loadAddons = async () => {
@@ -119,12 +146,18 @@ export default function AddonManager({ bagTrackingEnabled, onToggleBagTracking, 
     // Journey off disables every photo provider with it, and the response carries
     // only Journey. Without re-reading, switching Journey back on brings the shelf
     // up with providers the database has long since turned off.
-    if (addon.id === 'journey') await loadAddons()
+    // Same for Documents: switching it off disables every document provider in
+    // the database, and the response carries only the addon itself.
+    if (addon.id === 'journey' || addon.id === 'documents') await loadAddons()
     toast.success(t('admin.addons.toast.updated'))
   }
 
   const isPhotoProviderAddon = (addon: Addon) => {
     return addon.type === 'photo_provider'
+  }
+
+  const isDocumentProviderAddon = (addon: Addon) => {
+    return addon.type === 'document_provider'
   }
 
   const isPhotosAddon = (addon: Addon) => {
@@ -133,6 +166,7 @@ export default function AddonManager({ bagTrackingEnabled, onToggleBagTracking, 
   }
 
   const photoProviderAddons = addons.filter(isPhotoProviderAddon)
+  const documentProviderAddons = addons.filter(isDocumentProviderAddon)
   const tripAddons = addons.filter(a => a.type === 'trip' && !isPhotosAddon(a))
   const globalAddons = addons.filter(a => a.type === 'global')
   const integrationAddons = addons.filter(a => a.type === 'integration')
@@ -143,12 +177,21 @@ export default function AddonManager({ bagTrackingEnabled, onToggleBagTracking, 
       enabled: provider.enabled,
       toggle: () => handleToggle(provider),
     }))
+  const documentProviderOptions: ProviderOption[] = documentProviderAddons.map((provider) => ({
+      key: provider.id,
+      label: provider.name,
+      description: provider.description,
+      enabled: provider.enabled,
+      toggle: () => handleToggle(provider),
+    }))
 
   if (loading) {
     return (
-      <div className="grid place-items-center py-16">
-        <Loader2 size={22} className="animate-spin text-content-faint" />
-      </div>
+      <SettingsCard icon={Puzzle} title={t('admin.addons.title')}>
+        <div className="grid place-items-center py-14">
+          <Loader2 size={22} className="animate-spin text-content-faint" />
+        </div>
+      </SettingsCard>
     )
   }
 
@@ -182,6 +225,25 @@ export default function AddonManager({ bagTrackingEnabled, onToggleBagTracking, 
         )
       })
     }
+    // Document providers are the Documents tile's shelf, the way photo providers
+    // are Journey's. Unlike those they carry no credential form here: a document
+    // connection belongs to a trip, not to a user, so it is entered in the trip's
+    // file manager. The admin decides only whether a provider may be offered.
+    if (addon.id === 'documents' && addon.enabled && documentProviderOptions.length > 0) {
+      return documentProviderOptions.map(provider => {
+        const ProviderIcon = PROVIDER_ICONS[provider.key]
+        return (
+          <AddonSubRow
+            key={provider.key}
+            icon={ProviderIcon ? <ProviderIcon size={14} /> : undefined}
+            title={provider.label}
+            description={provider.description}
+            enabled={provider.enabled}
+            onToggle={provider.toggle}
+          />
+        )
+      })
+    }
     if (addon.id === 'journey' && addon.enabled && providerOptions.length > 0) {
       return providerOptions.map(provider => {
         const ProviderIcon = PROVIDER_ICONS[provider.key]
@@ -210,7 +272,7 @@ export default function AddonManager({ bagTrackingEnabled, onToggleBagTracking, 
     return (
       <AddonTile
         key={addon.id}
-        icon={<AddonIcon name={addon.icon} size={18} />}
+        icon={<AddonIcon name={addon.icon} size={18} enabled={addon.enabled} />}
         name={label.name}
         description={label.description}
         enabled={addon.enabled}
@@ -222,59 +284,60 @@ export default function AddonManager({ bagTrackingEnabled, onToggleBagTracking, 
   }
 
   /* One column per type, side by side, instead of three stacked sections. Stacked, each
-     section opened its own set of columns and the tall tiles (Collab 261px, Journey
-     185px) set a section's height while its neighbours ran out early. Side by side the
-     column heading carries the type, so the tiles need no badge of their own. */
+     section opened its own set of columns and the tall tiles (Collab, Journey) set a
+     section's height while its neighbours ran out early. Side by side the column's
+     head carries the type, so the tiles need no badge of their own. */
   const groups = [
     { key: 'trip', addons: tripAddons },
     { key: 'global', addons: globalAddons },
     { key: 'integration', addons: integrationAddons },
   ].filter(g => g.addons.length > 0)
-  const enabledCount = addons.filter(a => a.type !== 'photo_provider' && a.enabled).length
+  const enabledCount = addons.filter(a => a.type !== 'photo_provider' && a.type !== 'document_provider' && a.enabled).length
   const totalCount = tripAddons.length + globalAddons.length + integrationAddons.length
 
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <div>
-          <h2 className="text-subtitle font-semibold tracking-tight text-content">{t('admin.addons.title')}</h2>
-          <p className="mt-1 flex flex-wrap items-center gap-1 text-caption text-content-muted">
-            {t('admin.addons.subtitleBefore')}
-            <img src={dark ? '/text-light.svg' : '/text-dark.svg'} alt="TREK" style={{ height: 11, verticalAlign: 'middle', opacity: 0.7 }} />
-            {t('admin.addons.subtitleAfter')}
-          </p>
-        </div>
-        {totalCount > 0 && (
-          <span
-            className="shrink-0 text-caption tabular-nums text-content-faint"
-            title={t('admin.addons.group.count', { enabled: enabledCount, total: totalCount })}
-          >
-            {enabledCount}/{totalCount}
-          </span>
-        )}
-      </div>
+  const subtitle = (
+    <span className="inline-flex flex-wrap items-center gap-1">
+      {t('admin.addons.subtitleBefore')}
+      <img src={dark ? '/text-light.svg' : '/text-dark.svg'} alt="TREK" style={{ height: 10, verticalAlign: 'middle', opacity: 0.7 }} />
+      {t('admin.addons.subtitleAfter')}
+    </span>
+  )
 
+  return (
+    <SettingsCard
+      icon={Puzzle}
+      title={t('admin.addons.title')}
+      hint={subtitle}
+      badge={totalCount > 0 ? (
+        <Tooltip label={t('admin.addons.group.count', { enabled: enabledCount, total: totalCount })}>
+          <span className="inline-flex">
+            <StatusPill tone={enabledCount > 0 ? 'success' : 'neutral'}>{enabledCount}/{totalCount}</StatusPill>
+          </span>
+        </Tooltip>
+      ) : undefined}
+    >
       {addons.length === 0 ? (
-        <EmptyState scene="idle" title={t('admin.addons.noAddons')} />
+        <EmptyState scene="idle" title={t('admin.addons.noAddons')} surface="var(--bg-secondary)" />
       ) : (
-        <div className="grid grid-cols-1 items-start gap-x-4 gap-y-6 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
           {groups.map(g => {
             const meta = TYPE_META[g.key]
             return (
-              <section key={g.key}>
+              <section key={g.key} className="min-w-0 overflow-hidden rounded-[14px] border border-edge-faint bg-surface-card">
                 <GroupHead icon={meta.icon} label={t(meta.labelKey)} hint={t(meta.hintKey)} addons={g.addons} t={t} />
-                <div className="space-y-3">{g.addons.map(tile)}</div>
+                <div className="divide-y divide-edge-faint">{g.addons.map(tile)}</div>
               </section>
             )
           })}
         </div>
       )}
-    </div>
+    </SettingsCard>
   )
 }
 
+/** The head band of one type's column: icon tile, the type, its count and what it means. */
 function GroupHead({ icon: Icon, label, hint, addons, t }: {
-  icon: ComponentType<{ size?: number; className?: string }>
+  icon: ComponentType<{ size?: number; className?: string; strokeWidth?: number }>
   label: string
   hint: string
   addons: Addon[]
@@ -282,31 +345,36 @@ function GroupHead({ icon: Icon, label, hint, addons, t }: {
 }) {
   const enabled = addons.filter(a => a.enabled).length
   return (
-    <div
-      className="mb-3 rounded-xl border border-edge-secondary bg-surface-secondary px-3 py-2"
-      title={t('admin.addons.group.count', { enabled, total: addons.length })}
-    >
-      <div className="flex items-center gap-2">
-        <Icon size={13} className="shrink-0 text-content-muted" />
-        <h3 className="min-w-0 flex-1 truncate text-caption font-semibold uppercase tracking-[0.06em] text-content">{label}</h3>
-        <span className="shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-caption font-medium tabular-nums text-content-muted">
-          {enabled}/{addons.length}
-        </span>
+    <div className="flex items-start gap-2.5 border-b border-edge-faint bg-surface-tertiary px-3.5 py-2.5">
+      <span className="mt-px grid h-7 w-7 flex-none place-items-center rounded-[9px] bg-surface-card text-content-secondary shadow-sm">
+        <Icon size={13} strokeWidth={2} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <h3 className="m-0 min-w-0 flex-1 truncate font-bold text-content" style={fs(13, 'body')}>{label}</h3>
+          <Tooltip label={t('admin.addons.group.count', { enabled, total: addons.length })}>
+            <span className="inline-flex">
+              <StatusPill>{enabled}/{addons.length}</StatusPill>
+            </span>
+          </Tooltip>
+        </div>
+        {/* Says what the type means: the only place that still explains it. */}
+        <p className="m-0 mt-0.5 leading-snug text-content-faint" style={fs(11)}>{hint}</p>
       </div>
-      {/* Says what the type means — the only place that still explains it. */}
-      <p className="mt-0.5 text-caption text-content-faint">{hint}</p>
     </div>
   )
 }
 
 const MASKED = '••••••••'
+const EYEBROW = 'font-geist font-bold uppercase tracking-[.08em] text-content-faint'
+const SMALL_BUTTON = 'inline-flex flex-none items-center rounded-[9px] px-2.5 py-1 font-medium transition-colors disabled:cursor-default disabled:opacity-60'
 const DEFAULT_OLLAMA_URL = 'http://localhost:11434/v1'
 
 /** Curated models the local extractor is tuned for, pullable via Ollama. The router drives
  *  one model per document via Ollama's grammar-constrained `format`; "thinking" is disabled
  *  automatically, so the Qwen3 family works without any tuning. A host only needs one. */
 const RECOMMENDED_MODELS: { id: string; label: string; note: string; recommended: boolean; vision: boolean }[] = [
-  { id: 'qwen3:8b', label: 'Qwen3 — 8B', note: 'Recommended · best extraction quality & speed on CPU (thinking auto-disabled) · Apache-2.0', recommended: true, vision: false },
+  { id: 'qwen3.5:4b', label: 'Qwen3.5 — 4B', note: 'Recommended · small and quick on CPU, 3.4 GB download, 256K context (thinking auto-disabled) · Apache-2.0', recommended: true, vision: true },
 ]
 
 /**
@@ -316,13 +384,16 @@ const RECOMMENDED_MODELS: { id: string; label: string; note: string; recommended
  * provider, it also lists installed Ollama models and can pull NuExtract models.
  */
 function LlmParsingConfig({ addon }: { addon: Addon }) {
+  const { t } = useTranslation()
   const toast = useToast()
   const cfg = (addon.config ?? {}) as Record<string, unknown>
   const [provider, setProvider] = useState<string>((cfg.provider as string) ?? 'local')
   const [model, setModel] = useState<string>((cfg.model as string) ?? '')
   const [baseUrl, setBaseUrl] = useState<string>((cfg.baseUrl as string) ?? '')
   const [apiKey, setApiKey] = useState<string>((cfg.apiKey as string) ?? '')
+  const [vision, setVision] = useState<LlmVision>(asLlmVision(cfg.vision))
   const [saving, setSaving] = useState(false)
+  const fieldId = useId()
 
   // Local-provider model management.
   const [installed, setInstalled] = useState<string[]>([])
@@ -352,7 +423,7 @@ function LlmParsingConfig({ addon }: { addon: Addon }) {
 
   // Load installed models when the local provider is active.
   useEffect(() => {
-    if (provider === 'local') loadModels()
+    if (provider === 'local') void loadModels()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider])
 
@@ -383,7 +454,7 @@ function LlmParsingConfig({ addon }: { addon: Addon }) {
     setSaving(true)
     try {
       // Send the masked sentinel unchanged so the server keeps the stored key.
-      await adminApi.updateAddon(addon.id, { config: { provider, model: model.trim(), baseUrl: provider === 'anthropic' ? '' : baseUrl.trim(), apiKey, multimodal: cfg.multimodal === true } })
+      await adminApi.updateAddon(addon.id, { config: { provider, model: model.trim(), baseUrl: provider === 'anthropic' ? '' : baseUrl.trim(), apiKey, vision } })
       toast.success('Saved')
     } catch {
       toast.error('Failed to save')
@@ -392,66 +463,76 @@ function LlmParsingConfig({ addon }: { addon: Addon }) {
     }
   }
 
-  const fieldCls = 'w-full rounded-lg border border-edge-secondary bg-surface px-2.5 py-1.5 text-caption text-content placeholder:text-content-faint transition-colors focus:border-edge focus:outline-none'
-  const labelCls = 'mb-1 block text-caption font-medium text-content-secondary'
-
   const providerOptions = [
     { value: 'local', label: 'Local · OpenAI-compatible', icon: <Server size={14} />, badge: 'Ollama' },
     { value: 'openai', label: 'OpenAI', icon: <Cloud size={14} /> },
     { value: 'anthropic', label: 'Anthropic', icon: <Sparkles size={14} /> },
   ]
+  const visionOptions = LLM_VISION_MODES.map(value => ({ value, label: t(`admin.addons.llm.vision.${value}`) }))
 
-  /* Lives in the tile's shelf like the collab toggles, so everything is caption-
-     sized and single-column — the band this used to be had a whole page width. */
+  /* Lives in the tile's shelf like the collab toggles, so it is one column of
+     eyebrow fields: the band this used to be had a whole page width. */
   return (
-    <li className="space-y-2.5 py-1.5">
-      <p className="text-caption text-content-faint">
+    <li className={`flex flex-col gap-3 p-3 ${saving ? 'opacity-60' : ''}`}>
+      <SettingsHint>
         Instance-wide — applies to all users. Leave blank to let each user configure their own provider.
-      </p>
+      </SettingsHint>
 
-      <div>
-        <span className={labelCls}>Provider</span>
+      <EditorField label="Provider">
         <CustomSelect value={provider} onChange={v => setProvider(String(v))} options={providerOptions} />
-      </div>
+      </EditorField>
       {provider !== 'anthropic' && (
-        <label className="block">
-          <span className={labelCls}>Base URL</span>
-          <input type="url" autoComplete="off" className={fieldCls} value={baseUrl} onChange={e => setBaseUrl(e.target.value)} onBlur={loadModels} placeholder={provider === 'local' ? 'http://localhost:11434/v1' : 'https://api.openai.com/v1'} />
-        </label>
+        <EditorField label="Base URL" htmlFor={`${fieldId}-url`}>
+          <input id={`${fieldId}-url`} type="url" autoComplete="off" className={INPUT} value={baseUrl} onChange={e => setBaseUrl(e.target.value)} onBlur={loadModels} placeholder={provider === 'local' ? 'http://localhost:11434/v1' : 'https://api.openai.com/v1'} />
+        </EditorField>
       )}
-      <label className="block">
-        <span className={labelCls}>API key</span>
-        <input type="password" className={fieldCls} value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder={apiKey === MASKED ? MASKED : provider === 'local' ? '(often not required)' : 'sk-…'} />
-      </label>
-      {provider === 'anthropic' && (
-        <p className="text-caption text-content-faint">Anthropic reads PDFs (including scans) natively. Local/OpenAI models receive extracted text — scanned PDFs need Anthropic.</p>
-      )}
-      <label className="block">
-        <span className={labelCls}>Model</span>
-        <input autoComplete="off" className={fieldCls} value={model} onChange={e => setModel(e.target.value)} placeholder={provider === 'anthropic' ? 'claude-opus-4-8' : provider === 'openai' ? 'gpt-4o' : 'select or pull below'} />
-      </label>
+      <EditorField
+        label="API key"
+        htmlFor={`${fieldId}-key`}
+        hint={provider === 'anthropic' ? 'Anthropic reads PDFs (including scans) natively. Local/OpenAI models receive extracted text — scanned PDFs need Anthropic.' : undefined}
+      >
+        <input id={`${fieldId}-key`} type="password" className={INPUT} value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder={apiKey === MASKED ? MASKED : provider === 'local' ? '(often not required)' : 'sk-…'} />
+      </EditorField>
+      <EditorField label="Model" htmlFor={`${fieldId}-model`}>
+        <input id={`${fieldId}-model`} autoComplete="off" className={`${INPUT} font-geist`} value={model} onChange={e => setModel(e.target.value)} placeholder={provider === 'anthropic' ? 'claude-opus-4-8' : provider === 'openai' ? 'gpt-4o' : 'select or pull below'} />
+      </EditorField>
+
+      <EditorField label={t('settings.aiParsing.multimodal')} hint={t(provider === 'local' ? 'admin.addons.llm.vision.hintLocal' : 'admin.addons.llm.vision.hintCloud')}>
+        <Segmented<LlmVision>
+          label={t('settings.aiParsing.multimodal')}
+          value={vision}
+          onChange={v => setVision(asLlmVision(v))}
+          options={visionOptions}
+          fill
+        />
+      </EditorField>
 
       {/* Local model management (Ollama) */}
       {provider === 'local' && (
-        <div className="space-y-2 rounded-lg border border-edge-secondary bg-surface p-2.5">
-          <div className="flex items-center justify-between">
-            <span className="text-caption font-medium text-content-secondary">Installed on the server</span>
-            <button type="button" onClick={loadModels} disabled={loadingModels} className="text-caption text-content-muted underline disabled:opacity-60">
+        <div className="flex flex-col gap-2.5 rounded-[12px] border border-edge-faint bg-surface-card p-3">
+          <div className="flex items-center gap-2">
+            <span className={`${EYEBROW} min-w-0 flex-1 truncate`} style={fs(9.5)}>Installed on the server</span>
+            <button type="button" onClick={loadModels} disabled={loadingModels}
+              className="inline-flex flex-none items-center gap-1 rounded-full px-2 py-0.5 font-medium text-content-muted hover:bg-surface-secondary hover:text-content disabled:cursor-default disabled:opacity-60"
+              style={fs(11.5, 'body')}>
+              <RefreshCw size={11} strokeWidth={2.2} className={loadingModels ? 'animate-spin' : undefined} />
               {loadingModels ? 'Loading…' : 'Refresh'}
             </button>
           </div>
-          {modelsErr && <p className="text-caption text-danger">{modelsErr}</p>}
+          {modelsErr && <p className="m-0 break-words text-danger" style={fs(11.5)}>{modelsErr}</p>}
           {!modelsErr && installed.length === 0 && !loadingModels && (
-            <p className="text-caption text-content-faint">No models installed yet — pull one below.</p>
+            <SettingsHint>No models installed yet — pull one below.</SettingsHint>
           )}
           {installed.length > 0 && (
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1.5">
               {installed.map(name => (
                 <button type="button"
                   key={name}
                   title={name}
                   onClick={() => setModel(name)}
-                  className={`max-w-full truncate rounded-full border px-2 py-0.5 text-caption transition-colors ${model === name ? 'border-transparent bg-accent text-accent-text' : 'border-edge-secondary text-content-secondary hover:border-edge'}`}
+                  aria-pressed={model === name}
+                  className={`max-w-full truncate rounded-full px-2.5 py-[3px] font-geist font-medium transition-colors ${model === name ? 'bg-accent text-accent-text' : 'border border-edge bg-surface-card text-content-muted hover:text-content'}`}
+                  style={fs(11.5)}
                 >
                   {name}
                 </button>
@@ -459,48 +540,44 @@ function LlmParsingConfig({ addon }: { addon: Addon }) {
             </div>
           )}
 
-          <div className="border-t border-edge-secondary pt-2">
-            <div className="mb-1.5 text-caption font-medium text-content-secondary">Pull a recommended model</div>
-            <div className="space-y-1">
-              {RECOMMENDED_MODELS.map(m => {
-                const installedHere = isInstalled(m.id)
-                const isPulling = pulling === m.id
-                const active = model === m.id
-                return (
-                  <div key={m.id} className="min-w-0" title={m.note}>
-                    <div className="flex items-center gap-2">
-                      <span className="min-w-0 flex-1 truncate text-caption text-content">{m.label}</span>
-                      {m.recommended && (
-                        <span className="shrink-0 rounded-md bg-success-soft px-1.5 py-px text-caption font-semibold text-success">Recommended</span>
-                      )}
-                      {installedHere ? (
-                        <button type="button" onClick={() => setModel(m.id)} disabled={active} className={`shrink-0 rounded-md px-2 py-1 text-caption font-medium transition-colors ${active ? 'bg-surface-tertiary text-content-muted' : 'border border-edge-secondary text-content-secondary hover:border-edge'}`}>
-                          {active ? 'Selected' : 'Use'}
-                        </button>
-                      ) : (
-                        <button type="button" onClick={() => pull(m.id)} disabled={!!pulling} className="shrink-0 rounded-md bg-accent px-2 py-1 text-caption font-medium text-accent-text disabled:opacity-60">
-                          {isPulling ? 'Pulling…' : 'Pull'}
-                        </button>
-                      )}
-                    </div>
-                    {isPulling && (
-                      <div className="mt-1">
-                        <div className="h-1 w-full overflow-hidden rounded-full bg-surface-tertiary">
-                          <div className="h-full bg-accent transition-[width] duration-200" style={{ width: `${pullPct}%` }} />
-                        </div>
-                        <div className="mt-0.5 text-caption text-content-faint">{pullStatus}{pullPct ? ` · ${pullPct}%` : ''}</div>
-                      </div>
+          <div className="flex flex-col gap-2 border-t border-edge-faint pt-2.5">
+            <span className={EYEBROW} style={fs(9.5)}>Pull a recommended model</span>
+            {RECOMMENDED_MODELS.map(m => {
+              const installedHere = isInstalled(m.id)
+              const isPulling = pulling === m.id
+              const active = model === m.id
+              return (
+                <div key={m.id} className="min-w-0" title={m.note}>
+                  <div className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate font-medium text-content" style={fs(12.5, 'body')}>{m.label}</span>
+                    {m.recommended && <StatusPill tone="success">Recommended</StatusPill>}
+                    {installedHere ? (
+                      <button type="button" onClick={() => setModel(m.id)} disabled={active} className={`${SMALL_BUTTON} ${active ? 'bg-surface-tertiary text-content-muted' : 'bg-surface-card text-content shadow-sm ring-1 ring-edge-faint hover:bg-surface-secondary'}`} style={fs(12, 'body')}>
+                        {active ? 'Selected' : 'Use'}
+                      </button>
+                    ) : (
+                      <button type="button" onClick={() => pull(m.id)} disabled={!!pulling} className={`${SMALL_BUTTON} bg-accent text-accent-text hover:opacity-90`} style={fs(12, 'body')}>
+                        {isPulling ? 'Pulling…' : 'Pull'}
+                      </button>
                     )}
                   </div>
-                )
-              })}
-            </div>
+                  {isPulling && (
+                    <div className="mt-2">
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-tertiary">
+                        <div className="h-full rounded-full bg-accent transition-[width] duration-200" style={{ width: `${pullPct}%` }} />
+                      </div>
+                      <div className="mt-1 truncate font-geist tabular-nums text-content-faint" style={fs(11)}>{pullStatus}{pullPct ? ` · ${pullPct}%` : ''}</div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
 
       <div className="flex justify-end">
-        <button type="button" onClick={save} disabled={saving} className="rounded-lg bg-accent px-3 py-1.5 text-caption font-medium text-accent-text transition-opacity disabled:opacity-60">
+        <button type="button" onClick={save} disabled={saving} className={SETTINGS_BUTTON_PRIMARY} style={fs(13, 'body')}>
           {saving ? 'Saving…' : 'Save'}
         </button>
       </div>
@@ -519,3 +596,4 @@ function getAddonLabel(t: (key: string) => string, addon: Addon): { name: string
     description: translatedDescription !== descKey ? translatedDescription : addon.description,
   }
 }
+

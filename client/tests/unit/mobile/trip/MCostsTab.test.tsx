@@ -3,6 +3,8 @@ import { http, HttpResponse } from 'msw'
 import MCostsTab from '../../../../src/mobile/screens/trip/tabs/MCostsTab'
 import type { MTripShellApi, TripPlanner } from '../../../../src/mobile/screens/trip/MTripShell'
 import { budgetApi } from '../../../../src/api/client'
+import { localToday } from '../../../../src/components/Planner/today'
+import { resetFreezeAttempts } from '../../../../src/components/Budget/useFreezeMissingRates'
 import { clearExchangeRateCache } from '../../../../src/hooks/useExchangeRates'
 import { useAuthStore } from '../../../../src/store/authStore'
 import { useSettingsStore } from '../../../../src/store/settingsStore'
@@ -13,7 +15,7 @@ import { resetAllStores, seedStore } from '../../../helpers/store'
 import { server } from '../../../helpers/msw/server'
 import { fireEvent, render, screen, waitFor, within } from '../../../helpers/render'
 
-// FE-MOB-COSTT-001 to FE-MOB-COSTT-037
+// FE-MOB-COSTT-001 to FE-MOB-COSTT-050
 
 // The add/edit expense sheet is the shared desktop-sized form; the panel only
 // owns when it opens and what happens on save, so it is stubbed here.
@@ -295,8 +297,8 @@ describe('MCostsTab', () => {
     const p = planner({
       budgetItems: [RAMEN],
       files: [
-        buildTripFile({ id: 801, trip_id: 7, original_name: 'ramen-receipt.pdf', file_size: 1024, description: 'Dinner receipt', linked_expense_ids: [11] }),
-        buildTripFile({ id: 802, trip_id: 7, original_name: 'deleted-receipt.pdf', linked_expense_ids: [11], deleted_at: '2026-05-03' }),
+        buildTripFile({ id: 801, trip_id: 7, original_name: 'ramen-receipt.pdf', file_size: 1024, description: 'Dinner receipt', linked_budget_item_ids: [11] }),
+        buildTripFile({ id: 802, trip_id: 7, original_name: 'deleted-receipt.pdf', linked_budget_item_ids: [11], deleted_at: '2026-05-03' }),
       ],
       can: vi.fn(() => false) as unknown as TripPlanner['can'],
     })
@@ -425,7 +427,7 @@ describe('MCostsTab', () => {
 
   it('FE-MOB-COSTT-025a: includes trashed attachments in the Expense delete warning', async () => {
     const p = planner({
-      files: [buildTripFile({ id: 91, linked_expense_ids: [11], deleted_at: '2026-05-03T00:00:00.000Z' })],
+      files: [buildTripFile({ id: 91, linked_budget_item_ids: [11], deleted_at: '2026-05-03T00:00:00.000Z' })],
     })
     await renderTab(p)
 
@@ -495,7 +497,7 @@ describe('MCostsTab', () => {
     fireEvent.change(within(dialog).getByPlaceholderText('0.00'), { target: { value: '12,5' } })
     expect(submit).toBeEnabled()
     fireEvent.click(submit)
-    expect(create).toHaveBeenCalledWith(7, { from_user_id: 1, to_user_id: 2, amount: 12.5, currency: 'USD' })
+    expect(create).toHaveBeenCalledWith(7, { from_user_id: 1, to_user_id: 2, amount: 12.5, currency: 'USD', settled_at: localToday(), note: null })
     await waitFor(() => expect(settlementBases).toHaveLength(2))
   })
 
@@ -611,6 +613,83 @@ describe('MCostsTab', () => {
     expect(within(row).getByText('$15.00')).toBeInTheDocument()
   })
 
+  it('FE-MOB-COSTT-043: shows what the trip costs each traveler and opens the arithmetic on tap', async () => {
+    // The rows come from the server in display cents. Bob's museum is a GBP expense
+    // the server booked at its frozen rate as $58.00; the live rate this test seeds
+    // would make it $60.00, and that figure must never reach the card.
+    serveSettlement({
+      ...SETTLEMENT,
+      settlements: [{ id: 5, from_user_id: 3, to_user_id: 1, amount: 10, currency: 'USD', created_at: '2026-05-02 10:00:00' }],
+      finalBudgets: [
+        {
+          user_id: 1, username: 'Me', avatar_url: null, expenses: 100, reimbursed: 10, pending: -25, final: 115,
+          sources: {
+            fronted: [{ item_id: 11, cents: 8000 }, { item_id: 14, cents: 2000 }],
+            moved: [{ settlement_id: 5, from_user_id: 3, to_user_id: 1, cents: 1000 }],
+            outstanding: [{ from_user_id: 1, to_user_id: 2, cents: -4000 }, { from_user_id: 3, to_user_id: 1, cents: 1500 }],
+          },
+        },
+        {
+          user_id: 3, username: 'Bob', avatar_url: null, expenses: 58, reimbursed: -10, pending: -10, final: 78,
+          sources: {
+            fronted: [{ item_id: 12, cents: 5800 }],
+            moved: [{ settlement_id: 5, from_user_id: 3, to_user_id: 1, cents: -1000 }],
+            outstanding: [{ from_user_id: 3, to_user_id: 1, cents: -1500 }, { from_user_id: 99, to_user_id: 3, cents: 500 }],
+          },
+        },
+      ],
+    })
+    await renderTab()
+    const card = up(screen.getByText('costs.finalBudget'), 1)
+
+    // One amount per traveler; Ada, whom the ledger left out, costs nothing.
+    expect(within(card).getByText('$115.00')).toBeInTheDocument()
+    expect(within(card).getByText('$78.00')).toBeInTheDocument()
+    expect(within(card).getByText('$0.00')).toBeInTheDocument()
+    expect(within(card).queryByText('costs.finalPending')).not.toBeInTheDocument()
+
+    const mine = within(card).getByRole('button', { name: /\$115\.00/ })
+    fireEvent.click(mine)
+    expect(mine).toHaveAttribute('aria-expanded', 'true')
+    // Each line signed by what it does to the final, and its rows signed the same
+    // way, so they add up to it on sight.
+    expect(within(card).getByText('+$100.00')).toBeInTheDocument()
+    expect(within(card).getByText('+$80.00')).toBeInTheDocument()
+    expect(within(card).getByText('+$20.00')).toBeInTheDocument()
+    expect(within(card).getAllByText('−$10.00')).toHaveLength(2)
+    expect(within(card).getByText('+$25.00')).toBeInTheDocument()
+    expect(within(card).getByText('+$40.00')).toBeInTheDocument()
+    expect(within(card).getByText('−$15.00')).toBeInTheDocument()
+    expect(within(card).getByText('Ramen')).toBeInTheDocument()
+    expect(within(card).getByText('Taxi')).toBeInTheDocument()
+    expect(within(card).queryByText('Museum')).not.toBeInTheDocument()
+    expect(within(card).getAllByText('Bob → costs.you')).toHaveLength(2)
+    expect(within(card).getByText('costs.you → Ada')).toBeInTheDocument()
+
+    // Opening Bob closes me. His museum row is the server's figure, not a live conversion.
+    const bob = within(card).getByRole('button', { name: /\$78\.00/ })
+    fireEvent.click(bob)
+    expect(mine).toHaveAttribute('aria-expanded', 'false')
+    expect(within(card).getAllByText('+$58.00')).toHaveLength(2)
+    expect(within(card).queryByText(/60\.00/)).not.toBeInTheDocument()
+    // Named by what Bob entered, as the list names it (#2525), never re-converted.
+    expect(within(card).getByText('Museum · £30.00')).toBeInTheDocument()
+
+    fireEvent.click(bob)
+    expect(bob).toHaveAttribute('aria-expanded', 'false')
+    expect(within(card).queryByText('+$58.00')).not.toBeInTheDocument()
+  })
+
+  it('FE-MOB-COSTT-044: a settlement read that fails says so instead of costing everyone nothing', async () => {
+    serveSettlement(SETTLEMENT, true)
+    render(<MCostsTab planner={planner()} shell={buildShell()} />)
+
+    const card = up(await screen.findByText('costs.finalBudget'), 1)
+    await waitFor(() => expect(within(card).getByText('common.unknownError')).toBeInTheDocument())
+    expect(within(card).queryByText('$0.00')).not.toBeInTheDocument()
+    expect(within(card).queryByRole('button')).not.toBeInTheDocument()
+  })
+
   it('FE-MOB-COSTT-040: the expense filters apply to payments the same way they do on desktop', async () => {
     const mine = { id: 503, from_user_id: 1, to_user_id: 2, amount: 8, currency: 'USD', created_at: '2026-05-02T09:00:00Z' }
     const others = { id: 504, from_user_id: 2, to_user_id: 3, amount: 9, currency: 'USD', created_at: '2026-05-02T09:00:00Z' }
@@ -627,5 +706,215 @@ describe('MCostsTab', () => {
     fireEvent.click(screen.getByRole('button', { name: 'costs.filter.all' }))
     fireEvent.change(screen.getByLabelText('costs.searchPlaceholder'), { target: { value: 'ramen' } })
     expect(screen.queryByText('costs.payment')).not.toBeInTheDocument()
+  })
+
+  it('FE-MOB-COSTT-041: editing a recorded payment opens it pre-filled and saves the change', async () => {
+    const payment = { id: 501, from_user_id: 1, to_user_id: 2, amount: 25, currency: 'USD', settled_at: '2026-04-28', created_at: '2026-04-30T09:00:00Z' }
+    serveSettlement({ ...SETTLEMENT, settlements: [payment] })
+    const update = vi.spyOn(budgetApi, 'updateSettlement').mockResolvedValue({})
+    await renderTab()
+
+    fireEvent.click(within(rowOf('costs.payment')).getByRole('button', { name: 'common.edit' }))
+    const dialog = screen.getByRole('dialog', { name: 'costs.editPayment' })
+    expect(within(dialog).getByDisplayValue('25.00')).toBeInTheDocument()
+
+    const submit = within(dialog).getByRole('button', { name: 'common.save' })
+    fireEvent.change(within(dialog).getByPlaceholderText('0.00'), { target: { value: '30' } })
+    fireEvent.click(submit)
+
+    expect(update).toHaveBeenCalledWith(7, 501, { from_user_id: 1, to_user_id: 2, amount: 30, currency: 'USD', settled_at: '2026-04-28', note: null })
+    await waitFor(() => expect(settlementBases).toHaveLength(2))
+  })
+
+  it('FE-MOB-COSTT-042: undoing a payment deletes it outright, no confirmation', async () => {
+    const payment = { id: 502, from_user_id: 1, to_user_id: 2, amount: 25, currency: 'USD', created_at: '2026-04-30T09:00:00Z' }
+    serveSettlement({ ...SETTLEMENT, settlements: [payment] })
+    const del = vi.spyOn(budgetApi, 'deleteSettlement').mockResolvedValue({ success: true })
+    await renderTab()
+
+    fireEvent.click(within(rowOf('costs.payment')).getByRole('button', { name: 'costs.undo' }))
+    expect(del).toHaveBeenCalledWith(7, 502)
+    await waitFor(() => expect(settlementBases).toHaveLength(2))
+  })
+
+  it('FE-MOB-COSTT-043: editing a payment keeps the currency it was recorded in, not the display currency', async () => {
+    // Recorded in pounds while the phone shows dollars: the row says so, the
+    // sheet reopens in GBP, and a date-only correction must not re-declare the
+    // amount as dollars (the server would freeze a fresh FX rate for it).
+    const payment = { id: 505, from_user_id: 1, to_user_id: 2, amount: 10, currency: 'GBP', settled_at: '2026-04-28', created_at: '2026-04-30T09:00:00Z' }
+    serveSettlement({ ...SETTLEMENT, settlements: [payment] })
+    const update = vi.spyOn(budgetApi, 'updateSettlement').mockResolvedValue({})
+    await renderTab()
+
+    const row = rowOf('costs.payment')
+    expect(within(row).getByText('£10.00 → $20.00')).toBeInTheDocument()
+    expect(within(row).getByText('$20.00')).toBeInTheDocument()
+
+    fireEvent.click(within(row).getByRole('button', { name: 'common.edit' }))
+    const dialog = screen.getByRole('dialog', { name: 'costs.editPayment' })
+    expect(within(dialog).getByDisplayValue('10.00')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: /GBP/ })).toBeInTheDocument()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'common.save' }))
+    // The pound rate the phone holds goes along; the server only uses it when the
+    // currency changes and it has no rate of its own, so the frozen one stays.
+    expect(update).toHaveBeenCalledWith(7, 505, {
+      from_user_id: 1, to_user_id: 2, amount: 10, currency: 'GBP', settled_at: '2026-04-28', note: null,
+      fallback_fx: { base: 'USD', rates: { GBP: 0.5 } },
+    })
+  })
+
+  it('FE-MOB-COSTT-045: a bill whose rate moved shows what was entered and what it was booked at (#2525)', async () => {
+    // A euro trip read in dollars, the bill entered in dollars at a frozen 1.17 to the
+    // euro while today the euro buys 1.1551. It is 685.26 EUR of trip money, $791.55
+    // today, and that is what settle-up offers too; the row now says where the
+    // 801.76 that was entered went instead of hiding it. Converted with the euro's own
+    // quote, not the dollar's separately rounded one.
+    seedStore(useSettingsStore, { settings: { ...useSettingsStore.getState().settings, default_currency: 'USD' } })
+    localStorage.setItem('trek_fx_USD', JSON.stringify({ rates: { USD: 1, EUR: 0.865706 }, ts: Date.now() }))
+    localStorage.setItem('trek_fx_EUR', JSON.stringify({ rates: { EUR: 1, USD: 1.1551 }, ts: Date.now() }))
+    const hotel = {
+      id: 21, trip_id: 7, name: 'Aparthotel Silver', category: 'accommodation', total_price: 801.76, currency: 'USD', exchange_rate: 1.17,
+      expense_date: '2026-05-01', note: null,
+      members: [
+        { user_id: 1, paid: 1, username: 'Me', amount: null, avatar_url: null },
+        { user_id: 2, paid: 0, username: 'Ada', amount: null, avatar_url: null },
+      ],
+      payers: [{ user_id: 1, amount: 801.76, username: 'Me' }],
+    } as unknown as BudgetItem
+    serveSettlement({
+      ...SETTLEMENT,
+      settlements: [
+        { id: 601, from_user_id: 2, to_user_id: 1, amount: 400.88, currency: 'USD', exchange_rate: 1.17, settled_at: '2026-05-02', created_at: '2026-05-02T09:00:00Z' },
+        // A transfer from before they carried a currency was entered in the display currency.
+        { id: 602, from_user_id: 3, to_user_id: 1, amount: 30, currency: null, settled_at: '2026-05-03', created_at: '2026-05-03T09:00:00Z' },
+      ],
+    })
+    await renderTab(planner({ trip: { ...TRIP, currency: 'EUR' } as Trip, budgetItems: [hotel] }))
+
+    const card = cardOf('Aparthotel Silver')
+    expect(within(card).getByText(/^\$801\.76 → 685,26\s€$/)).toBeInTheDocument()
+    expect(within(card).getByText('$791.55')).toBeInTheDocument()
+    // Each share is half of the booked euros, the figure the balances net.
+    expect(within(card).getAllByText('$395.77')).toHaveLength(2)
+    expect(within(card).queryByText('$400.88')).toBeNull()
+    expect(up(screen.getByText('costs.totalSpend'), 1).textContent).toContain('$791.55')
+    expect(screen.getByText('costs.spent:$791.55')).toBeInTheDocument()
+
+    expect(screen.getAllByText('costs.payment')).toHaveLength(2)
+    const paid = up(screen.getByText('Ada → costs.you'), 2)
+    expect(within(paid).getByText(/^\$400\.88 → 342,63\s€$/)).toBeInTheDocument()
+    expect(within(up(screen.getByText('Bob → costs.you'), 2)).getByText('$30.00')).toBeInTheDocument()
+    expect(screen.queryByText('$34.65')).toBeNull()
+  })
+
+  it('FE-MOB-COSTT-046: a bill booked at today\'s rate reads exactly as typed (#2525)', async () => {
+    seedStore(useSettingsStore, { settings: { ...useSettingsStore.getState().settings, default_currency: 'USD' } })
+    localStorage.setItem('trek_fx_USD', JSON.stringify({ rates: { USD: 1, EUR: 0.87732 }, ts: Date.now() }))
+    localStorage.setItem('trek_fx_EUR', JSON.stringify({ rates: { EUR: 1, USD: 1.1398 }, ts: Date.now() }))
+    const villa = {
+      id: 22, trip_id: 7, name: 'Villa', category: 'accommodation', total_price: 12345.67, currency: 'USD', exchange_rate: 1.1398,
+      expense_date: '2026-05-01', note: null,
+      members: [
+        { user_id: 1, paid: 1, username: 'Me', amount: null, avatar_url: null },
+        { user_id: 2, paid: 0, username: 'Ada', amount: null, avatar_url: null },
+      ],
+      payers: [{ user_id: 1, amount: 12345.67, username: 'Me' }],
+    } as unknown as BudgetItem
+    serveSettlement(SETTLEMENT)
+    await renderTab(planner({ trip: { ...TRIP, currency: 'EUR' } as Trip, budgetItems: [villa] }))
+
+    const card = cardOf('Villa')
+    // Through the dollar's own quote it read $12,346.05.
+    expect(within(card).getByText('$12,345.67')).toBeInTheDocument()
+    expect(within(card).queryByText(/^\$12,345\.67 →/)).toBeNull()
+    expect(screen.getByText('costs.spent:$12,345.67')).toBeInTheDocument()
+    expect(up(screen.getByText('costs.totalSpend'), 1).textContent).toContain('$12,345.67')
+  })
+
+  // The server could not fetch rates, so the museum's pounds never froze one and the
+  // settlement left them out. An editor's phone lends its own rate and reads again.
+  it('FE-MOB-COSTT-047: an editor heals a bill the server could not convert and reads the settlement again', async () => {
+    resetFreezeAttempts()
+    let healed = false
+    server.use(
+      http.get('/api/trips/:id/budget/settlement', ({ request }) => {
+        settlementBases.push(new URL(request.url).searchParams.get('base') ?? '')
+        return HttpResponse.json(healed
+          ? { ...SETTLEMENT, unconverted: { item_ids: [], settlement_ids: [], currencies: [] } }
+          : { ...SETTLEMENT, unconverted: { item_ids: [12], settlement_ids: [], currencies: ['GBP'] } })
+      }),
+    )
+    const freeze = vi.spyOn(budgetApi, 'freezeRates').mockImplementation(async () => {
+      healed = true
+      return { items: [{ ...MUSEUM, exchange_rate: 0.5 }], settlements: [], unresolved: [] }
+    })
+    await renderTab()
+
+    await waitFor(() => expect(freeze).toHaveBeenCalledWith(7, { fallback_fx: { base: 'USD', rates: { GBP: 0.5 } } }))
+    await waitFor(() => expect(settlementBases).toHaveLength(2))
+    expect(freeze).toHaveBeenCalledTimes(1)
+  })
+
+  it('FE-MOB-COSTT-048: a read-only member\'s phone never freezes a rate', async () => {
+    resetFreezeAttempts()
+    serveSettlement({ ...SETTLEMENT, unconverted: { item_ids: [12], settlement_ids: [], currencies: ['GBP'] } })
+    const freeze = vi.spyOn(budgetApi, 'freezeRates')
+    await renderTab(planner({ can: vi.fn(() => false) as unknown as TripPlanner['can'] }))
+
+    await new Promise(r => setTimeout(r, 50))
+    expect(freeze).not.toHaveBeenCalled()
+    expect(settlementBases).toHaveLength(1)
+  })
+
+  it('FE-MOB-COSTT-049: asks the settlement in the display currency with the phone\'s own rate for it', async () => {
+    seedStore(useSettingsStore, {
+      settings: { ...useSettingsStore.getState().settings, default_currency: 'GBP' },
+    })
+    const rates: (string | null)[] = []
+    server.use(
+      http.get('/api/trips/:id/budget/settlement', ({ request }) => {
+        const url = new URL(request.url)
+        settlementBases.push(url.searchParams.get('base') ?? '')
+        rates.push(url.searchParams.get('base_rate'))
+        return HttpResponse.json(SETTLEMENT)
+      }),
+    )
+    render(<MCostsTab planner={planner()} shell={buildShell()} />)
+    await screen.findByText('+£12.50')
+
+    // Pounds per dollar from the trip currency's own table, what the server labels with
+    // when it cannot fetch a quote itself.
+    expect(settlementBases).toEqual(['GBP'])
+    expect(rates).toEqual(['0.5'])
+  })
+
+  it('FE-MOB-COSTT-044: a payment cannot be saved without a day', async () => {
+    // Cleared, the server would store NULL and the ledger would quietly fall
+    // back to the day the payment was recorded on.
+    const create = vi.spyOn(budgetApi, 'createSettlement').mockResolvedValue({})
+    await renderTab()
+    fireEvent.click(screen.getByRole('button', { name: 'costs.addPayment' }))
+    const dialog = screen.getByRole('dialog', { name: 'costs.addPayment' })
+    const submit = within(dialog).getByRole('button', { name: 'costs.addPayment' })
+    fireEvent.change(within(dialog).getByPlaceholderText('0.00'), { target: { value: '12,5' } })
+    expect(submit).toBeEnabled()
+
+    fireEvent.click(dialog.querySelector('button[aria-haspopup="dialog"]') as HTMLElement)
+    fireEvent.click(screen.getByRole('button', { name: 'Clear date' }))
+    expect(submit).toBeDisabled()
+    fireEvent.click(submit)
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('FE-MOB-COSTT-050: reads the settlement again when an expense is saved outside the tab', async () => {
+    // A scanned receipt is reviewed in the trip sheets, which reload the items only.
+    const p = planner()
+    const { rerender, shell } = await renderTab(p)
+    expect(settlementBases).toHaveLength(1)
+
+    const bread = { ...RAMEN, id: 15, name: 'Bread', total_price: 18.1 } as BudgetItem
+    rerender(<MCostsTab planner={{ ...p, budgetItems: [...ITEMS, bread] }} shell={shell} />)
+    await waitFor(() => expect(settlementBases).toHaveLength(2))
   })
 })

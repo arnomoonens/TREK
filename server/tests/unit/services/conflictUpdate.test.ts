@@ -38,6 +38,7 @@ import { createTables } from '../../../src/db/schema';
 import { runMigrations } from '../../../src/db/migrations';
 import { resetTestDb } from '../../helpers/test-db';
 import { createUser, createTrip } from '../../helpers/factories';
+import { accommodationsOver } from '../../helpers/accommodations-service';
 import { isUpdateConflict } from '../../../src/nest/common/conflictResult';
 import { DatabaseService } from '../../../src/nest/database/database.service';
 import { PackingService } from '../../../src/nest/packing/packing.service';
@@ -53,6 +54,7 @@ import { TrekPhotosRepository } from '../../../src/nest/photos/trek-photos.repos
 import { RuntimeEnvService } from '../../../src/nest/app-config/runtime-env.service';
 import { notificationsStub } from '../../helpers/notifications';
 import { makeStorageFixture } from '../../helpers/storage-fixture';
+import { noGoogleQuota } from '../../helpers/google-quota';
 
 const dbs = new DatabaseService(testDb);
 const realtime = new RealtimeService();
@@ -66,12 +68,13 @@ const places = new PlacesService(
   dbs,
   new PermissionsService(dbs),
   realtime,
-  new MapsService(dbs, photoCache),
+  new MapsService(dbs, photoCache, noGoogleQuota),
   new QueryHelpersService(dbs),
   new UnsplashService(dbs, runtimeEnv, makeStorageFixture('').storage),
   photoCache,
   new JourneyDomainService(dbs, realtime, new TrekPhotosRepository(dbs)),
   makeStorageFixture('').storage,
+  accommodationsOver(dbs),
 );
 
 beforeAll(() => {

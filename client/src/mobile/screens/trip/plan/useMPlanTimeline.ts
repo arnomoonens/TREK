@@ -2,17 +2,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTripStore } from '../../../../store/tripStore'
 import { useRouteCalculation } from '../../../../hooks/useRouteCalculation'
 import { assignmentsApi, reservationsApi, weatherApi } from '../../../../api/client'
-import { usePluginStore } from '../../../../store/pluginStore'
+import { useRouteModeOptions } from '../../../../components/Planner/routeModes'
 import { getDayBookendHotels } from '../../../../utils/dayOrder'
-import { getDisplayTimeForDay, getMergedItems, getTransportForDay, hasCarrierEndpointOnDay } from '../../../../utils/dayMerge'
-import { dayCoMapsUrl, dayGoogleMapsUrl, optimizeDayOrder } from '../lib/dayRoute'
+import { getDisplayTimeForDay, getMergedItems, getTransportForDay, hasCarrierEndpointOnDay, isCarrierTransport } from '../../../../utils/dayMerge'
+import { dayCoMapsUrl, dayExportStops, dayGoogleMapsUrl, optimizeDayOrder, type DayCarrier } from '../lib/dayRoute'
+import { buildTransitLeg, buildTransitNameIndex, type TransitLeg } from '../../../../components/Planner/transitLeg'
 import {
   buildPlanRows, breaksChronology, findUpNext, hotelChipsForDay, hotelLegsForDay, itemHasTime,
   type HotelLegs, type PlanRow, type TransportEntry,
 } from './planTimelineModel'
 import type { TripPlanner } from '../MTripShell'
 import type { WeatherResult } from '@trek/shared'
-import type { Assignment, Place } from '../../../../types'
+import type { Assignment, Place, RouteSegment } from '../../../../types'
 import type { MergedItem } from '../../../../utils/dayMerge'
 
 /**
@@ -58,6 +59,12 @@ export function useMPlanTimeline(planner: TripPlanner) {
   const dayHasCarrier = useMemo(
     () => !!day && merged.some(it => it.type === 'transport' && hasCarrierEndpointOnDay(it.data, day.id)),
     [day, merged],
+  )
+  // Plus any carrier booked today, located or not. On a day without stops it is the
+  // move itself, so the exports have no road to hand over (#2476).
+  const dayCarrier = useMemo<DayCarrier>(
+    () => ({ located: dayHasCarrier, booked: merged.some(it => it.type === 'transport' && isCarrierTransport(it.data)) }),
+    [dayHasCarrier, merged],
   )
 
   // Travel-time connectors (walk · distance · drive between consecutive places)
@@ -317,25 +324,34 @@ export function useMPlanTimeline(planner: TripPlanner) {
     }
   }, [day, dayAssignments, days, tripAccommodations, settings, dayHasCarrier, tripActions, tripId, pushUndo, updateRouteForDay, toast, t])
 
+  // With no stop left to hand over, such as a moving day that only holds its flight,
+  // the map hand-offs would open nothing, so the plan does not offer them. A single
+  // stop still opens as a pin (#2476).
+  const canExportRoute = useMemo(
+    () => !!day && dayExportStops(
+      day, days, dayAssignments, tripAccommodations, settings.optimize_from_accommodation !== false, dayCarrier,
+    ).length > 0,
+    [day, days, dayAssignments, tripAccommodations, settings, dayCarrier],
+  )
+
   const exportGoogleMaps = useCallback(() => {
     if (!day) return
     // Bookend the exported route with the day's accommodation the same way the
     // drawn route does — only when the leg is real (#1372, #1465).
     const url = dayGoogleMapsUrl(
-      day, days, dayAssignments, tripAccommodations, settings.optimize_from_accommodation !== false,
-      dayHasCarrier,
+      day, days, dayAssignments, tripAccommodations, settings.optimize_from_accommodation !== false, dayCarrier,
     )
     if (url) window.open(url, '_blank', 'noopener,noreferrer')
-  }, [day, dayAssignments, days, tripAccommodations, settings, dayHasCarrier])
+  }, [day, dayAssignments, days, tripAccommodations, settings, dayCarrier])
 
   const exportCoMaps = useCallback(() => {
     if (!day) return
     const url = dayCoMapsUrl(
       day, days, dayAssignments, tripAccommodations, settings.optimize_from_accommodation !== false,
-      day.default_transport_mode ?? routeProfile, dayHasCarrier,
+      day.default_transport_mode ?? routeProfile, dayCarrier,
     )
     if (url) window.open(url, '_blank', 'noopener,noreferrer')
-  }, [day, dayAssignments, days, tripAccommodations, settings, routeProfile, dayHasCarrier])
+  }, [day, dayAssignments, days, tripAccommodations, settings, routeProfile, dayCarrier])
 
   const renameDay = useCallback((title: string) => {
     if (!day) return
@@ -352,15 +368,7 @@ export function useMPlanTimeline(planner: TripPlanner) {
     : null
 
   // ── Per-segment travel mode (#1281) ──
-  const activePlugins = usePluginStore(s => s.plugins)
-  const routeModeOptions = useMemo(() => {
-    const opts: Array<{ key: string; label: string }> = [
-      { key: 'driving', label: t('mobileTrip.profileDriving') },
-      { key: 'walking', label: t('mobileTrip.profileWalking') },
-    ]
-    for (const p of activePlugins) for (const prof of p.routeProfiles ?? []) opts.push({ key: `plugin:${p.id}/${prof.id}`, label: prof.label })
-    return opts
-  }, [activePlugins, t])
+  const routeModeOptions = useRouteModeOptions()
 
   // Set the mode of the leg leaving a stop — optimistic, then persisted; null clears
   // the override back to the day default. Sticky against the whole-day picker.
@@ -376,6 +384,29 @@ export function useMPlanTimeline(planner: TripPlanner) {
     })
   }, [day, tripId, toast, t, tripActions])
 
+  // ── Public transit for one leg (#2398) ──
+  // The entry the desktop connector menu carries: the automated search, seeded with
+  // the leg's two ends and the time the stop it leaves is planned for. It needs the
+  // trip's dates, as on the desktop and as the day sheet's own transit button does.
+  const tripHasDates = Boolean(planner.trip?.start_date && planner.trip?.end_date)
+  const transitNames = useMemo(
+    () => buildTransitNameIndex(assignments, tripAccommodations, reservations),
+    [assignments, tripAccommodations, reservations],
+  )
+  const transitLegFor = useCallback((seg: RouteSegment): TransitLeg | null => {
+    if (!day || !tripHasDates) return null
+    return buildTransitLeg(seg, day.id, transitNames, assignments, reservations)
+  }, [day, tripHasDates, transitNames, assignments, reservations])
+
+  const planTransitLeg = useCallback((leg: TransitLeg) => {
+    if (!day) return
+    planner.setTransportModalDayId(day.id)
+    planner.setEditingTransport(null)
+    planner.setTransitPrefill(leg)
+    planner.setTransportModalAutomated(true)
+    planner.setShowTransportModal(true)
+  }, [planner, day])
+
   return {
     day, rows, hotelLegs, merged, hotelChips, weather, weatherTemp, upNext,
     weatherPlaceName: weatherAnchor?.name ?? null,
@@ -384,8 +415,8 @@ export function useMPlanTimeline(planner: TripPlanner) {
     moveRow, removeAssignment, editAssignment, editTransport, openTransitJourney,
     moveRowTo,
     addPlace, addBooking, addTransport,
-    optimize, exportGoogleMaps, exportCoMaps, renameDay, fullPlaceOf,
-    routeModeOptions, setLegMode,
+    optimize, canExportRoute, exportGoogleMaps, exportCoMaps, renameDay, fullPlaceOf,
+    routeModeOptions, setLegMode, transitLegFor, planTransitLeg,
   }
 }
 

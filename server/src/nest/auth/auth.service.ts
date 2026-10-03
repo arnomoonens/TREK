@@ -7,6 +7,7 @@ import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
 import { randomBytes, createHash } from 'crypto';
 import type { Request, Response } from 'express';
+import { WEB_PUSH_CHANNEL_ID } from '@trek/shared';
 import { readEnv } from '../../app-config';
 import { JWT_SECRET, SESSION_DURATION_SECONDS, SESSION_DURATION_REMEMBER_SECONDS } from '../../config';
 import { DatabaseService } from '../database/database.service';
@@ -15,6 +16,9 @@ import { validatePassword } from '../common/passwordPolicy';
 import { encryptMfaSecret, decryptMfaSecret } from '../common/crypto/mfaCrypto';
 import { decrypt_api_key, maybe_encrypt_api_key, encrypt_api_key } from '../common/crypto/apiKeyCrypto';
 import { resolveApiKey } from '../settings/instance-api-keys';
+// Type-and-guard only: the app-config read reports the provider choice, it does
+// not construct one, so this does not pull the maps domain into auth.
+import { isPlacesProviderChoice } from '../maps/providers/places-provider';
 import { EphemeralTokenService } from './ephemeral-token.service';
 // Import from sessionManager directly, NOT the ../../mcp barrel: the barrel pulls
 // the whole tools fan-out (and via the domain bridges, the Nest services) into
@@ -263,6 +267,12 @@ export class AuthService {
     // question is only about the instance, which is the first two steps of the
     // chain; id 0 matches no row.
     const hasGoogleKey = !!resolveApiKey(this.db, 'maps_api_key', authenticatedUser?.id ?? 0, readEnv().maps.placesApiKey).key;
+    // The same question for Amap, asked the same way. The client needs both to
+    // tell "search is unavailable" from "search runs on OpenStreetMap", and to
+    // know whether the provider the admin selected actually has a credential.
+    const hasAmapKey = !!resolveApiKey(this.db, 'amap_api_key', authenticatedUser?.id ?? 0, readEnv().maps.amapApiKey).key;
+    const placesProviderRow = this.db.get<{ value: string }>("SELECT value FROM app_settings WHERE key = 'places_provider'")?.value;
+    const placesProvider = isPlacesProviderChoice(placesProviderRow) ? placesProviderRow : 'auto';
     const oidcDisplayName = readEnv().oidc.displayName ||
       this.db.get<{ value: string }>("SELECT value FROM app_settings WHERE key = 'oidc_display_name'")?.value || null;
     const oidcConfigured = !!(
@@ -276,6 +286,7 @@ export class AuthService {
     const notifChannelsRaw = this.db.get<{ value: string }>("SELECT value FROM app_settings WHERE key = 'notification_channels'")?.value || notifChannel;
     const activeChannels = notifChannelsRaw === 'none' ? [] : notifChannelsRaw.split(',').map((c: string) => c.trim()).filter(Boolean);
     const hasWebhookEnabled = activeChannels.includes('webhook');
+    const hasPushEnabled = activeChannels.includes(WEB_PUSH_CHANNEL_ID);
     const tripRemindersEnabled = tripReminderSetting !== 'false';
     const placesPhotosSetting = this.db.get<{ value: string }>("SELECT value FROM app_settings WHERE key = 'places_photos_enabled'")?.value;
     const placesPhotosEnabled = placesPhotosSetting !== 'false';
@@ -285,6 +296,11 @@ export class AuthService {
     const placesDetailsEnabled = placesDetailsSetting !== 'false';
     const placesEnrichSetting = this.db.get<{ value: string }>("SELECT value FROM app_settings WHERE key = 'places_enrich_enabled'")?.value;
     const placesEnrichEnabled = placesEnrichSetting !== 'false';
+    // Fail-closed, and deliberately on this unauthenticated endpoint: whether an
+    // instance records what its users search for is something a visitor is
+    // entitled to know before logging in, not a detail to keep behind the door.
+    const placeShadowSetting = this.db.get<{ value: string }>("SELECT value FROM app_settings WHERE key = 'place_shadow_enabled'")?.value;
+    const placeShadowEnabled = placeShadowSetting === 'true';
     const setupComplete = userCount > 0 && !this.db.get("SELECT id FROM users WHERE role = 'admin' AND must_change_password = 1 LIMIT 1");
 
     return {
@@ -308,6 +324,8 @@ export class AuthService {
       version,
       is_prerelease: version.includes('-pre.'),
       has_maps_key: hasGoogleKey,
+      has_amap_key: hasAmapKey,
+      places_provider: placesProvider,
       oidc_configured: oidcConfigured,
       oidc_display_name: oidcConfigured ? (oidcDisplayName || 'SSO') : undefined,
       require_mfa: requireMfaRow?.value === 'true',
@@ -316,6 +334,8 @@ export class AuthService {
       // server's acceptance can never drift (the historical inline copy here
       // dropped pkpass, pkpasses, md and markdown).
       allowed_file_types: this.allowedFileTypes.get(),
+      // FILE_UPLOAD_LIMIT_MB, so the pickers refuse a file before the upload starts (#1364).
+      max_upload_mb: readEnv().files.uploadLimitMb,
       // Whether the configuration belongs to whoever operates this install
       // rather than to its admin. The client uses it to stop offering settings
       // the server would refuse anyway — it is an honesty flag for the UI, never
@@ -327,12 +347,13 @@ export class AuthService {
       timezone: readEnv().app.tz || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
       notification_channel: notifChannel,
       notification_channels: activeChannels,
-      available_channels: { email: hasSmtpHost, webhook: hasWebhookEnabled, inapp: true },
+      available_channels: { email: hasSmtpHost, webhook: hasWebhookEnabled, push: hasPushEnabled, inapp: true },
       trip_reminders_enabled: tripRemindersEnabled,
       places_photos_enabled: placesPhotosEnabled,
       places_autocomplete_enabled: placesAutocompleteEnabled,
       places_details_enabled: placesDetailsEnabled,
       places_enrich_enabled: placesEnrichEnabled,
+      place_shadow_enabled: placeShadowEnabled,
       permissions: authenticatedUser ? this.permissions.getAllPermissions() : undefined,
       // Case-sensitive on purpose (legacy parity).
       dev_mode: readEnv().app.nodeEnv === 'development',
@@ -579,6 +600,11 @@ export class AuthService {
       try {
         this.db.run("UPDATE oauth_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = ? AND revoked_at IS NULL", userId);
       } catch { /* oauth_tokens table may not exist in very old installs */ }
+      // Push devices keep receiving notifications without any session, so they
+      // go too. The device the change was made on registers again right away:
+      // the client reloads the user after the change, and that re-syncs its
+      // subscription. Other devices do so after their next sign-in.
+      this.db.run('DELETE FROM push_subscriptions WHERE user_id = ?', userId);
     });
 
     try { revokeUserSessions?.(userId); } catch { /* best-effort */ }
@@ -689,6 +715,10 @@ export class AuthService {
         if (key === 'require_mfa') {
           val = body[key] === true || val === 'true' ? 'true' : 'false';
         }
+        // An unknown provider name is dropped, not stored: the maps service
+        // degrades an unrecognised row to 'auto', so writing one would show the
+        // admin a saved setting that quietly does nothing.
+        if (key === 'places_provider' && !isPlacesProviderChoice(val)) continue;
         if (key === 'smtp_pass' && val === '••••••••') continue;
         if (key === 'smtp_pass') val = encrypt_api_key(val);
         if (key === 'admin_webhook_url' && val === '••••••••') continue;
@@ -1035,6 +1065,9 @@ export class AuthService {
           user.id
         );
       } catch { /* oauth_tokens table may not exist in very old installs */ }
+      // Push devices are a delivery channel that outlives every session, so an
+      // intruder's browser would keep reading this account's notifications.
+      this.db.run('DELETE FROM push_subscriptions WHERE user_id = ?', user.id);
     });
 
     // Kick off any MCP/WS session cleanup — same hook the account-delete path uses.

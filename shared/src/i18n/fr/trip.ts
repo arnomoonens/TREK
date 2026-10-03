@@ -18,12 +18,14 @@ const trip: TranslationStrings = {
   'trip.loadingSteps.arrive': 'On y est presque...',
   'trip.mobilePlan': 'Plan',
   'trip.mobilePlaces': 'Lieux',
+  'trip.panelWidth': 'Largeur du panneau',
   'trip.toast.placeUpdated': 'Lieu mis à jour',
   'trip.toast.tripUpdated': 'Voyage mis à jour',
   'trip.toast.placeAdded': 'Lieu ajouté',
   'trip.toast.placeDeleted': 'Lieu supprimé',
   'trip.toast.selectDay': "Veuillez d'abord sélectionner un jour",
   'trip.toast.assignedToDay': 'Lieu attribué au planning',
+  'trip.toast.loadError': 'Impossible de charger le voyage',
   'trip.toast.reorderError': 'Échec de la réorganisation',
   'trip.toast.reservationUpdated': 'Réservation mise à jour',
   'trip.toast.reservationAdded': 'Réservation ajoutée',
@@ -63,6 +65,7 @@ const trip: TranslationStrings = {
   'transit.search': 'Rechercher',
   'transit.searching': 'Recherche…',
   'transit.searchError': "Échec de la recherche d'itinéraire. Veuillez réessayer.",
+  'transit.noResultsVia': 'Aucune liaison trouvée via {provider}. Essayez une autre heure ou d\'autres filtres.',
   'transit.noResults': "Aucune connexion trouvée. Essayez un autre horaire ou d'autres filtres.",
   'transit.direct': 'Direct',
   'transit.transfers': '{count} correspondances',
@@ -87,5 +90,10 @@ const trip: TranslationStrings = {
   'transit.transfersLabel': 'Correspondances',
   'transit.walkLabel': 'Marche',
   'transit.searchHint': 'Recherchez de vraies liaisons et ajoutez-les directement au jour — données via Transitous.',
+  'trip.confirm.deletePlaceNight': 'Le séjour réservé à « {name} » sera également supprimé.',
+  'trip.confirm.deletePlaceBooked':
+    'Le séjour réservé à « {name} », la réservation « {booking} » et toute dépense liée seront également supprimés.',
+  'trip.confirm.deletePlaceBookedSame':
+    'Le séjour réservé à « {name} », sa réservation et toute dépense liée seront également supprimés.',
 };
 export default trip;

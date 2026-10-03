@@ -182,3 +182,73 @@ export function resolveDurability(rawJournalMode: string | undefined, rawSynchro
 export function synchronousName(level: unknown): string {
   return SYNCHRONOUS_LEVELS[Number(level)] ?? String(level);
 }
+
+/**
+ * ALLOW_LINK_LOCAL_IPS: single IPv4 addresses out of 169.254.0.0/16 that outbound
+ * requests may reach after all. The case it exists for is the host gateway of a
+ * rootless Podman container, 169.254.1.2, with an identity provider or another
+ * service behind it (#2400).
+ *
+ * 169.254.169.0/24 and 169.254.170.0/24 can never be listed: AWS, GCP, Azure,
+ * OpenStack and the container runtimes on top of them serve instance metadata and
+ * credentials there, which is what the link-local block is for. An entry is taken
+ * only in the form a resolver answers with (no leading zeros, no ranges), because
+ * it is compared as a string with the resolved address.
+ *
+ * `invalid` lists what was refused, for the boot check; `ips` is what may be used,
+ * so a bad entry allows nothing.
+ */
+export function parseLinkLocalAllowList(raw: string | undefined): { ips: string[]; invalid: string[] } {
+  const ips: string[] = [];
+  const invalid: string[] = [];
+  for (const entry of (raw ?? '').split(',').map((e) => e.trim()).filter(Boolean)) {
+    const m = /^169\.254\.(\d{1,3})\.(\d{1,3})$/.exec(entry);
+    const canonical = m !== null && [m[1], m[2]].every((o) => String(Number(o)) === o && Number(o) <= 255);
+    if (canonical && m[1] !== '169' && m[1] !== '170') ips.push(entry);
+    else invalid.push(entry);
+  }
+  return { ips, invalid };
+}
+
+// ── Web Push key material ──────────────────────────────────────────────────
+
+const BASE64URL = /^[A-Za-z0-9_-]+={0,2}$/;
+
+/**
+ * Strict base64url decode, null for anything that is not base64url. Web Push
+ * keys arrive in this alphabet from the browser and from the VAPID_* variables.
+ * Buffer.from(value, 'base64url') alone skips characters it does not know, so a
+ * mangled key would decode to fewer bytes instead of being refused, and the size
+ * checks below would then report the wrong problem.
+ */
+export function decodeBase64Url(value: string): Buffer | null {
+  const trimmed = value.trim();
+  if (!BASE64URL.test(trimmed)) return null;
+  return Buffer.from(trimmed, 'base64url');
+}
+
+/** An uncompressed P-256 point: 65 bytes, the first one 0x04 (VAPID public key, subscription p256dh). */
+export function isUncompressedP256Key(value: string): boolean {
+  const bytes = decodeBase64Url(value);
+  return bytes?.length === 65 && bytes[0] === 0x04;
+}
+
+/** A P-256 private scalar as the Web Push tools print it: 32 bytes. */
+export function isP256PrivateKey(value: string): boolean {
+  return decodeBase64Url(value)?.length === 32;
+}
+
+/**
+ * The VAPID `sub` claim (RFC 8292 section 2.1): a mailto: address or an https:
+ * URL. Apple refuses anything else, and so does this check, so a subject that
+ * boots is one every push service accepts.
+ */
+export function isVapidSubject(value: string): boolean {
+  const trimmed = value.trim();
+  if (/^mailto:[^\s@]+@[^\s@]+$/i.test(trimmed)) return true;
+  try {
+    return new URL(trimmed).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}

@@ -1,4 +1,4 @@
-// FE-COMP-JOURNEYMAP-001 to FE-COMP-JOURNEYMAP-049
+// FE-COMP-JOURNEYMAP-001 to FE-COMP-JOURNEYMAP-050
 
 vi.mock('../../api/websocket', () => ({
   connect: vi.fn(),
@@ -26,7 +26,16 @@ vi.mock('leaflet', () => {
     fitBounds: vi.fn(),
     setView: vi.fn(),
     flyTo: vi.fn(),
+    panTo: vi.fn(),
+    // Runs the callback at once on a map with a view, else on its load event.
+    // The default is the loaded map; the two "no view yet" tests below hold
+    // the callback back and release it by hand.
+    whenReady: vi.fn((cb: () => void) => { cb(); }),
     getZoom: vi.fn(() => 10),
+    // Leaflet throws "Set map center and zoom first." out of these until the map
+    // has a view; the loaded map is the default here, FE-COMP-JOURNEYMAP-050
+    // takes it away for the window that #2254 fell into.
+    getCenter: vi.fn(() => ({ lat: 0, lng: 0 })),
     zoomIn: vi.fn(),
     zoomOut: vi.fn(),
     // The photo layer subscribes to zoom/pan and clusters in screen space (#1614).
@@ -43,6 +52,9 @@ vi.mock('leaflet', () => {
       divIcon: vi.fn(() => ({})),
       latLngBounds: vi.fn(() => ({})),
       layerGroup: vi.fn(() => ({ addLayer: vi.fn(), addTo: vi.fn(), remove: vi.fn() })),
+      // The map builds its own attribution control so it can collapse to the credit
+      // alone (see the GL twin: the phone lays a carousel over the bottom edge).
+      control: { attribution: vi.fn(() => ({ addTo: vi.fn() })) },
     },
     map: vi.fn(() => mockMap),
     tileLayer: vi.fn(() => ({ addTo: vi.fn(), setUrl: vi.fn() })),
@@ -50,6 +62,7 @@ vi.mock('leaflet', () => {
     polyline: vi.fn(() => { const line: any = { addTo: vi.fn(() => line), bindTooltip: vi.fn(() => line) }; return line }),
     divIcon: vi.fn(() => ({})),
     latLngBounds: vi.fn(() => ({})),
+    control: { attribution: vi.fn(() => ({ addTo: vi.fn() })) },
   };
 });
 
@@ -58,6 +71,8 @@ import { render, act, fireEvent, waitFor } from '../../../tests/helpers/render';
 import { resetAllStores, seedStore } from '../../../tests/helpers/store';
 import { useSettingsStore } from '../../store/settingsStore';
 import { buildSettings } from '../../../tests/helpers/factories';
+import { AMAP_ROAD } from '../../constants/mapDefaults';
+import type { Mock } from 'vitest';
 import L from 'leaflet';
 import JourneyMap from './JourneyMap';
 import type { JourneyMapHandle } from './JourneyMap';
@@ -81,6 +96,14 @@ vi.mock('@maplibre/maplibre-gl-leaflet', () => ({
   }),
 }));
 vi.mock('../Map/engines/maplibre', () => ({ default: {} }));
+// jsdom refuses a WebGL context, and the basemap now believes it (#2288). These
+// cases are about the GL layer, so the probe says yes here.
+vi.mock('../../utils/webgl', () => ({ hasWebGL: () => true, resetWebGLProbe: () => {} }));
+// The real CRS is built from Leaflet's projection, which the mock above does not
+// carry. What matters here is only that the map is handed one for Amap tiles.
+vi.mock('../Map/gcj02Crs', () => ({
+  crsForBasemap: (gcj02: boolean) => (gcj02 ? { code: 'TREK:GCJ02' } : undefined),
+}));
 
 const entriesWithCoords = [
   { id: 'e1', lat: 48.8566, lng: 2.3522, title: 'Paris', mood: null, entry_date: '2025-06-01' },
@@ -146,10 +169,11 @@ describe('JourneyMap', () => {
     render(
       <JourneyMap checkins={[]} entries={entriesWithCoords} />
     );
-    // Each marker calls bindTooltip with the entry label
+    // The tooltip is the same card the GL renderer draws now (#2299), so the title
+    // is inside its markup rather than being the whole label.
     const mockMarkerInstance = (L.marker as any).mock.results[0].value;
     expect(mockMarkerInstance.bindTooltip).toHaveBeenCalledWith(
-      'Paris',
+      expect.stringContaining('Paris'),
       expect.objectContaining({ direction: 'top' }),
     );
   });
@@ -190,12 +214,12 @@ describe('JourneyMap', () => {
     // Tooltips use the entry titles
     const mockMarker1 = (L.marker as any).mock.results[0].value;
     expect(mockMarker1.bindTooltip).toHaveBeenCalledWith(
-      'Happy Paris',
+      expect.stringContaining('Happy Paris'),
       expect.objectContaining({ direction: 'top' }),
     );
     const mockMarker2 = (L.marker as any).mock.results[1].value;
     expect(mockMarker2.bindTooltip).toHaveBeenCalledWith(
-      'Sad Berlin',
+      expect.stringContaining('Sad Berlin'),
       expect.objectContaining({ direction: 'top' }),
     );
   });
@@ -302,23 +326,33 @@ describe('JourneyMap', () => {
     expect(vi.mocked(L.divIcon).mock.calls.length).toBe(iconsBefore);
   });
 
-  it('FE-COMP-JOURNEYMAP-017: focusMarker flies to the pin, never below zoom 12', () => {
+  it('FE-COMP-JOURNEYMAP-017: focusMarker pans to the pin and leaves the zoom where the reader put it', () => {
     const ref = React.createRef<JourneyMapHandle>();
     render(<JourneyMap ref={ref} checkins={[]} entries={entriesWithCoords} />);
 
     act(() => { ref.current!.focusMarker('e2'); });
 
-    // getZoom() is stubbed at 10, so the floor of 12 wins
-    expect(mockedMap().flyTo).toHaveBeenCalledWith({ lat: 0, lng: 0 }, 12, { duration: 0.5 });
+    // It used to force a floor of zoom 12, which yanked a country view to street
+    // level on the first scroll through the timeline (discussion #2299).
+    expect(mockedMap().panTo).toHaveBeenCalledWith({ lat: 0, lng: 0 }, { animate: true, duration: 0.5 });
+    expect(mockedMap().flyTo).not.toHaveBeenCalled();
   });
 
-  it('FE-COMP-JOURNEYMAP-018: focusMarker swallows leaflet errors when the map has no view yet', () => {
+  it('FE-COMP-JOURNEYMAP-018: focusMarker waits for the first view when the map has none yet', () => {
     const ref = React.createRef<JourneyMapHandle>();
     render(<JourneyMap ref={ref} checkins={[]} entries={entriesWithCoords} />);
-    vi.mocked(mockedMap().getZoom).mockImplementationOnce(() => { throw new Error('Set map center and zoom first'); });
+    // Leaflet does not refuse a pan on a viewless map, it takes it as the first
+    // view with the zoom undefined, and the tile layer then aborts the load event
+    // before the markers are added. So the pan has to wait for the fit.
+    let onLoad: (() => void) | null = null;
+    vi.mocked(mockedMap().whenReady).mockImplementationOnce((cb: () => void) => { onLoad = cb; });
 
-    expect(() => act(() => { ref.current!.focusMarker('e1'); })).not.toThrow();
-    expect(mockedMap().flyTo).not.toHaveBeenCalled();
+    act(() => { ref.current!.focusMarker('e1'); });
+    expect(mockedMap().panTo).not.toHaveBeenCalled();
+
+    act(() => { onLoad!(); });
+    expect(mockedMap().panTo).toHaveBeenCalledWith({ lat: 0, lng: 0 }, { animate: true, duration: 0.5 });
+    expect(mockedMap().setView).not.toHaveBeenCalledWith({ lat: 0, lng: 0 }, 12);
   });
 
   it('FE-COMP-JOURNEYMAP-019: invalidateSize forwards to the leaflet map', () => {
@@ -412,6 +446,18 @@ describe('JourneyMap', () => {
     seedStore(useSettingsStore, { settings: buildSettings({ map_tile_url: 'https://tiles.test/{z}/{x}/{y}.png' }) });
     render(<JourneyMap checkins={[]} entries={entriesWithCoords} />);
     expect(vi.mocked(L.tileLayer).mock.calls[0][0]).toBe('https://tiles.test/{z}/{x}/{y}.png');
+    // A WGS-84 template leaves the projection alone: passing the default CRS
+    // explicitly would be the same value, but omitting it keeps the map as it was.
+    expect(vi.mocked(L.map).mock.calls[0][1]).not.toHaveProperty('crs');
+  });
+
+  it('FE-COMP-JOURNEYMAP-027b: an Amap preset builds the map on the GCJ-02 projection', () => {
+    // The same shift the planner map applies. Miss it here and every entry on
+    // the journey page sits a few hundred metres from where the planner drew it.
+    seedStore(useSettingsStore, { settings: buildSettings({ map_tile_url: AMAP_ROAD }) });
+    render(<JourneyMap checkins={[]} entries={entriesWithCoords} />);
+    expect(vi.mocked(L.tileLayer).mock.calls[0][0]).toBe(AMAP_ROAD);
+    expect(vi.mocked(L.map).mock.calls[0][1]).toMatchObject({ crs: { code: 'TREK:GCJ02' } });
   });
 
   it('FE-COMP-JOURNEYMAP-041: a basemap change restyles in place instead of rebuilding the map (#2097)', async () => {
@@ -436,25 +482,34 @@ describe('JourneyMap', () => {
     expect(layer.getMaplibreMap().setStyle).not.toHaveBeenCalledWith(expect.stringContaining('tiles.test'));
   });
 
-  it('FE-COMP-JOURNEYMAP-028: the activeMarkerId prop flies to that marker after the settle delay', () => {
+  it('FE-COMP-JOURNEYMAP-028: the activeMarkerId prop pans to that marker after the settle delay', () => {
     vi.useFakeTimers();
     try {
       render(<JourneyMap checkins={[]} entries={entriesWithCoords} activeMarkerId="e2" />);
-      expect(mockedMap().flyTo).not.toHaveBeenCalled();
+      expect(mockedMap().panTo).not.toHaveBeenCalled();
       act(() => { vi.advanceTimersByTime(60); });
-      expect(mockedMap().flyTo).toHaveBeenCalledWith({ lat: 0, lng: 0 }, 12, { duration: 0.5 });
+      expect(mockedMap().panTo).toHaveBeenCalledWith({ lat: 0, lng: 0 }, { animate: true, duration: 0.5 });
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it('FE-COMP-JOURNEYMAP-029: activeMarkerId falls back to setView while the map has no view yet', () => {
+  it('FE-COMP-JOURNEYMAP-029: activeMarkerId waits for the first view while the map has none yet', () => {
     vi.useFakeTimers();
     try {
       render(<JourneyMap checkins={[]} entries={entriesWithCoords} activeMarkerId="e1" />);
-      vi.mocked(mockedMap().getZoom).mockImplementationOnce(() => { throw new Error('Set map center and zoom first'); });
+      // The 50 ms timer can beat the rAF that sets the first view, in a
+      // background tab most of all. A pan at that point used to become the first
+      // view itself, with no zoom, and left the map without its markers; the next
+      // rebuild then crashed the page in Leaflet's icon removal.
+      let onLoad: (() => void) | null = null;
+      vi.mocked(mockedMap().whenReady).mockImplementationOnce((cb: () => void) => { onLoad = cb; });
       act(() => { vi.advanceTimersByTime(60); });
-      expect(mockedMap().setView).toHaveBeenCalledWith({ lat: 0, lng: 0 }, 12);
+      expect(mockedMap().panTo).not.toHaveBeenCalled();
+      expect(mockedMap().setView).not.toHaveBeenCalledWith({ lat: 0, lng: 0 }, 12);
+
+      act(() => { onLoad!(); });
+      expect(mockedMap().panTo).toHaveBeenCalledWith({ lat: 0, lng: 0 }, { animate: true, duration: 0.5 });
       expect(mockedMap().flyTo).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
@@ -521,7 +576,9 @@ describe('JourneyMap', () => {
         ]}
       />
     );
-    const tooltipTitles = vi.mocked(mockedMarker().bindTooltip).mock.calls.map(c => c[0]);
+    const titleOf = (html: unknown) =>
+      String(html).match(/trek-journey-popup-title">([^<]*)</)?.[1] ?? '';
+    const tooltipTitles = vi.mocked(mockedMarker().bindTooltip).mock.calls.map(c => titleOf(c[0]));
     expect(tooltipTitles).toEqual(['Paris', 'Berlin']);
   });
 
@@ -532,7 +589,10 @@ describe('JourneyMap', () => {
         entries={[{ id: 'e0', lat: 1, lng: 2, title: null, mood: null, entry_date: '2025-06-01' }]}
       />
     );
-    expect(mockedMarker().bindTooltip).toHaveBeenCalledWith('Entry', expect.objectContaining({ direction: 'top' }));
+    expect(mockedMarker().bindTooltip).toHaveBeenCalledWith(
+      expect.stringContaining('Entry'),
+      expect.objectContaining({ direction: 'top' }),
+    );
   });
 
   it('FE-COMP-JOURNEYMAP-037: unmounting tears the leaflet map down', () => {
@@ -660,7 +720,7 @@ describe('JourneyMap', () => {
 
     const labels = vi.mocked(mockedMarker().bindTooltip).mock.calls.map(c => c[0]);
     expect(labels.some(l => typeof l === 'string' && l.includes('<img'))).toBe(false);
-    expect(labels).toContain('&lt;img src=x onerror=&quot;alert(1)&quot;&gt;');
+    expect(labels.some(l => typeof l === 'string' && l.includes('&lt;img src=x onerror=&quot;alert(1)&quot;&gt;'))).toBe(true);
   });
   // #1614 — photos placed by their own capture coordinates, collapsed by proximity.
   it('FE-COMP-JOURNEYMAP-046: draws one thumbnail per cluster and counts the rest', () => {
@@ -692,5 +752,48 @@ describe('JourneyMap', () => {
     const html = vi.mocked(L.divIcon).mock.calls.map(c => String(c[0]?.html)).filter(h => h.includes('/uploads/'));
     expect(html).toHaveLength(1);
     expect(html[0]).not.toMatch(/>\d+</);
+  });
+
+  // #2254 — the map effect defers its opening fitBounds/setView to a rAF, so this
+  // effect can draw while the map still has no center or zoom. Clustering
+  // projects to container pixels, which throws in that window and took the whole
+  // public journey page down with it.
+  it('FE-COMP-JOURNEYMAP-050: waits out a map that has no view yet, then draws on moveend', () => {
+    const noView = () => { throw new Error('Set map center and zoom first.'); };
+    let hasView = false;
+    const photoHtml = () =>
+      vi.mocked(L.divIcon).mock.calls.map(c => String(c[0]?.html)).filter(h => h.includes('/uploads/'));
+
+    // The mock hands out one shared map instance, so it can be reached — and
+    // stripped of its view — before the component ever builds one. Typed down to
+    // the three spies this needs: L.map's signature promises a real Leaflet map.
+    type MapProbe = { getCenter: Mock; latLngToContainerPoint: Mock; on: Mock };
+    L.map(document.createElement('div'));
+    const map = mockedMap() as MapProbe;
+    vi.mocked(L.map).mockClear();
+    map.getCenter.mockImplementation(() => (hasView ? { lat: 0, lng: 0 } : noView()));
+    map.latLngToContainerPoint.mockImplementation(() => (hasView ? { x: 0, y: 0 } : noView()));
+
+    try {
+      // Rendering must survive the viewless window, and draw nothing in it.
+      expect(() =>
+        render(
+          <JourneyMap checkins={[]} entries={[]} photos={[{ id: 'p1', lat: 1, lng: 2, thumbUrl: '/uploads/late.jpg' }]} />,
+        ),
+      ).not.toThrow();
+      expect(photoHtml()).toHaveLength(0);
+
+      // The deferred fitBounds lands: the listener this effect registered redraws.
+      hasView = true;
+      const redraw = map.on.mock.calls.find(c => c[0] === 'moveend')?.[1] as () => void;
+      expect(redraw).toBeTypeOf('function');
+      act(() => { redraw(); });
+
+      expect(photoHtml()).toHaveLength(1);
+      expect(photoHtml()[0]).toContain('/uploads/late.jpg');
+    } finally {
+      map.getCenter.mockImplementation(() => ({ lat: 0, lng: 0 }));
+      map.latLngToContainerPoint.mockImplementation(() => ({ x: 0, y: 0 }));
+    }
   });
 });

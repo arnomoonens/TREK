@@ -2,12 +2,12 @@ import type { BudgetItem, TripFile } from '../../types'
 
 type ExpenseDeleteTranslator = (key: string, params?: Record<string, string | number>) => string
 
-export function linkedExpenseIds(file: Pick<TripFile, 'linked_expense_ids'>): number[] {
-  return [...new Set(file.linked_expense_ids || [])]
+export function linkedExpenseIds(file: Pick<TripFile, 'linked_budget_item_ids'>): number[] {
+  return [...new Set(file.linked_budget_item_ids || [])]
 }
 
 export function linkedExpenseCount(
-  file: Pick<TripFile, 'linked_expense_ids'>,
+  file: Pick<TripFile, 'linked_budget_item_ids'>,
   liveExpenses: ReadonlyArray<Pick<BudgetItem, 'id'>>,
 ): number {
   const ids = linkedExpenseIds(file)
@@ -41,6 +41,6 @@ export function filesForExpense(
 ): TripFile[] {
   const { includeDeleted = false } = options
   return files
-    .filter(file => (includeDeleted || !file.deleted_at) && file.linked_expense_ids?.includes(expenseId))
+    .filter(file => (includeDeleted || !file.deleted_at) && file.linked_budget_item_ids?.includes(expenseId))
     .sort((a, b) => attachmentCreatedAt(a, expenseId).localeCompare(attachmentCreatedAt(b, expenseId)) || a.id - b.id)
 }

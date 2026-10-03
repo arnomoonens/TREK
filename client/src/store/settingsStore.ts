@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { settingsApi } from '../api/client'
 import type { Settings } from '../types'
-import { DEFAULT_APPEARANCE } from '@trek/shared'
+import { DEFAULT_APPEARANCE, DEFAULT_WEEK_START } from '@trek/shared'
 import { getApiErrorMessage } from '../types'
 import { SUPPORTED_LANGUAGE_CODES } from '../i18n/supportedLanguages'
 import { normalizeTileUrl, stripTileApiKey } from '../utils/tileUrl'
@@ -59,6 +59,20 @@ export function forgetServerLanguage(): void {
 // can't drift apart again.
 export const DEFAULT_SETTINGS: Settings = {
   map_tile_url: '',
+  // Empty = the public routing hosts TREK ships with.
+  routing_base_url: '',
+  // Empty = the public Valhalla, unless routing_base_url names an own router, in which
+  // case no second engine is asked at all. See valhallaBase().
+  valhalla_base_url: '',
+  // Empty = not said, and then a stop of either kind fills up. See refuelsRange().
+  roadtrip_vehicle: '',
+  // Off = the rail routes a day at a time, the way the day plan stores it, and the road
+  // between one day's last stop and the next day's first is simply not drawn. On = the
+  // trip is one continuous drive and every one of those gaps is routed too.
+  roadtrip_connect_days: false,
+  // Off = one blue line for the whole trip. On = a colour per day, so a route drawn end
+  // to end can still be read as days.
+  roadtrip_day_colors: false,
   dark_mode: false,
   // Empty = no personal display currency, so Costs falls back to the trip's own.
   default_currency: '',
@@ -70,6 +84,7 @@ export const DEFAULT_SETTINGS: Settings = {
   temperature_unit: 'celsius',
   distance_unit: 'metric',
   time_format: '24h',
+  week_start: DEFAULT_WEEK_START,
   show_place_description: false,
   optimize_from_accommodation: true,
   map_provider: 'leaflet',

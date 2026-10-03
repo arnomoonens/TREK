@@ -44,7 +44,7 @@ describe('remoteEventHandler > files', () => {
   it('FE-WSEVT-FILE-007: file:updated upserts authoritative relationships and stays idempotent out of order', () => {
     const updated = buildTripFile({
       id: 7,
-      linked_expense_ids: [3, 3, 4, 3],
+      linked_budget_item_ids: [3, 3, 4, 3],
       expense_attachment_created_at: {
         '3': '2025-01-01T00:00:00.000Z',
         '4': '2025-01-02T00:00:00.000Z',
@@ -60,7 +60,7 @@ describe('remoteEventHandler > files', () => {
 
     const { files } = useTripStore.getState();
     expect(files).toHaveLength(1);
-    expect(files[0].linked_expense_ids).toEqual([3, 4]);
+    expect(files[0].linked_budget_item_ids).toEqual([3, 4]);
     expect(files[0].expense_attachment_created_at).toEqual({
       '3': '2025-01-01T00:00:00.000Z',
       '4': '2025-01-02T00:00:00.000Z',
@@ -81,7 +81,7 @@ describe('remoteEventHandler > files', () => {
     const initial = buildTripFile({ id: 11 });
     const attached = {
       ...initial,
-      linked_expense_ids: [expenseId, expenseId],
+      linked_budget_item_ids: [expenseId, expenseId],
       expense_attachment_created_at: {
         [String(expenseId)]: '2025-01-01T00:00:00.000Z',
       },
@@ -94,7 +94,7 @@ describe('remoteEventHandler > files', () => {
       expect(linkedExpenseCount(client.getState().files[0], [{ id: expenseId }])).toBe(1);
     }
 
-    const detached = { ...attached, linked_expense_ids: [], expense_attachment_created_at: {} };
+    const detached = { ...attached, linked_budget_item_ids: [], expense_attachment_created_at: {} };
     for (const client of clients) {
       client.getState().handleRemoteEvent({ type: 'file:updated', file: detached });
       expect(filesForExpense(client.getState().files, expenseId)).toHaveLength(0);

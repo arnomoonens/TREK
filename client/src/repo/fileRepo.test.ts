@@ -26,7 +26,7 @@ describe('fileRepo.list', () => {
       id: 41,
       trip_id: 7,
       original_name: 'booking.pdf',
-      linked_expense_ids: [18, 19],
+      linked_budget_item_ids: [18, 19],
       expense_attachment_created_at: {
         '18': '2026-08-30 10:00:00',
         '19': '2026-08-30 10:05:00',
@@ -47,7 +47,7 @@ describe('fileRepo.list', () => {
     expect(cached.source).toBe('cache')
     expect(cached.cacheStatus).toBe('available')
     expect(cached.files[0]).toMatchObject({
-      linked_expense_ids: [18, 19],
+      linked_budget_item_ids: [18, 19],
       expense_attachment_created_at: {
         '18': '2026-08-30 10:00:00',
         '19': '2026-08-30 10:05:00',

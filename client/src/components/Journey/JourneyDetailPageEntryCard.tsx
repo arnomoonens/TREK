@@ -1,6 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
-import { createPortal } from 'react-dom'
-import { MapPin, Clock, MoreHorizontal, Pencil, Trash2, Plus, RouteOff } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { MapPin, Clock, Pencil, Trash2, Plus, PencilLine, RouteOff, X } from 'lucide-react'
 import { formatLocationName } from '../../utils/formatters'
 import { useTranslation } from '../../i18n'
 import { pluginsApi } from '../../api/client'
@@ -8,6 +7,8 @@ import { usePluginStore } from '../../store/pluginStore'
 import type { JourneyEntry, JourneyPhoto } from '../../store/journeyStore'
 import { MOOD_CONFIG, WEATHER_CONFIG } from '../../pages/journeyDetail/JourneyDetailPage.constants'
 import { photoUrl } from '../../pages/journeyDetail/JourneyDetailPage.helpers'
+import { Tooltip } from '../shared/Tooltip'
+import { MoreButton, type MenuEntry } from '../Planner/planParts'
 import { PhotoGrid } from './JourneyDetailPagePhotoGrid'
 import { MoodChip, WeatherChip } from './JourneyDetailPageChips'
 import { ExpandableStory } from './JourneyDetailPageExpandableStory'
@@ -21,8 +22,10 @@ export function EntryCard({ entry, readOnly, onEdit, onDelete, onPhotoClick }: {
   onPhotoClick: (photos: JourneyPhoto[], index: number) => void
 }) {
   const { t } = useTranslation()
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuBtnRef = useRef<HTMLButtonElement>(null)
+  const menuItems: MenuEntry[] = [
+    { label: t('common.edit'), icon: Pencil, onClick: onEdit },
+    { label: t('common.delete'), icon: Trash2, onClick: onDelete, danger: true },
+  ]
   // Extra rows contributed by journalEntryProvider plugins — same pattern as the
   // PlaceInspector provider details: fetched only when plugins are active at all,
   // fail-safe (the server drops slow/failing providers), only ever additive.
@@ -76,24 +79,19 @@ export function EntryCard({ entry, readOnly, onEdit, onDelete, onPhotoClick }: {
                 {t('journey.entry.offRoute')}
               </span>
             )}
+            {/* A draft (#696) is the contributors' own until it is published. */}
+            {entry.is_draft && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-black/40 backdrop-blur-sm rounded-full text-[10px] font-semibold text-white tracking-wide">
+                <PencilLine size={10} />
+                {t('journey.entry.draft')}
+              </span>
+            )}
           </div>
 
-          {/* Menu top-right */}
+          {/* Menu top-right, raised on the card colour so it reads on any photo */}
           {!readOnly && (
             <div className="absolute top-2.5 right-3 z-[2]">
-              <button type="button" ref={menuBtnRef} onClick={() => setMenuOpen(!menuOpen)} className="w-8 h-8 rounded-[10px] bg-black/40 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/50">
-                <MoreHorizontal size={14} />
-              </button>
-              {menuOpen && createPortal(
-                <>
-                  <div className="fixed inset-0 z-[99]" role="presentation" onClick={() => setMenuOpen(false)} />
-                  <div className="fixed z-[100] bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 min-w-[120px]" style={{ top: (menuBtnRef.current?.getBoundingClientRect().bottom || 0) + 4, right: window.innerWidth - (menuBtnRef.current?.getBoundingClientRect().right || 0) }}>
-                    <button type="button" onClick={() => { setMenuOpen(false); onEdit() }} className="w-full text-left px-3 py-1.5 text-[12px] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 flex items-center gap-2"><Pencil size={12} /> {t('common.edit')}</button>
-                    <button type="button" onClick={() => { setMenuOpen(false); onDelete() }} className="w-full text-left px-3 py-1.5 text-[12px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"><Trash2 size={12} /> {t('common.delete')}</button>
-                  </div>
-                </>,
-                document.body,
-              )}
+              <MoreButton label={t('files.menu')} items={menuItems} size={32} alwaysVisible className="bg-surface-card shadow-sm" />
             </div>
           )}
 
@@ -123,24 +121,13 @@ export function EntryCard({ entry, readOnly, onEdit, onDelete, onPhotoClick }: {
                 <RouteOff size={10} /> {t('journey.entry.offRoute')}
               </span>
             )}
+            {entry.is_draft && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded-full text-[10px] font-semibold text-zinc-500">
+                <PencilLine size={10} /> {t('journey.entry.draft')}
+              </span>
+            )}
           </div>
-          {!readOnly && (
-            <div className="relative">
-              <button type="button" ref={menuBtnRef} onClick={() => setMenuOpen(!menuOpen)} className="w-7 h-7 rounded-md flex items-center justify-center text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-                <MoreHorizontal size={14} />
-              </button>
-              {menuOpen && createPortal(
-                <>
-                  <div className="fixed inset-0 z-[99]" role="presentation" onClick={() => setMenuOpen(false)} />
-                  <div className="fixed z-[100] bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 min-w-[120px]" style={{ top: (menuBtnRef.current?.getBoundingClientRect().bottom || 0) + 4, right: window.innerWidth - (menuBtnRef.current?.getBoundingClientRect().right || 0) }}>
-                    <button type="button" onClick={() => { setMenuOpen(false); onEdit() }} className="w-full text-left px-3 py-1.5 text-[12px] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 flex items-center gap-2"><Pencil size={12} /> {t('common.edit')}</button>
-                    <button type="button" onClick={() => { setMenuOpen(false); onDelete() }} className="w-full text-left px-3 py-1.5 text-[12px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"><Trash2 size={12} /> {t('common.delete')}</button>
-                  </div>
-                </>,
-                document.body,
-              )}
-            </div>
-          )}
+          {!readOnly && <MoreButton label={t('files.menu')} items={menuItems} size={28} alwaysVisible />}
         </div>
       )}
 
@@ -152,13 +139,16 @@ export function EntryCard({ entry, readOnly, onEdit, onDelete, onPhotoClick }: {
         {!photos.length && entry.location_name && !entry.title && (
           <div className="mb-2" />
         )}
-        {entry.story && (
-          <ExpandableStory story={entry.story} />
-        )}
-
-        {/* Pros & Cons — "Pros & Cons" style */}
-        {hasProscons && (
-          <VerdictSection pros={prosArr} cons={consArr} />
+        {/* The verdict rides behind the story's fold: it belongs to one entry, and a
+            feed of open pro/con tables is a spreadsheet rather than a journal. An
+            entry with no story keeps it in the open, since there is no fold to
+            put it behind. */}
+        {entry.story ? (
+          <ExpandableStory story={entry.story}>
+            {hasProscons && <VerdictSection pros={prosArr} cons={consArr} />}
+          </ExpandableStory>
+        ) : (
+          hasProscons && <VerdictSection pros={prosArr} cons={consArr} />
         )}
 
         {(mood || weather || (entry.tags && entry.tags.length > 0)) && (
@@ -193,7 +183,16 @@ export function EntryCard({ entry, readOnly, onEdit, onDelete, onPhotoClick }: {
   )
 }
 
-export function SkeletonCard({ entry, onClick }: { entry: JourneyEntry; onClick?: () => void }) {
+/**
+ * A place the linked trip planned, offered as an entry waiting to be written.
+ *
+ * `onDismiss` is the way out of one that will never be written: plans change, and
+ * a journey used to have no answer to a suggestion for a museum the traveller
+ * skipped except hiding every suggestion at once (discussion #2299). The row is
+ * kept server-side so the trip sync does not offer it again, and the journey
+ * settings sheet brings them all back.
+ */
+export function SkeletonCard({ entry, onClick, onDismiss }: { entry: JourneyEntry; onClick?: () => void; onDismiss?: () => void }) {
   const { t } = useTranslation()
   return (
     <div
@@ -219,6 +218,19 @@ export function SkeletonCard({ entry, onClick }: { entry: JourneyEntry; onClick?
         <span className="inline-flex items-center gap-1 flex-shrink-0 rounded-full px-3 py-1.5 text-[11px] font-semibold" style={{ background: 'var(--vg-ink)', color: 'var(--vg-bg)' }}>
           <Plus size={12} strokeWidth={2.6} /> {t('journey.detail.addEntry')}
         </span>
+      )}
+      {onDismiss && (
+        <Tooltip label={t('journey.suggestions.dismiss')} placement="top">
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); onDismiss() }}
+            aria-label={t('journey.suggestions.dismiss')}
+            className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center opacity-45 hover:opacity-100 transition-opacity"
+            style={{ color: 'var(--vg-ink3)' }}
+          >
+            <X size={14} strokeWidth={2.4} />
+          </button>
+        </Tooltip>
       )}
     </div>
   )

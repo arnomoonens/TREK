@@ -219,6 +219,23 @@ describe('Tool: create_place', () => {
 // update_place
 // ---------------------------------------------------------------------------
 
+describe('Tool: set_place_image_from_file (#1242)', () => {
+  it('refuses a file that is no picture, and one from another trip', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const other = createTrip(testDb, user.id);
+    const place = createPlace(testDb, trip.id);
+    const pdf = Number(testDb.prepare("INSERT INTO trip_files (trip_id, filename, original_name, mime_type) VALUES (?, 'a.pdf', 'a.pdf', 'application/pdf')").run(trip.id).lastInsertRowid);
+    const foreign = Number(testDb.prepare("INSERT INTO trip_files (trip_id, filename, original_name, mime_type) VALUES (?, 'b.jpg', 'b.jpg', 'image/jpeg')").run(other.id).lastInsertRowid);
+    await withHarness(user.id, async (h) => {
+      const notImage = await h.client.callTool({ name: 'set_place_image_from_file', arguments: { tripId: trip.id, placeId: place.id, fileId: pdf } });
+      expect(notImage.isError).toBe(true);
+      const notFound = await h.client.callTool({ name: 'set_place_image_from_file', arguments: { tripId: trip.id, placeId: place.id, fileId: foreign } });
+      expect(notFound.isError).toBe(true);
+    });
+  });
+});
+
 describe('Tool: update_place', () => {
   it('updates specific fields and preserves others', async () => {
     const { user } = createUser(testDb);
@@ -237,6 +254,55 @@ describe('Tool: update_place', () => {
     });
   });
 
+  it('takes an e-mail and structured opening hours, and null clears the hours (#2472)', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const place = createPlace(testDb, trip.id, { name: 'Bakery' });
+    const hours = [{ closed: false, open: '08:00', close: '18:00' }, ...Array.from({ length: 6 }, () => ({ closed: true }))];
+
+    await withHarness(user.id, async (h) => {
+      const data = parseToolResult(await h.client.callTool({
+        name: 'update_place',
+        arguments: { tripId: trip.id, placeId: place.id, email: 'hi@bakery.test', opening_hours: hours },
+      })) as any;
+      expect(data.place.email).toBe('hi@bakery.test');
+      expect(JSON.parse(data.place.opening_hours)).toEqual(hours);
+
+      const cleared = parseToolResult(await h.client.callTool({
+        name: 'update_place',
+        arguments: { tripId: trip.id, placeId: place.id, opening_hours: null },
+      })) as any;
+      expect(cleared.place.opening_hours).toBeNull();
+      expect(cleared.place.email).toBe('hi@bakery.test');
+
+      const bad = await h.client.callTool({
+        name: 'update_place',
+        arguments: { tripId: trip.id, placeId: place.id, email: 'not-an-address' },
+      });
+      expect(bad.isError).toBe(true);
+    });
+  });
+
+  it('moving a place drops the country Atlas cached for it, renaming it does not (#2527)', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const place = createPlace(testDb, trip.id, { name: 'Hotel', lat: 48.8566, lng: 2.3522 });
+    testDb.prepare("INSERT INTO place_regions (place_id, country_code, region_code, region_name) VALUES (?, 'FR', 'FR-IDF', 'Ile-de-France')").run(place.id);
+    const cachedRegion = () => testDb.prepare('SELECT country_code FROM place_regions WHERE place_id = ?').get(place.id);
+
+    await withHarness(user.id, async (h) => {
+      await h.client.callTool({ name: 'update_place', arguments: { tripId: trip.id, placeId: place.id, name: 'Hotel Adlon' } });
+      expect(cachedRegion()).toEqual({ country_code: 'FR' });
+
+      const moved = await h.client.callTool({
+        name: 'update_place',
+        arguments: { tripId: trip.id, placeId: place.id, lat: 52.5163, lng: 13.3777, address: 'Unter den Linden 77, Berlin, Germany' },
+      });
+      expect(moved.isError).toBeFalsy();
+      expect(cachedRegion()).toBeUndefined();
+    });
+  });
+
   it('broadcasts place:updated event', async () => {
     const { user } = createUser(testDb);
     const trip = createTrip(testDb, user.id);
@@ -244,6 +310,23 @@ describe('Tool: update_place', () => {
     await withHarness(user.id, async (h) => {
       await h.client.callTool({ name: 'update_place', arguments: { tripId: trip.id, placeId: place.id, name: 'Updated' } });
       expect(broadcastMock).toHaveBeenCalledWith(trip.id, 'place:updated', expect.any(Object));
+    });
+  });
+
+  it('refuses a misspelt field instead of silently updating nothing', async () => {
+    // An assistant wrote stopType for stop_type; the call used to come back as a
+    // success with the place untouched, and the road trip never got its fuel stop.
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const place = createPlace(testDb, trip.id, { name: 'Aral Bad Segeberg' });
+    await withHarness(user.id, async (h) => {
+      const refused = await h.client.callTool({ name: 'update_place', arguments: { tripId: trip.id, placeId: place.id, stopType: 'fuel' } });
+      expect(refused.isError).toBe(true);
+      expect((refused.content as Array<{ text: string }>)[0].text).toMatch(/Unrecognized key.*stopType/);
+      expect((testDb.prepare('SELECT stop_type FROM places WHERE id = ?').get(place.id) as { stop_type: string | null }).stop_type).toBeNull();
+      expect(broadcastMock).not.toHaveBeenCalled();
+      const fixed = parseToolResult(await h.client.callTool({ name: 'update_place', arguments: { tripId: trip.id, placeId: place.id, stop_type: 'fuel' } })) as any;
+      expect(fixed.place.stop_type).toBe('fuel');
     });
   });
 
@@ -559,7 +642,7 @@ describe('Tool: search_place', () => {
     await withHarness(user.id, async (h) => {
       const result = await h.client.callTool({ name: 'search_place', arguments: { query: 'Eiffel Tower' } });
       const data = parseToolResult(result) as any;
-      expect(searchPlacesMock).toHaveBeenCalledWith(user.id, 'Eiffel Tower', undefined, undefined);
+      expect(searchPlacesMock).toHaveBeenCalledWith(user.id, 'Eiffel Tower', undefined, undefined, { googleOnly: false });
       expect(data.places).toHaveLength(1);
       expect(data.places[0].osm_id).toBe('node:12345');
       expect(data.places[0].name).toBe('Eiffel Tower');
@@ -579,7 +662,7 @@ describe('Tool: search_place', () => {
     await withHarness(user.id, async (h) => {
       const result = await h.client.callTool({ name: 'search_place', arguments: { query: 'Eiffel Tower' } });
       const data = parseToolResult(result) as any;
-      expect(searchPlacesMock).toHaveBeenCalledWith(user.id, 'Eiffel Tower', undefined, undefined);
+      expect(searchPlacesMock).toHaveBeenCalledWith(user.id, 'Eiffel Tower', undefined, undefined, { googleOnly: false });
       expect(data.places).toHaveLength(1);
       expect(data.places[0].google_place_id).toBe('ChIJD3uTd9hx5kcR1IQvGfr8dbk');
       expect(data.places[0].name).toBe('Eiffel Tower');
@@ -617,6 +700,7 @@ describe('Tool: search_place', () => {
         'Central Station',
         'ja',
         { lat: 35.6812, lng: 139.7671, radius: 8000 },
+        { googleOnly: false },
       );
     });
   });
@@ -630,7 +714,22 @@ describe('Tool: search_place', () => {
         name: 'search_place',
         arguments: { query: 'Museum of Modern Art', locationBias: { lat: 40.7614, lng: -73.9776 } },
       });
-      expect(searchPlacesMock).toHaveBeenCalledWith(user.id, 'Museum of Modern Art', undefined, { lat: 40.7614, lng: -73.9776 });
+      expect(searchPlacesMock).toHaveBeenCalledWith(user.id, 'Museum of Modern Art', undefined, { lat: 40.7614, lng: -73.9776 }, { googleOnly: false });
+    });
+  });
+
+  it('sends one search to Google alone when asked to, and refuses any other provider', async () => {
+    const { user } = createUser(testDb);
+    searchPlacesMock.mockResolvedValue({ source: 'google', places: [] });
+
+    await withHarness(user.id, async (h) => {
+      await h.client.callTool({ name: 'search_place', arguments: { query: 'Tokyo Station', provider: 'google' } });
+      expect(searchPlacesMock).toHaveBeenCalledWith(user.id, 'Tokyo Station', undefined, undefined, { googleOnly: true });
+
+      searchPlacesMock.mockClear();
+      const refused = await h.client.callTool({ name: 'search_place', arguments: { query: 'Tokyo Station', provider: 'osm' } });
+      expect(refused.isError).toBe(true);
+      expect(searchPlacesMock).not.toHaveBeenCalled();
     });
   });
 
@@ -894,6 +993,32 @@ describe('Tool: import_places_from_url', () => {
       expect(broadcastMock).toHaveBeenCalledTimes(2);
     });
     spy.mockRestore();
+  });
+
+  it('sends a directions link to the directions importer, the same way the REST route does', async () => {
+    // The parity that matters here is not the wire shape but the dispatch: a pasted
+    // route has to reach the same importer through the tool as through the box.
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const dir = vi.spyOn(PlacesService.prototype, 'importGoogleDirections').mockResolvedValue({
+      places: [{ id: 7, name: 'Berlin' }] as never,
+      listName: 'Berlin \u2192 Prague',
+      skipped: 1,
+    });
+    const list = vi.spyOn(PlacesService.prototype, 'importGoogleList');
+
+    await withHarness(user.id, async (h) => {
+      const url = 'https://www.google.com/maps/dir/Berlin/Dresden/Prague';
+      const result = await h.client.callTool({
+        name: 'import_places_from_url',
+        arguments: { tripId: trip.id, url, source: 'google-list' },
+      });
+      expect(parseToolResult(result) as any).toMatchObject({ count: 1, skipped: 1 });
+      expect(dir).toHaveBeenCalledWith(String(trip.id), url, { enrich: false, userId: user.id });
+      expect(list).not.toHaveBeenCalled();
+    });
+    dir.mockRestore();
+    list.mockRestore();
   });
 
   it('surfaces the naver importer\'s { error, status } as a tool error', async () => {
@@ -1210,5 +1335,64 @@ describe('journey hooks on the MCP delete paths', () => {
     });
 
     expect(skeletonFor(journey.id, foreign.id)).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A website without a scheme (#2483): the tools parse it the way REST does
+// ---------------------------------------------------------------------------
+
+describe('place tools and a website without a scheme (#2483)', () => {
+  const SITE = 'fr.wikipedia.org/wiki/Chapelle_Sainte-Barbe_du_Faouët';
+  const websiteOf = (placeId: number) =>
+    (testDb.prepare('SELECT website FROM places WHERE id = ?').get(placeId) as { website: string | null }).website;
+
+  it('MCP-PLACES-2483-01: create_place, create_and_assign_place, update_place and bulk_update_places store https', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const day = createDay(testDb, trip.id);
+
+    await withHarness(user.id, async (h) => {
+      const created = parseToolResult(await h.client.callTool({ name: 'create_place', arguments: { tripId: trip.id, name: 'Chapelle', website: SITE } })) as { place: { id: number } };
+      expect(websiteOf(created.place.id)).toBe(`https://${SITE}`);
+
+      const assigned = parseToolResult(await h.client.callTool({
+        name: 'create_and_assign_place',
+        arguments: { tripId: trip.id, dayId: day.id, name: 'Halles', website: 'www.example.fr/halles' },
+      })) as { place: { id: number } };
+      expect(websiteOf(assigned.place.id)).toBe('https://www.example.fr/halles');
+
+      await h.client.callTool({ name: 'update_place', arguments: { tripId: trip.id, placeId: created.place.id, website: '//www.example.fr' } });
+      expect(websiteOf(created.place.id)).toBe('https://www.example.fr');
+
+      await h.client.callTool({ name: 'bulk_update_places', arguments: { tripId: trip.id, placeIds: [created.place.id, assigned.place.id], website: 'example.fr:8080/x' } });
+      expect([websiteOf(created.place.id), websiteOf(assigned.place.id)]).toEqual(['https://example.fr:8080/x', 'https://example.fr:8080/x']);
+    });
+  });
+
+  it('MCP-PLACES-2483-02: a script link or another scheme is still refused and stores nothing', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+
+    await withHarness(user.id, async (h) => {
+      for (const website of ['javascript:alert(1)', 'mailto:mairie@example.fr', 'Chapelle']) {
+        const result = await h.client.callTool({ name: 'create_place', arguments: { tripId: trip.id, name: 'Hostile', website } });
+        expect(result.isError, website).toBe(true);
+        expect((result.content as { text: string }[])[0].text).toMatch(/Invalid arguments/);
+      }
+    });
+
+    expect(testDb.prepare('SELECT COUNT(*) AS n FROM places WHERE trip_id = ?').get(trip.id)).toEqual({ n: 0 });
+  });
+
+  it('MCP-PLACES-2483-03: tools/list still describes the field as a plain capped string', async () => {
+    const { user } = createUser(testDb);
+    await withHarness(user.id, async (h) => {
+      const { tools } = await h.client.listTools();
+      for (const name of ['create_place', 'create_and_assign_place', 'update_place', 'bulk_update_places']) {
+        const tool = tools.find((t) => t.name === name);
+        expect((tool?.inputSchema.properties as Record<string, unknown>).website, name).toEqual({ type: 'string', maxLength: 500 });
+      }
+    });
   });
 });

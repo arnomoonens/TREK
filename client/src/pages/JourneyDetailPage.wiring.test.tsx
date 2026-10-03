@@ -1,4 +1,4 @@
-// FE-JRN-DETWIRE-001 to FE-JRN-DETWIRE-028
+// FE-JRN-DETWIRE-001 to FE-JRN-DETWIRE-041
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '../../tests/helpers/render';
 import { journeyApi } from '../api/client';
@@ -98,6 +98,12 @@ function buildHook(over: Record<string, unknown> = {}): Record<string, unknown> 
     unlinkTrip: null, setUnlinkTrip: vi.fn(),
     showSettings: false, setShowSettings: vi.fn(),
     hideSkeletons: false, setHideSkeletons: vi.fn(),
+    query: '', setQuery: vi.fn(), dismissSuggestion: vi.fn(async () => {}),
+    restoreSuggestions: vi.fn(async () => {}), openAtEntryId: null,
+    // The stays Dawarich recorded, by the day they fall on. Empty here: the fold each day
+    // carries has its own suite (FE-JRN-DAYDAW), and what this file pins is the wiring.
+    dawarichByDate: new Map(), dawarichBusyId: null,
+    acceptDawarich: vi.fn(async () => {}), dismissDawarich: vi.fn(),
     mapRef: { current: null }, fullMapRef: { current: null }, galleryUploadRef: { current: null },
     galleryProviders: [], setGalleryProviders: vi.fn(), galleryBrowseRef: { current: null },
     activeLocationId: null, handleMarkerClick: vi.fn(), handleLocationClick: vi.fn(),
@@ -106,6 +112,7 @@ function buildHook(over: Record<string, unknown> = {}): Record<string, unknown> 
     loadJourney: vi.fn(), updateEntry: vi.fn(async () => {}), deleteEntry: vi.fn(async () => {}),
     reorderEntries: vi.fn(async () => {}), uploadPhotos: vi.fn(async () => ({ succeeded: [], failed: [] })),
     deletePhoto: vi.fn(async () => {}),
+    addPickedProviderPhotos: vi.fn(async () => {}), addEntryProviderPhotos: vi.fn(async () => {}),
     ...over,
   };
 }
@@ -231,22 +238,22 @@ describe('JourneyDetailPage wiring', () => {
 
   it('FE-JRN-DETWIRE-011: the reorder arrows move an entry within its day', async () => {
     const { hook } = setup();
-    const down = screen.getAllByRole('button', { name: 'Move down' })[0];
-    const upFirst = screen.getAllByRole('button', { name: 'Move up' })[0];
+    const down = screen.getAllByRole('button', { name: 'dayplan.moveDown' })[0];
+    const upFirst = screen.getAllByRole('button', { name: 'dayplan.moveUp' })[0];
     expect(upFirst).toBeDisabled();
 
     fireEvent.click(down);
     await waitFor(() => expect(hook.reorderEntries).toHaveBeenCalledWith(7, [2, 1]));
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Move up' })[1]);
+    fireEvent.click(screen.getAllByRole('button', { name: 'dayplan.moveUp' })[1]);
     expect(hook.reorderEntries).toHaveBeenLastCalledWith(7, [2, 1]);
   });
 
   it('FE-JRN-DETWIRE-012: a failing reorder is reported to the user', async () => {
     const reorderEntries = vi.fn(async () => { throw new Error('conflict'); });
     setup({ reorderEntries });
-    fireEvent.click(screen.getAllByRole('button', { name: 'Move down' })[0]);
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('common.errorOccurred'));
+    fireEvent.click(screen.getAllByRole('button', { name: 'dayplan.moveDown' })[0]);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('common.errorTitle'));
   });
 
   it('FE-JRN-DETWIRE-013: entry-card actions open the editor, the delete confirm and the lightbox', () => {
@@ -294,6 +301,8 @@ describe('JourneyDetailPage wiring', () => {
 
     (mocks.captured.gallery.onRefresh as () => void)();
     expect(hook.loadJourney).toHaveBeenCalledWith(7);
+    // The picker's Add is the hook's, the one the phone screen uses too (#1587).
+    expect(mocks.captured.gallery.onAddProviderPhotos).toBe(hook.addPickedProviderPhotos);
   });
 
   it('FE-JRN-DETWIRE-016: the entry editor creates a new entry and updates an existing one', async () => {
@@ -305,11 +314,9 @@ describe('JourneyDetailPage wiring', () => {
     await (mocks.captured.editor.onUploadPhotos as (id: number, f: File[]) => Promise<unknown>)(88, []);
     expect(hook.uploadPhotos).toHaveBeenCalledWith(88, [], undefined);
 
-    const addProvider = vi.spyOn(journeyApi, 'addProviderPhotos').mockResolvedValue({ added: 1 });
-    await (mocks.captured.editor.onAddProviderPhotos as (id: number, g: Record<string, unknown>) => Promise<void>)(
-      88, { provider: 'immich', assetIds: ['a1'], passphrase: 'pw', mediaTypes: ['image'] },
-    );
-    expect(addProvider).toHaveBeenCalledWith(88, 'immich', ['a1'], undefined, 'pw', ['image']);
+    // Shared with the phone entry sheet, so a group that fails part way is
+    // handled once for both shells (#1587).
+    expect(mocks.captured.editor.onAddProviderPhotos).toBe(hook.addEntryProviderPhotos);
 
     (mocks.captured.editor.onDone as () => void)();
     expect(hook.setEditingEntry).toHaveBeenCalledWith(null);

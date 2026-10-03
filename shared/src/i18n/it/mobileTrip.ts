@@ -6,6 +6,9 @@ const mobileTrip: TranslationStrings = {
   'mobileTrip.addPlaceShort': 'Luogo',
   'mobileTrip.addToDayQuestion': 'Aggiungere a un giorno?',
   'mobileTrip.addTransportShort': 'Trasporto',
+  'mobileTrip.allDays': 'Tutti i giorni',
+  'mobileTrip.today': 'Oggi',
+  'mobileTrip.jumpToToday': 'Vai a oggi',
   'mobileTrip.assignedDays': 'Giorni assegnati',
   'mobileTrip.assignmentNotes': 'Note specifiche del giorno',
   'mobileTrip.bookingsEmpty': 'Ancora nessuna prenotazione',
@@ -34,6 +37,7 @@ const mobileTrip: TranslationStrings = {
   'mobileTrip.onMap': 'Sulla mappa',
   'mobileTrip.profileDriving': 'In auto',
   'mobileTrip.profileWalking': 'A piedi',
+  'mobileTrip.profileCycling': 'In bici',
   'mobileTrip.renameDay': 'Rinomina giorno',
   'mobileTrip.resBadge': 'Prenotazione',
   'mobileTrip.showOnMap': 'Mostra sulla mappa',
@@ -46,5 +50,31 @@ const mobileTrip: TranslationStrings = {
   'mobileTrip.upNext': 'Prossimo',
   'mobileTrip.viewDetails': 'Vedi dettagli',
   'mobileTrip.transportsEmpty': 'Ancora nessun trasporto',
+  'mobileTrip.rtInfoTitle': 'Dati del tragitto',
+  'mobileTrip.rtDesktopNote':
+    'Questi dati si impostano da computer, dove puoi anche confrontare percorsi alternativi e far seguire a un giorno una traccia importata.',
+  'mobileTrip.rtPlanOnDesktop':
+    'La pianificazione si fa da computer. TREK calcola il tragitto appena un giorno ha due luoghi.',
+  'mobileTrip.rtSearchOffline': 'Serve una connessione: la ricerca legge il percorso che hai davanti.',
+  'mobileTrip.rtBehind': '{time} di ritardo sul programma',
+  'mobileTrip.rtStart': 'Inizio',
+  'mobileTrip.rtStayScope':
+    'La durata della sosta appartiene al luogo, quindi vale in ogni giorno in cui questa tappa è prevista.',
+  'mobileTrip.rtStayLess': '{count} minuti in meno',
+  'mobileTrip.rtStayMore': '{count} minuti in più',
+  'mobileTrip.rtNightDesktopOnly':
+    'Prenotare un pernottamento in questo luogo si fa nel pianificatore da computer. Qui puoi solo scartarlo.',
+  'mobileTrip.rtReach': 'Fin dove',
+  'mobileTrip.rtReachAhead': '{distance} davanti',
+  'mobileTrip.rtFromNext': 'Dalla tua prossima sosta',
+  'mobileTrip.rtFromStart': 'Dall’inizio della tappa',
+  'mobileTrip.rtNoneAhead': 'Niente sulla strada davanti a te. Prova con tutta la tappa.',
+  'mobileTrip.rtNoneOnStage': 'Niente del genere lungo questa tappa.',
+  'mobileTrip.rtTruncated.one':
+    '1 tratto aveva più di quanto stia in una risposta. Scegli meno tipi per vedere il resto.',
+  'mobileTrip.rtTruncated.other':
+    '{count} tratti avevano più di quanto stia in una risposta. Scegli meno tipi per vedere il resto.',
+  'mobileTrip.rtNoDay': 'Nessun giorno selezionato',
+  'mobileTrip.rtNoDayHint': 'La mappa mostra l’intero viaggio. Tocca un giorno qui sopra per vederne il percorso.',
 };
 export default mobileTrip;

@@ -19,6 +19,9 @@ const admin: TranslationStrings = {
   'admin.notifications.testNtfyFailed': '테스트 ntfy 실패',
   'admin.notifications.emailPanel.title': '이메일 (SMTP)',
   'admin.notifications.webhookPanel.title': '웹훅',
+  'admin.notifications.webPushPanel.title': '웹 푸시',
+  'admin.notifications.webPushPanel.hint':
+    'TREK이 닫혀 있어도 사용자가 브라우저를 통해 휴대폰과 컴퓨터에서 알림을 받을 수 있습니다. HTTPS가 필요하며, iPhone과 iPad에서는 TREK을 홈 화면에 추가해야 합니다.',
   'admin.notifications.inappPanel.title': '앱 내',
   'admin.notifications.inappPanel.hint': '앱 내 알림은 항상 활성화되어 있으며 전역으로 비활성화할 수 없습니다.',
   'admin.notifications.adminWebhookPanel.title': '관리자 웹훅',
@@ -45,6 +48,12 @@ const admin: TranslationStrings = {
   'admin.notifications.adminNtfyPanel.testFailed': '테스트 ntfy 실패',
   'admin.notifications.adminNtfyPanel.alwaysOnHint': '토픽이 설정되면 관리자 ntfy는 항상 실행됩니다',
   'admin.notifications.adminNotificationsHint': '관리자 전용 알림 (예: 버전 알림)을 전달할 채널을 설정하세요.',
+  'admin.notificationDefaults.title': '사용자 기본값',
+  'admin.notificationDefaults.hint': '각 사용자의 알림 초기 상태입니다. "끔"은 사용자가 직접 켤 수 있고, "차단"은 모두에게 꺼지며 설정에서 잠금으로 표시됩니다. 해당 칸을 직접 바꾸지 않은 모든 사용자에게 적용됩니다.',
+  'admin.notificationDefaults.on': '켬',
+  'admin.notificationDefaults.off': '끔',
+  'admin.notificationDefaults.blocked': '차단',
+  'admin.notificationDefaults.cycle': '클릭하여 변경: {next}',
   'admin.notifications.tripReminders.title': '여행 리마인더',
   'admin.notifications.tripReminders.hint':
     '여행 시작 전에 리마인더 알림을 전송합니다 (여행에 리마인더 일수가 설정되어 있어야 합니다).',
@@ -126,16 +135,65 @@ const admin: TranslationStrings = {
   'admin.requireMfa': '2단계 인증 (2FA) 요구',
   'admin.requireMfaHint': '2FA가 없는 사용자는 앱을 사용하기 전에 설정에서 설정을 완료해야 합니다.',
   'admin.apiKeys': 'API 키',
-  'admin.apiKeysHint': '선택 사항. 사진 및 날씨 등 확장된 장소 데이터를 활성화합니다.',
+  'admin.apiKeysHint': '장소 데이터의 출처. TREK 색인에는 키가 필요 없으며, 아래 두 제공자는 선택 사항입니다.',
+  'admin.trekApi.badgeDefault': '권장 기본 소스',
+  'admin.googleCaveat.badge': '권장하지 않음',
+  'admin.googleCaveat.body':
+    'TREK은 오픈 소스이며 이 점에서 중립이 아닙니다. 이 규모에서 평점과 일반 상점 사진은 Google에만 있고, 그것이 독점입니다. 이 입력란은 대안이 없어서 있는 것이지 권해서가 아닙니다. 쓰면 모든 조회가 Google로 갑니다.',
+  'admin.trekApi.tagline':
+    'TREK 자체 장소 색인. Google 키 없이, 할당량 없이, 누구도 검색 횟수를 세지 않는 채로 찾습니다.',
+  'admin.trekApi.factPlaces':
+    '전 세계 7,363만 개 장소',
+  'admin.trekApi.factNoKey':
+    '키도 할당량도 없음',
+  'admin.trekApi.factOffline':
+    '국가별 패키지는 오프라인에서도 동작',
+  'admin.trekApi.factPrivacy':
+    '검색어는 결코 기록하지 않음',
+  'admin.trekApi.more':
+    '무엇이 들어 있나',
+  'admin.trekApi.fieldPhone':
+    '전화',
+  'admin.trekApi.fieldStableId':
+    '고정 식별자',
+  'admin.trekApi.includedNote':
+    '설명은 장소 자체의 웹사이트에서, 영업시간은 입력되어 있는 경우 OpenStreetMap에서 가져옵니다.',
+  'admin.trekApi.notRatings':
+    '평점',
+  'admin.trekApi.notPhotos':
+    '일반 상점의 사진',
+  'admin.trekApi.notIncludedNote':
+    '둘 다 어떤 값을 치르더라도 공개 데이터에는 없습니다. 이 둘에는 Google 키가 유일한 길로 남습니다.',
+  'admin.trekApi.sourcesLabel':
+    '출처',
+  'admin.trekApi.sourcesNote':
+    '응답의 모든 항목은 이 가운데 어디에서 왔는지 밝힙니다.',
+  'admin.trekApi.included':
+    '포함',
+  'admin.trekApi.notIncluded':
+    '미포함',
   'admin.mapsKey': 'Google Maps API 키',
   'admin.mapsKeyHint': '장소 검색에 필요합니다. console.cloud.google.com에서 발급',
   'admin.mapsKeyHintLong':
-    'API 키 없이는 장소 검색에 OpenStreetMap이 사용됩니다. Google API 키가 있으면 사진, 평점, 영업 시간도 불러올 수 있습니다. console.cloud.google.com에서 발급하세요.',
+    'Google API 키가 없어도 권장되는 TREK API가 사용됩니다. 키가 있으면 사진, 평점, 영업시간을 추가로 불러올 수 있습니다. 키는 console.cloud.google.com에서 만들 수 있습니다.',
   'admin.recommended': '권장',
   'admin.weatherKey': 'OpenWeatherMap API 키',
   'admin.weatherKeyHint': '날씨 데이터용. openweathermap.org에서 무료 발급',
   'admin.unsplashKey': 'Unsplash API 키',
   'admin.unsplashKeyHint': '이미지 검색용. unsplash.com/developers에서 무료 발급',
+  'admin.amapKey': 'Amap(高德地图) API 키',
+  'admin.amapKeyHint':
+    'Google에 접속할 수 없고 OpenStreetMap 데이터도 부족한 중국 본토에서 장소를 검색할 때 사용합니다. JS API 키가 아니라 "Web 服务"(웹 서비스) 유형의 키가 필요합니다. console.amap.com에서 발급받을 수 있습니다.',
+  'admin.keyFromEnv': '{name}(으)로 설정됨',
+  'admin.placesProvider.title': '장소 검색 제공자',
+  'admin.placesProvider.subtitle':
+    'TREK 자체 색인과 OpenStreetMap이 모든 검색에 답합니다. 여기서는 둘이 아무것도 찾지 못했을 때 누구에게 더 물을지 고릅니다. 자동은 키가 있으면 Google을, 그다음 Amap을 씁니다.',
+  'admin.placesProvider.auto': '자동',
+  'admin.placesProvider.google': 'Google Places',
+  'admin.placesProvider.amap': 'Amap(高德地图)',
+  'admin.placesProvider.openstreetmap': 'OpenStreetMap',
+  'admin.placesProvider.missingKey': '선택한 공급자에 API 키가 설정되어 있지 않아 장소 검색은 TREK 색인과 OpenStreetMap만 응답합니다.',
+  'admin.placesProvider.saved': '장소 검색 제공자를 저장했습니다',
   'admin.validateKey': '테스트',
   'admin.keyValid': '연결됨',
   'admin.keyInvalid': '유효하지 않음',
@@ -152,6 +210,8 @@ const admin: TranslationStrings = {
   'admin.fileTypesHint': '사용자가 업로드할 수 있는 파일 형식을 설정합니다.',
   'admin.fileTypesFormat': '쉼표로 구분된 확장자 (예: jpg,png,pdf,doc). 모든 형식을 허용하려면 *를 사용하세요.',
   'admin.fileTypesSaved': '파일 형식 설정이 저장되었습니다',
+  'admin.googleOptions': '키의 사용 범위',
+  'admin.googleOptionsSummary': '{total}개 중 {on}개 켜짐',
   'admin.placesPhotos.title': '장소 사진',
   'admin.placesPhotos.subtitle':
     'Google Places API에서 사진을 가져옵니다. API 할당량 절약을 위해 비활성화할 수 있습니다. Wikimedia 사진은 영향을 받지 않습니다.',
@@ -164,6 +224,28 @@ const admin: TranslationStrings = {
   'admin.placesEnrich.title': '장소 정보 보강',
   'admin.placesEnrich.subtitle':
     '장소를 추가할 때 사진과 설명을 표시합니다. Wikipedia와 OpenStreetMap은 항상 사용되며, 장소 사진 또는 장소 세부정보가 켜져 있으면 Google도 함께 사용됩니다.',
+  'admin.placesGoogleOnly.title': 'Google로만 검색',
+  'admin.placesGoogleOnly.subtitle': '모든 검색과 제안이 Google Places로 갑니다. 끄면 TREK 자체 색인과 OpenStreetMap이 먼저 답하고, 둘 다 찾지 못할 때만 Google에 묻습니다.',
+  'admin.placesGoogleOnly.missingKey': 'Google Maps API 키가 필요합니다. 키가 없으면 이 스위치와 상관없이 TREK 색인과 OpenStreetMap으로 검색합니다.',
+  'admin.placesGoogleOnly.otherProvider': '장소 제공자로 Google이 필요합니다. Amap 또는 OpenStreetMap을 선택한 동안에는 이 스위치와 상관없이 검색이 Google로 가지 않습니다.',
+  'admin.googleQuota.title': 'Google 호출 일일 한도',
+  'admin.googleQuota.subtitle': '한도에 도달하면 다음 날(UTC)까지 Google을 호출하지 않고 OpenStreetMap으로 검색합니다. 비워 두면 한도가 없습니다.',
+  'admin.googleQuota.placeholder': '한도 없음',
+  'admin.googleQuota.usedToday': '오늘: {used}',
+  'admin.googleQuota.usedOfLimit': '오늘: {used} / {limit}',
+  'admin.googleQuota.reached': '한도 도달({used}), 내일까지 Google 일시 중지',
+  'admin.googleQuota.saved': '일일 한도를 저장했습니다',
+  'admin.transitProvider.title': '대중교통 제공자',
+  'admin.transitProvider.subtitle': '대중교통 검색에 응답하는 서비스입니다.',
+  'admin.transitProvider.transitous': 'Transitous (무료)',
+  'admin.transitProvider.google': 'Google',
+  'admin.transitProvider.transitousHint': '커뮤니티 GTFS 피드. 무료이며 키가 필요 없고 유럽 커버리지가 가장 좋습니다.',
+  'admin.transitProvider.googleHint': '위의 Google 키를 사용하여 Transitous에 데이터가 없는 지역을 처리합니다. 검색당 과금되며, 키가 없으면 Transitous를 사용합니다.',
+  'admin.transitProvider.noKeyWarning': 'Google이 선택되었지만 Google 키가 설정되지 않았습니다 — 대중교통 검색은 여전히 Transitous를 사용합니다. 위의 API 키에서 키를 추가하세요.',
+  'admin.transitProvider.personalKeyWarning': '본인의 Google 키만 설정되어 있어 다른 멤버의 검색은 여전히 Transitous로 대체됩니다. 인스턴스 전체에 적용하려면 관리자로 위에서 키를 저장하세요.',
+  'admin.placeShadow.title': '장소 검색 기록',
+  'admin.placeShadow.subtitle':
+    '어떤 검색 결과가 선택되었는지 기록하여, 나중에 다른 장소 색인을 실제 검색으로 평가할 수 있게 합니다. 이 인스턴스 밖으로 나가는 것은 없으며 관리자는 언제든지 기록을 내보내거나 삭제할 수 있습니다.',
   'admin.bagTracking.title': '가방 추적',
   'admin.bagTracking.subtitle': '짐 항목에 무게 및 가방 배정을 활성화합니다',
   'admin.collab.chat.title': '채팅',
@@ -340,6 +422,9 @@ const admin: TranslationStrings = {
   'admin.plugins.perm.hook:photo-provider': '사진 기능에 사진 제공',
   'admin.plugins.perm.hook:calendar-source': '캘린더에 일정 제공',
   'admin.plugins.perm.hook:place-detail-provider': '장소에 추가 정보(리뷰, 평점, 링크)를 제공',
+  'admin.plugins.perm.hook:search-provider': '자체 색인에서 장소 검색에 응답 (TREK 자체 결과와 함께 표시)',
+  'admin.plugins.perm.hook:poi-category-provider':
+    '자체 장소 카테고리를 ‘지도에서 장소 탐색’에 추가 (카테고리를 선택하면 보고 있는 지도 영역이 플러그인에 전송됨)',
   'admin.plugins.perm.hook:trip-warning-provider': '여행에 검증 경고를 표시 (플래너에 표시됨)',
   'admin.plugins.perm.hook:table-contributor': '여행 보기(예약, 장소, 일자)에 열과 작업 추가',
   'admin.plugins.perm.hook:map-marker-provider': '여행 지도에 마커 추가(예: 예약 또는 POI 표시)',
@@ -351,6 +436,7 @@ const admin: TranslationStrings = {
   'admin.plugins.cap.mcpTools': 'AI 도구 게시',
   'admin.plugins.mcpToolsTitle': '게시하는 AI 도구',
   'admin.plugins.mcpToolsHint': '어시스턴트가 사용자를 대신해 실행할 수 있습니다. 각 도구는 위에서 부여한 권한으로 동작합니다.',
+  'admin.plugins.poiCategoriesTitle': '추가하는 지도 카테고리',
   'admin.plugins.perm.mcp:tools':
     'AI 어시스턴트가 사용자를 대신해 실행할 수 있는 도구 게시 (여기서 플러그인에 부여한 권한으로 동작하며, 어시스턴트 자신의 권한이 아닙니다)',
   'admin.plugins.perm.geolocation:read':
@@ -488,6 +574,8 @@ const admin: TranslationStrings = {
   'admin.plugins.cap.photos': '사진 제공',
   'admin.plugins.cap.calendar': '캘린더 일정 제공',
   'admin.plugins.cap.placeDetails': '장소 정보 강화',
+  'admin.plugins.cap.search': '검색에 응답',
+  'admin.plugins.cap.poiCategories': '지도 카테고리 추가',
   'admin.plugins.cap.warnings': '문제 표시',
   'admin.plugins.cap.mapLayers': '지도에 그리기',
   'admin.plugins.cap.routing': '라우팅 제공',
@@ -510,6 +598,18 @@ const admin: TranslationStrings = {
   'admin.plugins.dep.trekIncompatible': 'TREK {range}이(가) 필요합니다 — 이 서버는 {host}입니다',
   'admin.plugins.dep.trekUnknown': '지원하는 TREK 버전을 명시하지 않았습니다',
   'admin.plugins.installCompatible': '{version} 설치',
+  'admin.plugins.installAnyway': '그래도 설치',
+  'admin.plugins.rangeBypass.pill': '버전 검사 꺼짐',
+  'admin.plugins.rangeBypass.pillHint':
+    'TREK_PLUGINS_IGNORE_TREK_RANGE가 설정되어 있습니다 — 플러그인이 작성자가 선언한 TREK 버전 범위 밖에서도 설치·실행될 수 있습니다',
+  'admin.plugins.rangeBypass.title': '지원되는 TREK 버전 범위 밖',
+  'admin.plugins.rangeBypass.noticeTitle': '지원되는 TREK 버전 범위 밖에 설치됨',
+  'admin.plugins.rangeBypass.body':
+    '“{name}”은(는) TREK {range} 지원을 선언했지만 이 서버는 {host}을(를) 실행 중입니다. TREK_PLUGINS_IGNORE_TREK_RANGE가 설정되어 있기 때문에만 TREK가 이를 허용합니다. 작성자가 이 TREK에 맞게 플러그인의 버전 범위를 갱신하지 않았으므로 정상 동작을 보장할 수 없으며, 드물게 호환되지 않는 플러그인이 TREK 데이터를 손상시킬 수 있습니다. 이 위험을 감수하는 경우에만 계속하세요.',
+  'admin.plugins.rangeBypass.bodyUnknown':
+    '“{name}”은(는) 지원하는 TREK 버전을 선언하지 않았습니다. 이 서버는 {host}을(를) 실행 중입니다. TREK_PLUGINS_IGNORE_TREK_RANGE가 설정되어 있기 때문에만 TREK가 이를 허용합니다. 작성자가 이 TREK에서 테스트했다는 근거가 없으므로 정상 동작을 보장할 수 없으며, 드물게 호환되지 않는 플러그인이 TREK 데이터를 손상시킬 수 있습니다. 이 위험을 감수하는 경우에만 계속하세요.',
+  'admin.plugins.dep.trekBypassed': 'TREK 범위 밖 ({range}) — 버전 검사 꺼짐',
+  'admin.plugins.dep.trekBypassedUnknown': 'TREK 범위 선언 없음 — 버전 검사 꺼짐',
   'admin.plugins.incompatible': '호환되지 않음',
   'admin.plugins.accessTitle': '접근할 수 있는 항목',
   'admin.plugins.connectsTitle': '연결 대상',
@@ -534,6 +634,8 @@ const admin: TranslationStrings = {
   'admin.addons.catalog.atlas.description': '방문한 나라와 여행 통계가 있는 세계 지도',
   'admin.addons.catalog.collab.name': 'Collab',
   'admin.addons.catalog.collab.description': '메모, 투표, 채팅, 제안으로 함께 계획하기',
+  'admin.addons.catalog.roadtrip.name': '로드트립',
+  'admin.addons.catalog.roadtrip.description': '경유지가 있는 주행을 계획하세요. 운전 시간과 도착 시간이 자동으로 다시 계산됩니다',
   'admin.addons.catalog.memories.name': '사진 (Immich)',
   'admin.addons.catalog.memories.description': 'Immich 인스턴스를 통해 여행 사진 공유',
   'admin.addons.catalog.mcp.name': 'MCP',
@@ -544,8 +646,16 @@ const admin: TranslationStrings = {
   'admin.addons.catalog.naver_list_import.description': '공유된 네이버 지도 목록에서 장소 가져오기',
   'admin.addons.catalog.airtrail.name': 'AirTrail',
   'admin.addons.catalog.airtrail.description': 'AirTrail 인스턴스에서 항공편 동기화',
+  'admin.addons.catalog.dawarich.name': 'Dawarich',
+  'admin.addons.catalog.dawarich.description':
+    '사용자가 각자 연결한 Dawarich 인스턴스에서 방문 기록과 기록된 경로를 읽어옵니다',
   'admin.addons.catalog.llm_parsing.name': 'AI 분석',
   'admin.addons.catalog.llm_parsing.description': '기본 분석기가 읽지 못하는 예약을 원하는 AI 모델로 읽어냅니다',
+  'admin.addons.llm.vision.auto': '자동',
+  'admin.addons.llm.vision.on': '예',
+  'admin.addons.llm.vision.off': '아니요',
+  'admin.addons.llm.vision.hintLocal': '자동은 이 모델이 이미지를 읽을 수 있는지 Ollama 서버에 묻습니다.',
+  'admin.addons.llm.vision.hintCloud': '클라우드 모델에서 자동은 아니요를 뜻합니다. 이 모델이 이미지를 읽을 수 있으면 예를 선택하세요.',
   'admin.addons.enabled': '활성화됨',
   'admin.addons.disabled': '비활성화됨',
   'admin.addons.type.trip': '여행',
@@ -686,5 +796,9 @@ const admin: TranslationStrings = {
   'admin.invite.tripNone': '여행 없음',
   'admin.invite.tripHint': '새 사용자가 이 링크를 통해 가입하면 해당 여행에 자동으로 추가됩니다.',
   'admin.invite.boundTo': '{trip}에 추가',
+  'admin.placesUsageTitle': '키를 사용하는 곳',
+  'admin.mapsKeyHintShort': '사진, 평점, 영업시간이 추가됩니다. 이후 모든 조회는 Google로 갑니다.',
+  'admin.amapKeyHintShort': '중국 본토에서의 장소 검색용. JS API 키가 아니라 웹 서비스 키가 필요합니다.',
+  'admin.collab.links.subtitle': '공유 링크와 북마크',
 };
 export default admin;

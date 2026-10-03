@@ -214,7 +214,7 @@ describe('listFiles', () => {
     svc.toggleStarred(starred.id, 0);
     svc.softDeleteFile(trashed.id);
 
-    const files = svc.listFiles(trip.id, false) as Record<string, unknown>[];
+    const files = svc.listFiles(trip.id, false);
     expect(files.map((f) => f.id)).toHaveLength(2);
     expect(files[0].id).toBe(starred.id); // ORDER BY f.starred DESC first
     expect(files.map((f) => f.id)).not.toContain(trashed.id);
@@ -229,7 +229,7 @@ describe('listFiles', () => {
     const trashed = makeFile(trip.id, user.id);
     svc.softDeleteFile(trashed.id);
 
-    const trash = svc.listFiles(trip.id, true) as Record<string, unknown>[];
+    const trash = svc.listFiles(trip.id, true);
     expect(trash.map((f) => f.id)).toEqual([trashed.id]);
     expect(trash.map((f) => f.id)).not.toContain(kept.id);
   });
@@ -243,17 +243,73 @@ describe('listFiles', () => {
     svc.createFileLink(linked.id, { reservation_id: reservation.id });
     svc.createFileLink(linked.id, { place_id: place.id });
 
-    const files = svc.listFiles(trip.id, false) as Record<string, unknown>[];
+    const files = svc.listFiles(trip.id, false);
     const linkedRow = files.find((f) => f.id === linked.id);
     const bareRow = files.find((f) => f.id === bare.id);
-    expect(linkedRow.linked_reservation_ids).toEqual([reservation.id]);
-    expect(linkedRow.linked_place_ids).toEqual([place.id]);
-    expect(bareRow.linked_reservation_ids).toEqual([]);
-    expect(bareRow.linked_place_ids).toEqual([]);
+    expect(linkedRow).toMatchObject({
+      linked_reservation_ids: [reservation.id],
+      linked_place_ids: [place.id],
+    });
+    expect(bareRow).toMatchObject({
+      linked_reservation_ids: [],
+      linked_place_ids: [],
+    });
+
+    const item = Number(testDb.prepare('INSERT INTO budget_items (trip_id, name) VALUES (?, ?)').run(trip.id, 'Dinner').lastInsertRowid);
+    svc.createFileLink(linked.id, { budget_item_id: item });
+    const withReceipt = svc.listFiles(trip.id, false).find((f) => f.id === linked.id)!;
+    expect(withReceipt.linked_budget_item_ids).toEqual([item]);
+    expect(svc.listFiles(trip.id, false).find((f) => f.id === bare.id)!.linked_budget_item_ids).toEqual([]);
 
     // The empty-trip guard skips the IN () batch entirely.
     const empty = createTrip(testDb, user.id);
     expect(svc.listFiles(empty.id, false)).toEqual([]);
+  });
+});
+
+// ── receipts on an expense ────────────────────────────────────────────────────
+
+describe('budget receipts', () => {
+  function seedItem(tripId: number) {
+    return Number(testDb.prepare('INSERT INTO budget_items (trip_id, name) VALUES (?, ?)').run(tripId, 'Dinner').lastInsertRowid);
+  }
+
+  it('FILE-SVC-040: an upload naming an expense gets its link row straight away', () => {
+    const { user, trip } = seedTrip();
+    const item = seedItem(trip.id);
+    const file = makeFile(trip.id, user.id, {}, { budget_item_id: item });
+    expect(testDb.prepare('SELECT COUNT(*) c FROM file_links WHERE file_id = ? AND budget_item_id = ?').get(file.id, item)).toEqual({ c: 1 });
+  });
+
+  it('FILE-SVC-041: an upload without one writes no link at all', () => {
+    const { user, trip } = seedTrip();
+    const file = makeFile(trip.id, user.id);
+    expect(testDb.prepare('SELECT COUNT(*) c FROM file_links WHERE file_id = ?').get(file.id)).toEqual({ c: 0 });
+  });
+
+  it('FILE-SVC-042: updateFile attaches to an expense and detaches on a falsy id', () => {
+    const { user, trip } = seedTrip();
+    const item = seedItem(trip.id);
+    const file = makeFile(trip.id, user.id);
+
+    svc.updateFile(file.id, file, { budget_item_id: item });
+    expect(testDb.prepare('SELECT COUNT(*) c FROM file_links WHERE file_id = ? AND budget_item_id = ?').get(file.id, item)).toEqual({ c: 1 });
+
+    // Sending it twice must not double the row.
+    svc.updateFile(file.id, file, { budget_item_id: item });
+    expect(testDb.prepare('SELECT COUNT(*) c FROM file_links WHERE file_id = ?').get(file.id)).toEqual({ c: 1 });
+
+    svc.updateFile(file.id, file, { budget_item_id: null });
+    expect(testDb.prepare('SELECT COUNT(*) c FROM file_links WHERE file_id = ? AND budget_item_id IS NOT NULL').get(file.id)).toEqual({ c: 0 });
+  });
+
+  it('FILE-SVC-043: leaving budget_item_id out touches no link', () => {
+    const { user, trip } = seedTrip();
+    const item = seedItem(trip.id);
+    const file = makeFile(trip.id, user.id, {}, { budget_item_id: item });
+
+    svc.updateFile(file.id, file, { description: 'renamed' });
+    expect(testDb.prepare('SELECT COUNT(*) c FROM file_links WHERE file_id = ? AND budget_item_id = ?').get(file.id, item)).toEqual({ c: 1 });
   });
 });
 
@@ -292,7 +348,7 @@ describe('updateFile', () => {
     const place = createPlace(testDb, trip.id);
     const file = makeFile(trip.id, user.id, {}, { description: 'keep me', place_id: String(place.id) });
     const current = svc.getFileById(file.id, trip.id)!;
-    const updated = svc.updateFile(file.id, current, {}) as Record<string, unknown>;
+    const updated = svc.updateFile(file.id, current, {});
     expect(updated.description).toBe('keep me');
     expect(updated.place_id).toBe(place.id);
   });
@@ -303,7 +359,7 @@ describe('updateFile', () => {
     const reservation = createReservation(testDb, trip.id);
     const file = makeFile(trip.id, user.id, {}, { description: 'old', place_id: String(place.id), reservation_id: String(reservation.id) });
     const current = svc.getFileById(file.id, trip.id)!;
-    const updated = svc.updateFile(file.id, current, { description: '', place_id: '', reservation_id: null }) as Record<string, unknown>;
+    const updated = svc.updateFile(file.id, current, { description: '', place_id: '', reservation_id: null });
     expect(updated.description).toBeNull(); // '' → NULL on update too (post-migration fix: symmetric with createFile)
     expect(updated.place_id).toBeNull();
     expect(updated.reservation_id).toBeNull();
@@ -332,7 +388,7 @@ describe('toggleStarred / softDeleteFile / restoreFile', () => {
     const { user, trip } = seedTrip();
     const file = makeFile(trip.id, user.id);
     svc.softDeleteFile(file.id);
-    const restored = svc.restoreFile(file.id) as Record<string, unknown>;
+    const restored = svc.restoreFile(file.id);
     expect(restored.deleted_at).toBeNull();
     expect(restored.url).toBe(`/api/trips/${trip.id}/files/${file.id}/download`);
   });
@@ -427,6 +483,12 @@ describe('findForeignLinkTarget', () => {
     expect(svc.findForeignLinkTarget(mine.id, { place_id: foreignPlace.id })).toBe('place_id');
     expect(svc.findForeignLinkTarget(mine.id, { assignment_id: foreignAssignment.id })).toBe('assignment_id');
     expect(svc.findForeignLinkTarget(mine.id, { reservation_id: myRes.id })).toBeNull();
+
+    // A receipt may only point at an expense on the same trip.
+    const foreignItem = Number(testDb.prepare('INSERT INTO budget_items (trip_id, name) VALUES (?, ?)').run(foreign.id, 'Foreign').lastInsertRowid);
+    const myItem = Number(testDb.prepare('INSERT INTO budget_items (trip_id, name) VALUES (?, ?)').run(mine.id, 'Mine').lastInsertRowid);
+    expect(svc.findForeignLinkTarget(mine.id, { budget_item_id: foreignItem })).toBe('budget_item_id');
+    expect(svc.findForeignLinkTarget(mine.id, { budget_item_id: myItem })).toBeNull();
   });
 
   it('FILE-SVC-028: falsy ids are skipped (they clear the link) and reservation is checked first', () => {

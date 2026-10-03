@@ -29,13 +29,25 @@ const { db } = vi.hoisted(() => {
   tmp.exec(`CREATE TABLE places (id INTEGER PRIMARY KEY AUTOINCREMENT, trip_id INTEGER NOT NULL, name TEXT,
     description TEXT, lat REAL, lng REAL, address TEXT, category_id INTEGER, price REAL, currency TEXT,
     place_time TEXT, end_time TEXT, duration_minutes INTEGER DEFAULT 60, notes TEXT, image_url TEXT,
-    transport_mode TEXT DEFAULT 'walking', google_place_id TEXT, google_ftid TEXT, osm_id TEXT, website TEXT, phone TEXT);`);
+    transport_mode TEXT DEFAULT 'walking', google_place_id TEXT, google_ftid TEXT, osm_id TEXT, amap_poi_id TEXT, website TEXT, phone TEXT,
+    stop_type TEXT, fill_percent INTEGER);`);
   tmp.exec(`CREATE TABLE day_assignments (id INTEGER PRIMARY KEY AUTOINCREMENT, day_id INTEGER NOT NULL,
     place_id INTEGER NOT NULL, order_index INTEGER NOT NULL DEFAULT 0, notes TEXT,
     assignment_time TEXT, assignment_end_time TEXT, leg_transport_mode TEXT,
+    accommodation_id INTEGER, route_excluded INTEGER NOT NULL DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now')));`);
+  // The auto-sort reads a booked night's hour off its booking, so the table has to be
+  // here even though nothing in this file books one.
+  tmp.exec(`CREATE TABLE day_accommodations (id INTEGER PRIMARY KEY AUTOINCREMENT, trip_id INTEGER,
+    place_id INTEGER, start_day_id INTEGER, end_day_id INTEGER, check_in TEXT, check_in_end TEXT,
+    check_out TEXT, confirmation TEXT, notes TEXT, created_at TEXT DEFAULT (datetime('now')));`);
   tmp.exec(`CREATE TABLE assignment_participants (assignment_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
     UNIQUE(assignment_id, user_id));`);
+  // A start that reorders a day re-pins that day's vias in the same transaction, so
+  // the sort reads this table whenever it moves a stop.
+  tmp.exec(`CREATE TABLE roadtrip_vias (id INTEGER PRIMARY KEY AUTOINCREMENT, day_id INTEGER NOT NULL,
+    after_order_index INTEGER NOT NULL, sequence INTEGER NOT NULL DEFAULT 0, lat REAL NOT NULL, lng REAL NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP);`);
   tmp.exec(`CREATE TABLE tags (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, color TEXT, created_at TEXT);`);
   tmp.exec(`CREATE TABLE place_tags (place_id INTEGER NOT NULL, tag_id INTEGER NOT NULL);`);
   // StorageRegistryService (behind StorageModule, now in this module chain) reads
@@ -48,7 +60,8 @@ const { canAccessTrip } = vi.hoisted(() => ({ canAccessTrip: vi.fn() }));
 vi.mock('../../src/db/database', () => ({
   db, canAccessTrip, isOwner: vi.fn(() => true), getPlaceWithTags: vi.fn(), closeDb: () => {}, reinitialize: () => {},
 }));
-vi.mock('../../src/websocket', () => ({ broadcast: vi.fn() }));
+const { broadcast } = vi.hoisted(() => ({ broadcast: vi.fn() }));
+vi.mock('../../src/websocket', () => ({ broadcast }));
 
 const { reconcileTripSkeletons } = vi.hoisted(() => ({ reconcileTripSkeletons: vi.fn() }));
 import { JourneyDomainService } from '../../src/nest/journey/journey-domain.service';
@@ -142,6 +155,40 @@ describe('Assignments e2e (real auth guard + temp SQLite)', () => {
     expect(reconcileTripSkeletons).toHaveBeenCalledWith(5, undefined);
   });
 
+  it('200 clear day removes every place of the day and keeps the day (#2470)', async () => {
+    reconcileTripSkeletons.mockClear();
+    const first = seedAssignment(3, 2, 0);
+    const second = seedAssignment(3, 2, 1);
+    const elsewhere = seedAssignment(4, 2, 0);
+    const res = await request(server).delete('/api/trips/5/days/3/assignments').set('Cookie', sessionCookie(1));
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect([...res.body.removedIds].sort()).toEqual([first, second].sort());
+    expect(db.prepare('SELECT COUNT(*) AS n FROM day_assignments WHERE day_id = 3').get()).toEqual({ n: 0 });
+    expect(db.prepare('SELECT id FROM day_assignments WHERE id = ?').get(elsewhere)).toEqual({ id: elsewhere });
+    expect(reconcileTripSkeletons).toHaveBeenCalledWith(5, undefined);
+  });
+
+  it('403 clear day without day_edit, 404 for a foreign day', async () => {
+    seedAssignment();
+    checkPermission.mockReturnValue(false);
+    expect((await request(server).delete('/api/trips/5/days/3/assignments').set('Cookie', sessionCookie(1))).status).toBe(403);
+    checkPermission.mockReturnValue(true);
+    const miss = await request(server).delete('/api/trips/5/days/999/assignments').set('Cookie', sessionCookie(1));
+    expect(miss.status).toBe(404);
+    expect(miss.body).toEqual({ error: 'Day not found' });
+  });
+
+  it('200 route exclude roundtrip, 400 without a boolean (#2532)', async () => {
+    const id = seedAssignment();
+    const res = await request(server).put(`/api/trips/5/assignments/${id}/route`).set('Cookie', sessionCookie(1)).send({ excluded: true });
+    expect(res.status).toBe(200);
+    expect(res.body.assignment).toMatchObject({ id, route_excluded: true });
+    const list = await request(server).get('/api/trips/5/days/3/assignments').set('Cookie', sessionCookie(1));
+    expect(list.body.assignments[0].route_excluded).toBe(true);
+    expect((await request(server).put(`/api/trips/5/assignments/${id}/route`).set('Cookie', sessionCookie(1)).send({ excluded: 'yes' })).status).toBe(400);
+  });
+
   it('200 move assignment reconciles journey skeletons', async () => {
     reconcileTripSkeletons.mockClear();
     const id = seedAssignment();
@@ -204,6 +251,77 @@ describe('Assignments e2e (real auth guard + temp SQLite)', () => {
     expect(res.body.assignment).toMatchObject({ id, assignment_time: '09:00', assignment_end_time: null });
     expect(db.prepare('SELECT assignment_time FROM day_assignments WHERE id = ?').get(id)).toEqual({ assignment_time: '09:00' });
     expect(reconcileTripSkeletons).toHaveBeenCalledWith(5, undefined);
+  });
+
+  describe('PUT /:id/time and the order of the day', () => {
+    const seedDay = (times: (string | null)[]) => times.map((time, i) => {
+      const id = seedAssignment(3, 2, i);
+      if (time) db.prepare('UPDATE day_assignments SET assignment_time = ? WHERE id = ?').run(time, id);
+      return id;
+    });
+    const dayOrder = () =>
+      (db.prepare('SELECT id FROM day_assignments WHERE day_id = 3 ORDER BY order_index, id').all() as { id: number }[]).map(r => r.id);
+    const eventsSent = () => broadcast.mock.calls.map(call => call[1]);
+
+    beforeEach(() => broadcast.mockClear());
+
+    it('keeps the untimed stops in front of the stop that gets a start', async () => {
+      const [a, b, c] = seedDay([null, null, null]);
+      const res = await request(server)
+        .put(`/api/trips/5/assignments/${c}/time`)
+        .set('Cookie', sessionCookie(1))
+        .set('X-Socket-Id', 'sock-1')
+        .send({ place_time: '14:00', end_time: null });
+      expect(res.status).toBe(200);
+      expect(res.body.assignment).toMatchObject({ id: c, assignment_time: '14:00', order_index: 2 });
+      expect(dayOrder()).toEqual([a, b, c]);
+      expect(eventsSent()).toEqual(['assignment:updated']);
+    });
+
+    it('sorts the timed stops, keeps the untimed head first and sends the whole day', async () => {
+      const [a, b, c] = seedDay([null, '15:00', null]);
+      const res = await request(server)
+        .put(`/api/trips/5/assignments/${c}/time`)
+        .set('Cookie', sessionCookie(1))
+        .set('X-Socket-Id', 'sock-1')
+        .send({ place_time: '10:00', end_time: null });
+      expect(res.status).toBe(200);
+      expect(dayOrder()).toEqual([a, c, b]);
+      // No socket left out, so the writer gets the order too.
+      expect(broadcast).toHaveBeenCalledWith('5', 'assignment:reordered', { dayId: 3, orderedIds: [a, c, b] }, undefined);
+      // No located stops and no vias on this day, so there is nothing to re-pin.
+      expect(eventsSent()).not.toContain('roadtripVia:changed');
+    });
+
+    it('stores the order it sends: a day with a gap in its keys is numbered from 0', async () => {
+      // The gap a deleted stop leaves. Clients number the ids they are sent by position.
+      const [a, b, c] = [0, 4, 7].map(key => seedAssignment(3, 2, key));
+      db.prepare('UPDATE day_assignments SET assignment_time = ? WHERE id = ?').run('15:00', b);
+      const res = await request(server)
+        .put(`/api/trips/5/assignments/${c}/time`)
+        .set('Cookie', sessionCookie(1))
+        .send({ place_time: '10:00', end_time: null });
+      expect(res.status).toBe(200);
+      const sent = broadcast.mock.calls.find(call => call[1] === 'assignment:reordered')?.[2] as { orderedIds: number[] };
+      expect(sent.orderedIds).toEqual([a, c, b]);
+      const keyOf = (id: number) => (db.prepare('SELECT order_index FROM day_assignments WHERE id = ?').get(id) as { order_index: number }).order_index;
+      expect(sent.orderedIds.map(keyOf)).toEqual([0, 1, 2]);
+      expect(res.body.assignment).toMatchObject({ id: c, order_index: 1 });
+    });
+
+    it('leaves a day dragged out of time order alone when only the End changes', async () => {
+      const [a, b] = seedDay(['14:00', '10:00']);
+      db.prepare("UPDATE day_assignments SET assignment_end_time = '11:00' WHERE id = ?").run(b);
+      const res = await request(server)
+        .put(`/api/trips/5/assignments/${b}/time`)
+        .set('Cookie', sessionCookie(1))
+        .set('X-Socket-Id', 'sock-1')
+        .send({ place_time: '10:00', end_time: null });
+      expect(res.status).toBe(200);
+      expect(res.body.assignment).toMatchObject({ id: b, assignment_time: '10:00', assignment_end_time: null });
+      expect(dayOrder()).toEqual([a, b]);
+      expect(eventsSent()).toEqual(['assignment:updated']);
+    });
   });
 
   it('200 participants (access-only)', async () => {

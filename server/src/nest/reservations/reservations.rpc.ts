@@ -30,7 +30,7 @@ export class ReservationsRpc {
   ) {}
 
   @PluginMethod('reservations.create', { permission: 'db:write:reservations' })
-  create(params: Record<string, unknown>, ctx: PluginRpcContext): unknown {
+  async create(params: Record<string, unknown>, ctx: PluginRpcContext): Promise<unknown> {
     const tripId = num(params.tripId, 'tripId');
     const actor = this.guards.requireActor(ctx, 'reservation');
     const parsed = reservationCreateRequestSchema.safeParse(params.input);
@@ -38,10 +38,13 @@ export class ReservationsRpc {
     const input = parsed.data as Record<string, unknown>;
     this.requireValidEndpoints(input.endpoints);
     this.guards.requireTripEdit(tripId, actor, RESERVATION_EDIT_ACTION);
+    this.requireOwnReferences(tripId, input);
+    const i = input as { title?: string; type?: string; create_budget_entry?: unknown };
+    // Same as the REST route: the price keeps its currency, at a rate frozen now (#2525).
+    const budgetEntry = await this.reservations.withFrozenRate(tripId, i.create_budget_entry as never);
     const { reservation, accommodationCreated } = this.reservations.create(String(tripId), input as never);
     if (accommodationCreated) this.realtime.broadcast(tripId, 'accommodation:created', {}, undefined);
-    const i = input as { title?: string; type?: string; create_budget_entry?: unknown };
-    this.reservations.syncBudgetOnCreate(String(tripId), reservation.id, i.title ?? '', i.type, i.create_budget_entry as never, undefined);
+    this.reservations.syncBudgetOnCreate(String(tripId), reservation.id, i.title ?? '', i.type, budgetEntry, undefined);
     this.realtime.broadcast(tripId, 'reservation:created', { reservation }, undefined);
     this.notifyBooking(actor, tripId, i.title ?? '', i.type ?? '');
     return reservation;
@@ -59,6 +62,7 @@ export class ReservationsRpc {
     this.guards.requireTripEdit(tripId, actor, RESERVATION_EDIT_ACTION);
     const current = this.reservations.getReservation(String(reservationId), String(tripId));
     if (!current) throw new ForbiddenResource(`no reservation ${reservationId} on trip ${tripId}`);
+    this.requireOwnReferences(tripId, input);
     const { reservation, accommodationChanged } = this.reservations.update(String(reservationId), String(tripId), input as never, current as never);
     if (accommodationChanged) this.realtime.broadcast(tripId, 'accommodation:updated', {}, undefined);
     const cur = current as { title: string; type?: string };
@@ -75,10 +79,10 @@ export class ReservationsRpc {
     const reservationId = num(params.reservationId, 'reservationId');
     const actor = this.guards.requireActor(ctx, 'reservation');
     this.guards.requireTripEdit(tripId, actor, RESERVATION_EDIT_ACTION);
-    const { deleted, accommodationDeleted, deletedBudgetItemId } = this.reservations.remove(String(reservationId), String(tripId));
+    const { deleted, accommodationDeleted, deletedBudgetItemIds } = this.reservations.remove(String(reservationId), String(tripId));
     if (!deleted) throw new ForbiddenResource(`no reservation ${reservationId} on trip ${tripId}`);
     if (accommodationDeleted) this.realtime.broadcast(tripId, 'accommodation:deleted', { accommodationId: deleted.accommodation_id }, undefined);
-    if (deletedBudgetItemId) this.realtime.broadcast(tripId, 'budget:deleted', { itemId: deletedBudgetItemId }, undefined);
+    for (const itemId of deletedBudgetItemIds) this.realtime.broadcast(tripId, 'budget:deleted', { itemId }, undefined);
     this.realtime.broadcast(tripId, 'reservation:deleted', { reservationId }, undefined);
     this.notifyBooking(actor, tripId, deleted.title, deleted.type || '');
     return { deleted: true };
@@ -95,6 +99,23 @@ export class ReservationsRpc {
     if (value === undefined) return;
     const parsed = reservationEndpointsInputSchema.safeParse(value);
     if (!parsed.success) throw new BadParams(`invalid endpoints: ${schemaMessage(parsed.error)}`);
+  }
+
+  /**
+   * The body's ids have to be this trip's, and they have to exist. reservation_edit
+   * on tripId says the plugin may write here and nothing about day_id, place_id,
+   * assignment_id, accommodation_id or the create_accommodation days it puts in the
+   * body: a stay written against another trip's day puts a stop on that day, in a
+   * plan the acting user may not even be able to read. The REST route and the MCP
+   * tool refuse the same ids; this is the plugin half of that rule. An id that
+   * resolves to nothing is a foreign-key error the plugin reads as a crash (#2355),
+   * so it is named here as well, after the ownership check.
+   */
+  private requireOwnReferences(tripId: number, input: Record<string, unknown>): void {
+    const offenders = this.reservations.referencesOutsideTrip(String(tripId), input as never);
+    if (offenders.length > 0) throw new ForbiddenResource(`not part of trip ${tripId}: ${offenders.join(', ')}`);
+    const unknown = this.reservations.unresolvedReferences(String(tripId), input as never);
+    if (unknown.length > 0) throw new BadParams(`unknown reference: ${unknown.join(', ')}`);
   }
 
   /** Fire-and-forget, exactly as the REST controller sends it, so it never blocks the write. */

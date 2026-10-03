@@ -4,10 +4,13 @@ import MSheet from '../../../components/MSheet'
 import MIconBtn from '../../../components/MIconBtn'
 import CustomSelect from '../../../../components/shared/CustomSelect'
 import CustomTimePicker from '../../../../components/shared/CustomTimePicker'
+import { BookingCodeInput } from '../../../../components/shared/BookingCode'
 import { accommodationsApi } from '../../../../api/client'
+import { applyStayStops } from '../../../../store/stayStops'
 import { useTranslation } from '../../../../i18n'
 import { Eyebrow } from './MTripSheetUi'
 import type { MTripSheetsProps } from '../MTripShell'
+import { stayPlaces } from '../../../../utils/stayPlaces'
 
 interface AccommodationPayload {
   dayId?: number
@@ -95,7 +98,8 @@ export default function MAccommodationSheet({ planner, shell }: MTripSheetsProps
       : (d.title ? t('planner.dayN', { n: i + 1 }) : undefined),
   }))
 
-  const filteredPlaces = categoryFilter != null ? places.filter(p => p.category_id === categoryFilter) : places
+  const offeredPlaces = stayPlaces(places, form.place_id)
+  const filteredPlaces = categoryFilter != null ? offeredPlaces.filter(p => p.category_id === categoryFilter) : offeredPlaces
 
   const save = async () => {
     setSaving(true)
@@ -111,8 +115,9 @@ export default function MAccommodationSheet({ planner, shell }: MTripSheetsProps
     // Only the write itself decides whether the save failed — a refresh that
     // trips afterwards must not be reported as a failed save.
     try {
-      if (editing) await accommodationsApi.update(tripId, editing.id, body)
-      else await accommodationsApi.create(tripId, body)
+      applyStayStops(editing
+        ? await accommodationsApi.update(tripId, editing.id, body)
+        : await accommodationsApi.create(tripId, body))
     } catch {
       planner.toast.error(t('common.error'))
       return
@@ -202,8 +207,7 @@ export default function MAccommodationSheet({ planner, shell }: MTripSheetsProps
 
         {/* Confirmation */}
         <Eyebrow className="mb-[5px] mt-3">{t('day.confirmation')}</Eyebrow>
-        <input
-          type="text"
+        <BookingCodeInput
           value={form.confirmation}
           onChange={e => setForm(f => ({ ...f, confirmation: e.target.value }))}
           placeholder="ABC-12345"

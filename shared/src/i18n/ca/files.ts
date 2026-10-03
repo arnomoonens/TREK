@@ -62,7 +62,7 @@ const files: TranslationStrings = {
   'files.linkTitle': 'Enllaça un fitxer',
   'files.linkEmpty': 'Encara no hi ha llocs ni reserves per enllaçar',
   'files.menu': 'Més opcions',
-  'files.uploadErrorSize': 'El fitxer és massa gran (màx. 50 MB)',
+  'files.uploadErrorSize': 'El fitxer és massa gran (màx. {max} MB)',
   'files.sourceExpense': 'De la despesa',
   'files.assignExpense': 'Despesa',
   'files.confirm.deleteWithExpense': "Aquest fitxer està vinculat a 1 despesa activa. Vols moure'l a la paperera?",

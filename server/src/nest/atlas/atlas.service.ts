@@ -4,19 +4,32 @@ import type { AtlasLocateResponse } from '@trek/shared';
 import { Trip, Place } from '../../types';
 import { DatabaseService } from '../database/database.service';
 import {
+  getCountryFromAddress,
   getCountryFromCoords,
   getCountryGeoGz,
   getRegionFromCoords,
   getRegionGeo,
   geocodingInFlight,
   resolveCountryCodeSync,
+  resolveRegionFromBundle,
   reverseGeocodeRegion,
 } from './atlas-geo';
+import type { RegionInfo } from './atlas-geo';
 import { KNOWN_COUNTRIES } from './known-countries';
 import { cityFromAddress } from './city-from-address';
 import { transferEndpointIds } from './transfer-endpoints';
 import type { FlightEndpointRow } from './transfer-endpoints';
+import { countryVisitDates } from './visit-dates';
 import { haversineKm } from '../common/geo';
+
+/** The part of a place that its cached region is derived from. */
+type LocatedPlace = Pick<Place, 'id' | 'lat' | 'lng' | 'address'>;
+
+/** A place_regions row next to the location of its place. */
+type CachedRegionRow = LocatedPlace & { country_code: string; region_code: string };
+
+/** How many cached rows the #2527 repair checks before it lets other work run. */
+const REPAIR_YIELD_EVERY = 200;
 
 /**
  * A reservation endpoint plus the two booking columns that decide whether it may
@@ -34,6 +47,7 @@ export type CreateBucketData = {
   country_code?: string | null;
   notes?: string | null;
   target_date?: string | null;
+  region_code?: string | null;
 };
 
 export type UpdateBucketData = {
@@ -80,6 +94,31 @@ export class BucketItemExistsError extends Error {
 // bucket forms send '' where the map dialogs send null.
 function blankToNull(value: string | null | undefined): string | null {
   return value === undefined || value === null || value === '' ? null : value;
+}
+
+/**
+ * A wished-for region as stored (#1901): ISO 3166-2, upper case as the region
+ * boundaries carry it, and only when it lies in the item's own country. Anything
+ * else is no region, which keeps a caller that skips the contract (the plugin RPC)
+ * from pinning a wish to somebody else's map.
+ */
+export function bucketRegionCode(region: string | null | undefined, country: string | null): string | null {
+  const code = blankToNull(region)?.toUpperCase() ?? null;
+  if (!code || !country || !/^[A-Z]{2}-[A-Z0-9]{1,8}$/.test(code)) return null;
+  return code.startsWith(`${country.toUpperCase()}-`) ? code : null;
+}
+
+/**
+ * Who ticked a country off, for the detail sheet.
+ *
+ * Null when there is no row at all — a country derived from a trip's places was
+ * never marked by anyone, and reporting 'manual' for it would claim a decision
+ * nobody made. A row written before the column existed defaults to 'manual',
+ * which is exactly what it was.
+ */
+function markedSource(row: { source?: string | null } | undefined): string | null {
+  if (!row) return null;
+  return row.source || 'manual';
 }
 
 /**
@@ -161,30 +200,129 @@ export class AtlasService {
       }
     }
 
-    if (uncachedForGeocode.length > 0) {
-      const insertStmt = this.db.prepare(
-        'INSERT OR REPLACE INTO place_regions (place_id, country_code, region_code, region_name) VALUES (?, ?, ?, ?)',
-      );
-      for (const p of uncachedForGeocode) geocodingInFlight.add(p.id);
-      void (async () => {
-        try {
-          for (const place of uncachedForGeocode) {
-            try {
-              const info = await reverseGeocodeRegion(place.lat!, place.lng!, place.address);
-              if (info) insertStmt.run(place.id, info.country_code, info.region_code, info.region_name);
-            } catch {
-              /* continue */
-            } finally {
-              geocodingInFlight.delete(place.id);
-            }
-          }
-        } catch {
-          for (const p of uncachedForGeocode) geocodingInFlight.delete(p.id);
-        }
-      })();
-    }
+    this.cacheRegionsInBackground(uncachedForGeocode);
 
     return out;
+  }
+
+  /**
+   * Resolve each place's region in the background and cache it in place_regions.
+   */
+  private cacheRegionsInBackground(places: Place[]): void {
+    if (places.length === 0) return;
+    for (const p of places) geocodingInFlight.add(p.id);
+    void (async () => {
+      try {
+        for (const place of places) {
+          try {
+            const info = await reverseGeocodeRegion(place.lat!, place.lng!, place.address);
+            if (info) this.cacheRegionWhileUnmoved(place, info);
+          } catch {
+            // individual failure, continue with the remaining places
+          } finally {
+            geocodingInFlight.delete(place.id);
+          }
+        }
+      } catch {
+        for (const p of places) geocodingInFlight.delete(p.id);
+      }
+    })();
+  }
+
+  /**
+   * Cache a resolved region, but only while the place still sits where it was resolved
+   * from. A place moved while its lookup was running has already had its row dropped by
+   * the place_regions trigger (#2527), and writing the old answer back would pin it to
+   * the country it just left. A place deleted in the meantime is skipped the same way.
+   */
+  private cacheRegionWhileUnmoved(place: LocatedPlace, info: RegionInfo): boolean {
+    const written = this.db.run(
+      `INSERT OR REPLACE INTO place_regions (place_id, country_code, region_code, region_name)
+       SELECT id, ?, ?, ? FROM places WHERE id = ? AND lat = ? AND lng = ? AND address IS ?`,
+      info.country_code,
+      info.region_code,
+      info.region_name,
+      place.id,
+      place.lat,
+      place.lng,
+      place.address ?? null,
+    );
+    return written.changes > 0;
+  }
+
+  // ── One time repair of the rows cached before #2527 ───────────────────────
+
+  /**
+   * Before #2527 nothing dropped a place_regions row when its place moved, so an
+   * install that upgrades still holds the country every corrected place left. This
+   * re-derives each row with the bundled resolver alone, never Nominatim, and puts
+   * right the ones that no longer match where their place is now.
+   *
+   * Where the bundle answers for the place's current location with another country
+   * or region, the row gets that answer, which is what a fresh lookup would cache. A
+   * good row matches it, the address fallback case included.
+   *
+   * Where the bundle has no answer (a coastal point outside the simplified polygons,
+   * a country the bundle has no regions for), the row came from Nominatim and only
+   * Nominatim could judge it, so it stays, unless the coordinates put the place in
+   * another country and the address does not name the cached one either. Then it is
+   * dropped and the next Atlas load looks the place up again.
+   *
+   * A place without coordinates keeps no row, the same as the trigger does.
+   *
+   * Every write only lands while the place still holds the location it was read with,
+   * so a place edited while this runs keeps what the trigger and the next lookup give it.
+   */
+  async repairStaleRegionCache(): Promise<{ replaced: number; dropped: number }> {
+    const rows = this.db.all<CachedRegionRow>(`
+      SELECT pr.place_id AS id, pr.country_code, pr.region_code, p.lat, p.lng, p.address
+      FROM place_regions pr
+      JOIN places p ON p.id = pr.place_id
+      ORDER BY pr.place_id
+    `);
+    let replaced = 0;
+    let dropped = 0;
+    for (const [i, row] of rows.entries()) {
+      // A big install holds many rows, so requests get a turn every so often.
+      if (i > 0 && i % REPAIR_YIELD_EVERY === 0) await new Promise((resolve) => setImmediate(resolve));
+      const fix = await this.staleRegionFix(row);
+      if (fix === 'drop') {
+        if (this.dropRegionWhileUnmoved(row)) dropped++;
+      } else if (fix && this.cacheRegionWhileUnmoved(row, fix)) {
+        replaced++;
+      }
+    }
+    return { replaced, dropped };
+  }
+
+  /** What a cached row needs: a new region, 'drop', or null when it is right. */
+  private async staleRegionFix(row: CachedRegionRow): Promise<RegionInfo | 'drop' | null> {
+    if (row.lat == null || row.lng == null) return 'drop';
+    const cachedCountry = row.country_code.toUpperCase();
+    const fresh = await resolveRegionFromBundle(row.lat, row.lng, row.address);
+    if (fresh) {
+      const same = fresh.country_code.toUpperCase() === cachedCountry && fresh.region_code === row.region_code;
+      return same ? null : fresh;
+    }
+    const countryNow = resolveCountryCodeSync(row);
+    const contradicted = !!countryNow && countryNow !== cachedCountry && getCountryFromAddress(row.address) !== cachedCountry;
+    return contradicted ? 'drop' : null;
+  }
+
+  private dropRegionWhileUnmoved(row: CachedRegionRow): boolean {
+    const removed = this.db.run(
+      `DELETE FROM place_regions
+       WHERE place_id = ? AND country_code = ? AND region_code = ?
+         AND EXISTS (SELECT 1 FROM places WHERE id = ? AND lat IS ? AND lng IS ? AND address IS ?)`,
+      row.id,
+      row.country_code,
+      row.region_code,
+      row.id,
+      row.lat ?? null,
+      row.lng ?? null,
+      row.address ?? null,
+    );
+    return removed.changes > 0;
   }
 
   // ── Stats ─────────────────────────────────────────────────────────────────
@@ -249,21 +387,16 @@ export class AtlasService {
       }
     }
 
-    const countries = [...countrySet.values()].map((c) => {
-      const countryTrips = trips.filter((t) => c.tripIds.has(t.id));
-      const dates = countryTrips
-        .map((t) => t.start_date)
-        .filter(Boolean)
-        .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-      return {
-        code: c.code,
-        placeCount: c.places.length,
-        tripCount: c.tripIds.size,
-        firstVisit: dates[0] || null,
-        lastVisit: dates[dates.length - 1] || null,
-        status: c.status,
-      };
-    });
+    // The dates are filled in at the end, once a manual mark or a booking has had its
+    // say on the status: they come only from the trips that match that final status.
+    const countries = [...countrySet.values()].map((c) => ({
+      code: c.code,
+      placeCount: c.places.length,
+      tripCount: c.tripIds.size,
+      firstVisit: null as string | null,
+      lastVisit: null as string | null,
+      status: c.status,
+    }));
 
     const citySet = new Set<string>();
     for (const place of places) {
@@ -354,14 +487,17 @@ export class AtlasService {
 
     // Collapse to one entry per coordinate before resolving countries —
     // getCountryFromCoords is a point-in-polygon scan and used to run once per point.
-    const endpointStatus = new Map<string, { lat: number; lng: number; status: VisitStatus }>();
+    const endpointStatus = new Map<string, { lat: number; lng: number; status: VisitStatus; tripIds: Set<number> }>();
     for (const e of endpoints) {
       const status = tripStatus.get(e.trip_id) ?? 'idea';
       const key = `${e.lat},${e.lng}`;
       const seen = endpointStatus.get(key);
-      if (seen) seen.status = strongerVisitStatus(seen.status, status);
-      else endpointStatus.set(key, { lat: e.lat, lng: e.lng, status });
+      if (seen) {
+        seen.status = strongerVisitStatus(seen.status, status);
+        seen.tripIds.add(e.trip_id);
+      } else endpointStatus.set(key, { lat: e.lat, lng: e.lng, status, tripIds: new Set([e.trip_id]) });
     }
+    const bookingTripIds = new Map<string, Set<number>>();
     for (const e of endpointStatus.values()) {
       const code = getCountryFromCoords(e.lat, e.lng);
       if (!code || hidden.has(code)) continue;
@@ -369,6 +505,20 @@ export class AtlasService {
       if (existing) existing.status = strongerVisitStatus(existing.status, e.status);
       else
         countries.push({ code, placeCount: 0, tripCount: 0, firstVisit: null, lastVisit: null, status: e.status });
+      const ids = bookingTripIds.get(code) ?? new Set<number>();
+      for (const id of e.tripIds) ids.add(id);
+      bookingTripIds.set(code, ids);
+    }
+
+    // A booking can be what makes a country with places visited, so its trip dates the
+    // country as well. A country reached by bookings alone has no trip in its tooltip
+    // and stays without dates.
+    for (const c of countries) {
+      const fromPlaces = countrySet.get(c.code);
+      if (!fromPlaces) continue;
+      const fromBookings = bookingTripIds.get(c.code);
+      const dated = trips.filter((t) => fromPlaces.tripIds.has(t.id) || fromBookings?.has(t.id));
+      Object.assign(c, countryVisitDates(dated, c.status, now));
     }
 
     // Everything below counts actual visits only. countries[] still carries planned and
@@ -469,10 +619,17 @@ export class AtlasService {
     if (tripIds.length === 0) {
       // Post-fold quirk fix: the legacy early return hardcoded manually_marked
       // false, so a trip-less user's manually marked country read as unmarked.
-      const marked = !!this.db
-        .prepare('SELECT 1 FROM visited_countries WHERE user_id = ? AND country_code = ?')
-        .get(userId, code);
-      return { places: [], trips: [], manually_marked: marked, status: marked ? 'visited' : 'idea' };
+      const row = this.db
+        .prepare('SELECT source FROM visited_countries WHERE user_id = ? AND country_code = ?')
+        .get(userId, code) as { source?: string | null } | undefined;
+      const marked = !!row;
+      return {
+        places: [],
+        trips: [],
+        manually_marked: marked,
+        marked_source: markedSource(row),
+        status: marked ? 'visited' : 'idea',
+      };
     }
 
     const places = this.getPlacesForTrips(tripIds);
@@ -506,9 +663,10 @@ export class AtlasService {
       .filter((t) => matchingTripIds.has(t.id))
       .map((t) => ({ id: t.id, title: t.title, start_date: t.start_date, end_date: t.end_date }));
 
-    const isManuallyMarked = !!this.db
-      .prepare('SELECT 1 FROM visited_countries WHERE user_id = ? AND country_code = ?')
-      .get(userId, code);
+    const markRow = this.db
+      .prepare('SELECT source FROM visited_countries WHERE user_id = ? AND country_code = ?')
+      .get(userId, code) as { source?: string | null } | undefined;
+    const isManuallyMarked = !!markRow;
 
     // Take the status from the same trip classification stats() uses rather than deriving
     // it again here — the detail sheet and the map must agree on what this country is.
@@ -517,15 +675,24 @@ export class AtlasService {
     for (const id of matchingTripIds) status = strongerVisitStatus(status, tripStatus.get(id) ?? 'idea');
     if (isManuallyMarked) status = 'visited';
 
-    return { places: matchingPlaces, trips: matchingTrips, manually_marked: isManuallyMarked, status };
+    return {
+      places: matchingPlaces,
+      trips: matchingTrips,
+      manually_marked: isManuallyMarked,
+      // Where the tick came from, so the sheet can say "confirmed from your
+      // Dawarich recordings" instead of implying the user typed it in. Null when
+      // the country is only derived from trips and carries no row at all.
+      marked_source: markedSource(markRow),
+      status,
+    };
   }
 
   // ── Mark / unmark country ─────────────────────────────────────────────────
 
-  listVisitedCountries(userId: number): { country_code: string; created_at: string }[] {
+  listVisitedCountries(userId: number): { country_code: string; created_at: string; source: string }[] {
     return this.db
-      .prepare('SELECT country_code, created_at FROM visited_countries WHERE user_id = ? ORDER BY created_at DESC')
-      .all(userId) as { country_code: string; created_at: string }[];
+      .prepare('SELECT country_code, created_at, source FROM visited_countries WHERE user_id = ? ORDER BY created_at DESC')
+      .all(userId) as { country_code: string; created_at: string; source: string }[];
   }
 
   /** Countries the user explicitly removed, which stats() must not re-derive (#1490). */
@@ -536,11 +703,24 @@ export class AtlasService {
     return new Set(rows.map((r) => r.country_code));
   }
 
-  markCountry(userId: number, code: string): void {
-    this.db.transaction(() => {
-      this.db.prepare('INSERT OR IGNORE INTO visited_countries (user_id, country_code) VALUES (?, ?)').run(userId, code);
+  /**
+   * `source` records who decided. It defaults to 'manual' because that is what
+   * every mark was until an integration could make one, and `INSERT OR IGNORE`
+   * means a country already ticked by hand keeps that provenance — confirming
+   * it again from a recording does not relabel somebody's own work as imported.
+   */
+  /**
+   * Returns whether this actually added the country, so a caller reporting
+   * "3 countries added" is not counting the ones that were already there.
+   */
+  markCountry(userId: number, code: string, source: 'manual' | 'dawarich' = 'manual'): boolean {
+    return this.db.transaction(() => {
+      const inserted = this.db
+        .prepare('INSERT OR IGNORE INTO visited_countries (user_id, country_code, source) VALUES (?, ?, ?)')
+        .run(userId, code, source).changes > 0;
       // Marking it visited again lifts a previous removal.
       this.db.prepare('DELETE FROM hidden_countries WHERE user_id = ? AND country_code = ?').run(userId, code);
+      return inserted;
     });
   }
 
@@ -675,29 +855,9 @@ export class AtlasService {
     const cachedMap = new Map(cached.map((c) => [c.place_id, c]));
 
     // Kick off background geocoding for uncached places; return cached data immediately.
-    const uncached = places.filter((p) => p.lat && p.lng && !cachedMap.has(p.id) && !geocodingInFlight.has(p.id));
-    if (uncached.length > 0) {
-      const insertStmt = this.db.prepare(
-        'INSERT OR REPLACE INTO place_regions (place_id, country_code, region_code, region_name) VALUES (?, ?, ?, ?)',
-      );
-      for (const p of uncached) geocodingInFlight.add(p.id);
-      void (async () => {
-        try {
-          for (const place of uncached) {
-            try {
-              const info = await reverseGeocodeRegion(place.lat!, place.lng!, place.address);
-              if (info) insertStmt.run(place.id, info.country_code, info.region_code, info.region_name);
-            } catch {
-              // individual failure — continue with remaining places
-            } finally {
-              geocodingInFlight.delete(place.id);
-            }
-          }
-        } catch {
-          for (const p of uncached) geocodingInFlight.delete(p.id);
-        }
-      })();
-    }
+    this.cacheRegionsInBackground(
+      places.filter((p) => p.lat && p.lng && !cachedMap.has(p.id) && !geocodingInFlight.has(p.id)),
+    );
 
     // Group by country → regions with place counts
     const regionMap: Record<
@@ -839,7 +999,7 @@ export class AtlasService {
     if (this.findDuplicateBucketItem(userId, identity)) throw new BucketItemExistsError();
     const result = this.db
       .prepare(
-        'INSERT INTO bucket_list (user_id, name, lat, lng, country_code, notes, target_date) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO bucket_list (user_id, name, lat, lng, country_code, notes, target_date, region_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       )
       .run(
         userId,
@@ -849,6 +1009,7 @@ export class AtlasService {
         identity.country_code,
         data.notes ?? null,
         identity.target_date,
+        bucketRegionCode(data.region_code, identity.country_code),
       );
     return this.db.prepare('SELECT * FROM bucket_list WHERE id = ?').get(result.lastInsertRowid);
   }
@@ -957,6 +1118,49 @@ export class AtlasService {
   `, userId, userId);
     if (!trip) return null;
 
+    return {
+      title: trip.title,
+      start_date: trip.start_date,
+      end_date: trip.end_date,
+      countries: this.tripCountries(trip.id),
+    };
+  }
+
+  /**
+   * The trip the user goes on next, the counterpart of lastTrip for a widget that
+   * counts down (#2542).
+   *
+   * Next means not started yet: a trip that is under way is still the last trip,
+   * so the two never name the same one. Only a trip with a start date qualifies,
+   * because a trip with only an end date has nothing to count down to. The days
+   * are counted in SQLite's own calendar, the same `date('now')` lastTrip cuts
+   * on, so the switch from next to last happens at one moment for both fields.
+   */
+  nextTrip(userId: number): { title: string; start_date: string; end_date: string | null; days_until: number; countries: string[] } | null {
+    const trip = this.db.get<{ id: number; title: string; start_date: string; end_date: string | null; days_until: number }>(`
+    SELECT t.id, t.title, t.start_date, t.end_date,
+           CAST(julianday(t.start_date) - julianday(date('now')) AS INTEGER) AS days_until
+    FROM trips t
+    LEFT JOIN trip_members tm ON t.id = tm.trip_id
+    WHERE (t.user_id = ? OR tm.user_id = ?)
+      AND t.start_date IS NOT NULL
+      AND t.start_date > date('now')
+    ORDER BY t.start_date ASC, t.id ASC
+    LIMIT 1
+  `, userId, userId);
+    if (!trip) return null;
+
+    return {
+      title: trip.title,
+      start_date: trip.start_date,
+      end_date: trip.end_date,
+      days_until: trip.days_until,
+      countries: this.tripCountries(trip.id),
+    };
+  }
+
+  /** The countries a trip's places resolved to in `place_regions`, most-visited first. */
+  private tripCountries(tripId: number): string[] {
     const rows = this.db.all<{ country_code: string; places: number }>(`
     SELECT pr.country_code, COUNT(DISTINCT p.id) AS places
     FROM place_regions pr
@@ -964,14 +1168,8 @@ export class AtlasService {
     WHERE p.trip_id = ? AND pr.country_code IS NOT NULL
     GROUP BY pr.country_code
     ORDER BY places DESC, pr.country_code ASC
-  `, trip.id);
-
-    return {
-      title: trip.title,
-      start_date: trip.start_date,
-      end_date: trip.end_date,
-      countries: rows.map(r => r.country_code.toUpperCase()),
-    };
+  `, tripId);
+    return rows.map(r => r.country_code.toUpperCase());
   }
 
   getTravelStats(userId: number) {

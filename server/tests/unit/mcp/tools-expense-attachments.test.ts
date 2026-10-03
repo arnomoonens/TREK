@@ -87,12 +87,12 @@ function insertFile(tripId: number, deletedAt: string | null = null) {
 }
 
 function attachRow(expenseId: number, fileId: number) {
-  testDb.prepare('INSERT INTO expense_attachments (expense_id, file_id) VALUES (?, ?)').run(expenseId, fileId);
+  testDb.prepare('INSERT INTO file_links (budget_item_id, file_id) VALUES (?, ?)').run(expenseId, fileId);
 }
 
 function relationshipCount(expenseId: number, fileId: number): number {
   return (testDb.prepare(
-    'SELECT COUNT(*) AS count FROM expense_attachments WHERE expense_id = ? AND file_id = ?',
+    'SELECT COUNT(*) AS count FROM file_links WHERE budget_item_id = ? AND file_id = ?',
   ).get(expenseId, fileId) as { count: number }).count;
 }
 

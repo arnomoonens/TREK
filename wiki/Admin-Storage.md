@@ -1,10 +1,8 @@
 # Admin: Storage
 
-The **Storage** tab (Admin Panel → Storage) controls where TREK stores each
+The **Storage** tab (Admin Panel > Configuration > Storage) controls where TREK stores each
 kind of content: which storage backends exist, which content category writes
 to which backend, and whether writes are replicated to additional backends.
-On managed/hosted instances this tab is hidden — storage is the operator's
-concern.
 
 ## Backends
 

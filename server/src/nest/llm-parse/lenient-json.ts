@@ -50,12 +50,27 @@ export function parseLenientJson(content: string | undefined | null): unknown {
  * One unwrap of a string, not a loop: a value that is still not a list after
  * that is genuinely not one, and guessing further would start inventing
  * bookings out of prose.
+ *
+ * A single reservation answered on its own, with no array and no wrapper around
+ * it, is the third shape seen in the wild:
+ *
+ *   {"@type":"LodgingReservation","reservationNumber":"733", …}
+ *
+ * A string `@type` is the same gate `kiReservationSchema` applies, so a node that
+ * would have been accepted inside an array is accepted alone rather than thrown
+ * away without a word (#2375). It is still not guessing: an object without that
+ * key stays refused.
+ *
+ * `rootKey` names the wrapper for a caller that asks for another list than
+ * reservations (the receipt read asks for `receipts`).
  */
-export function toReservationList(value: unknown): Record<string, unknown>[] {
+export function toReservationList(value: unknown, rootKey = 'reservations'): Record<string, unknown>[] {
   const list = (v: unknown): Record<string, unknown>[] | null => {
     if (Array.isArray(v)) return v as Record<string, unknown>[];
-    if (v && typeof v === 'object' && Array.isArray((v as { reservations?: unknown }).reservations)) {
-      return (v as { reservations: Record<string, unknown>[] }).reservations;
+    if (v && typeof v === 'object') {
+      const o = v as Record<string, unknown>;
+      if (Array.isArray(o[rootKey])) return o[rootKey] as Record<string, unknown>[];
+      if (typeof o['@type'] === 'string') return [v as Record<string, unknown>];
     }
     return null;
   };

@@ -207,6 +207,82 @@ export const publicApiTripListSchema = z.object({
 export type PublicApiTripList = z.infer<typeof publicApiTripListSchema>;
 
 /**
+ * What an integration key is allowed to read.
+ *
+ * These are **not** `include`. `include` picks which sections a response
+ * carries and any caller may ask for any of them; these decide what the key may
+ * see at all, and the server refuses the rest. The two were confused often
+ * enough that it is worth saying plainly: handing an integration a key because
+ * it wanted day notes used to hand it every trip in full.
+ *
+ * The sections mirror the `include` vocabulary so an integrator does not have
+ * to learn two lists, plus the two endpoints that are not a trip section:
+ * `bucket-list` (hangs off the user) and `stats` (aggregates everything, which
+ * is exactly why a narrow key must be able to exclude it).
+ */
+export const PUBLIC_API_SCOPES = [
+  'trips',
+  'days',
+  'places',
+  'notes',
+  'reservations',
+  'accommodations',
+  'travellers',
+  'bucket-list',
+  'stats',
+] as const;
+export type PublicApiScope = (typeof PUBLIC_API_SCOPES)[number];
+
+/**
+ * How a key's access is decided.
+ *
+ * `all` is an explicit value rather than an absent list, because "no list means
+ * everything" is the kind of sentinel where a bug that drops the column grants
+ * full access instead of none. Every key minted before scopes existed is `all`,
+ * which is exactly what it was and still is.
+ */
+export const PUBLIC_API_SCOPE_MODES = ['all', 'limited'] as const;
+export const publicApiScopeModeSchema = z.enum(PUBLIC_API_SCOPE_MODES);
+export type PublicApiScopeMode = z.infer<typeof publicApiScopeModeSchema>;
+
+/**
+ * What a key may read, resolved.
+ *
+ * `mode: 'all'` carries the full list rather than an empty one, so a consumer
+ * never has to reimplement "empty means everything" — the rule this type exists
+ * to get rid of.
+ */
+export const publicApiGrantSchema = z.object({
+  mode: publicApiScopeModeSchema,
+  scopes: z.array(z.enum(PUBLIC_API_SCOPES)),
+});
+export type PublicApiGrant = z.infer<typeof publicApiGrantSchema>;
+
+/**
+ * Minting an integration key. A key created without `scopes` reads everything,
+ * which is what every key did before this existed — narrowing is opt-in, so no
+ * integration breaks the day the column ships.
+ */
+export const apiTokenCreateRequestSchema = z.object({
+  name: z.string().optional(),
+  scopes: z.array(z.enum(PUBLIC_API_SCOPES)).min(1).optional(),
+});
+export type ApiTokenCreateRequest = z.infer<typeof apiTokenCreateRequestSchema>;
+
+/** A key as the settings list shows it. The key itself is never in here. */
+export const apiTokenSummarySchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  token_prefix: z.string(),
+  created_at: z.string(),
+  last_used_at: z.string().nullable(),
+  scope_mode: publicApiScopeModeSchema,
+  /** The chosen sections; the full list when the mode is `all`. */
+  scopes: z.array(z.enum(PUBLIC_API_SCOPES)),
+});
+export type ApiTokenSummary = z.infer<typeof apiTokenSummarySchema>;
+
+/**
  * The trip the traveller most recently took, for a dashboard that wants to name it.
  *
  * "Most recently took" means started, not created: a trip booked for next year is
@@ -231,6 +307,19 @@ export const publicApiLastTripSchema = z.object({
   countries: z.array(z.string()),
 });
 export type PublicApiLastTrip = z.infer<typeof publicApiLastTripSchema>;
+
+/**
+ * The trip the traveller goes on next, for a widget that counts down to it (#2542).
+ *
+ * "Next" means not started yet, so a trip under way is still `last_trip` and the
+ * two never name the same trip. A user with nothing ahead gets `null`.
+ */
+export const publicApiNextTripSchema = publicApiLastTripSchema.extend({
+  start_date: z.string(),
+  /** Whole days from today until the start date; 1 means it starts tomorrow. */
+  days_until: z.number().int().positive(),
+});
+export type PublicApiNextTrip = z.infer<typeof publicApiNextTripSchema>;
 
 /**
  * Aggregate counts for a dashboard widget (#1367) — Homepage's `customapi` and
@@ -261,5 +350,6 @@ export const publicApiStatsSchema = z.object({
   /** Flown distance, summed over non-cancelled flight bookings. Kilometres. */
   total_distance_km: z.number(),
   last_trip: publicApiLastTripSchema.nullable(),
+  next_trip: publicApiNextTripSchema.nullable(),
 });
 export type PublicApiStats = z.infer<typeof publicApiStatsSchema>;

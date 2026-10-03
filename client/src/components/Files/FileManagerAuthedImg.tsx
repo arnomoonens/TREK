@@ -10,12 +10,12 @@ export function AuthedImg({ src, style, fallback }: { src: string; style?: React
     let current = true
     setAuthSrc('')
     setFailed(false)
-    getAuthUrl(src, 'download')
-      .then(url => { if (current) setAuthSrc(url) })
-      .catch(() => { if (current) setFailed(true) })
-    return () => {
-      current = false
-    }
+    void getAuthUrl(src, 'download').then(url => {
+      if (current) setAuthSrc(url)
+    }, () => {
+      if (current) setFailed(true)
+    })
+    return () => { current = false }
   }, [src])
 
   if (failed || !authSrc) return fallback ?? null

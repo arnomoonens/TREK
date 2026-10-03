@@ -330,11 +330,11 @@ describe('WS real-time broadcast', () => {
         .set('Cookie', authCookie(user.id))
         .set('X-Socket-Id', String(socketA));
       expect(attached.status).toBe(200);
-      expect(attached.body.file.linked_expense_ids).toEqual([expenseId]);
+      expect(attached.body.file.linked_budget_item_ids).toEqual([expenseId]);
       const attachedRemote = await attachedEvent;
       expect(attachedRemote.file).toMatchObject({
         id: fileId,
-        linked_expense_ids: [expenseId],
+        linked_budget_item_ids: [expenseId],
         expense_attachment_created_at: expect.objectContaining({ [String(expenseId)]: expect.any(String) }),
       });
       expect((await clientA.collectFor(250)).filter(message => message.type === 'file:updated')).toHaveLength(0);
@@ -345,8 +345,8 @@ describe('WS real-time broadcast', () => {
         .set('Cookie', authCookie(user.id))
         .set('X-Socket-Id', String(socketB));
       expect(detached.status).toBe(200);
-      expect(detached.body.file.linked_expense_ids).toEqual([]);
-      expect((await detachedEvent).file).toMatchObject({ id: fileId, linked_expense_ids: [] });
+      expect(detached.body.file.linked_budget_item_ids).toEqual([]);
+      expect((await detachedEvent).file).toMatchObject({ id: fileId, linked_budget_item_ids: [] });
       expect((await clientB.collectFor(250)).filter(message => message.type === 'file:updated')).toHaveLength(0);
     } finally {
       clientA.close();
