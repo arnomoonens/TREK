@@ -44,7 +44,7 @@ function triggerAnchorDownload(blobUrl: string, filename?: string): void {
  * network actually fails — which also covers flaky links where navigator.onLine
  * still reports true ("sometimes it works, sometimes it doesn't").
  */
-async function getFileBlob(url: string): Promise<Blob> {
+export async function getFileBlob(url: string): Promise<Blob> {
   assertRelativeUrl(url)
   if (typeof navigator !== 'undefined' && isEffectivelyOffline()) {
     const cached = await getCachedBlob(url)

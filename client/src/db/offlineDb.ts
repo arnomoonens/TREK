@@ -341,14 +341,18 @@ export async function upsertTripFiles(files: TripFile[]): Promise<void> {
 
 /** Replace a trip's cached file metadata with one authoritative response. */
 export async function replaceTripFiles(tripId: number, files: TripFile[]): Promise<void> {
-  await offlineDb.tripFiles.where('trip_id').equals(tripId).delete();
-  if (files.length > 0) await offlineDb.tripFiles.bulkPut(files);
+  await offlineDb.transaction('rw', offlineDb.tripFiles, async () => {
+    await offlineDb.tripFiles.where('trip_id').equals(tripId).delete();
+    if (files.length > 0) await offlineDb.tripFiles.bulkPut(files);
+  });
 }
 
 /** Replace a trip's cached budget metadata with one authoritative response. */
 export async function replaceBudgetItems(tripId: number, items: BudgetItem[]): Promise<void> {
-  await offlineDb.budgetItems.where('trip_id').equals(tripId).delete();
-  if (items.length > 0) await offlineDb.budgetItems.bulkPut(items);
+  await offlineDb.transaction('rw', offlineDb.budgetItems, async () => {
+    await offlineDb.budgetItems.where('trip_id').equals(tripId).delete();
+    if (items.length > 0) await offlineDb.budgetItems.bulkPut(items);
+  });
 }
 
 async function markMetadataCached(

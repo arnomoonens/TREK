@@ -3,6 +3,7 @@ import { dismissSystemNotices } from './helpers'
 
 interface SeededExpenseFiles {
   tripId: number
+  expenseId: number
   expenseName: string
   imageName: string
   pdfName: string
@@ -59,7 +60,7 @@ async function seedExpenseFiles(page: Page, label: string): Promise<SeededExpens
     expect(attachmentResponse.ok()).toBeTruthy()
   }
 
-  return { tripId: trip.id, expenseName, imageName, pdfName, markdownName }
+  return { tripId: trip.id, expenseId: item.id, expenseName, imageName, pdfName, markdownName }
 }
 
 test('inspects live Expense attachments with Costs read-only presentation', async ({ page }) => {
@@ -71,6 +72,10 @@ test('inspects live Expense attachments with Costs read-only presentation', asyn
   await expect(expenseRow).toBeVisible()
   await expect(expenseRow.getByRole('button', { name: '3 attachments', exact: true })).toBeVisible()
 
+  let tokenRequests = 0
+  page.on('request', request => {
+    if (request.url().endsWith('/api/auth/resource-token')) tokenRequests++
+  })
   await expenseRow.getByRole('button', { name: '3 attachments', exact: true }).click()
   const viewer = page.getByRole('dialog', { name: `Attachments for "${seeded.expenseName}"` })
   await expect(viewer).toBeVisible()
@@ -100,4 +105,68 @@ test('inspects live Expense attachments with Costs read-only presentation', asyn
 
   await viewer.getByTestId('expense-attachment-name').nth(2).click()
   await expect(page.getByText('Receipt notes')).toBeVisible()
+  expect(tokenRequests).toBeLessThan(12)
+  await page.getByRole('dialog', { name: seeded.markdownName }).getByRole('button', { name: 'Close', exact: true }).click()
+  await page.context().setOffline(true)
+  try {
+    await viewer.getByTestId('expense-attachment-name').nth(1).click()
+    await expect(page.getByRole('dialog', { name: seeded.pdfName }).getByRole('alert')).toBeVisible()
+    await expect(viewer.getByTestId('expense-attachment-name')).toHaveCount(3)
+  } finally {
+    await page.context().setOffline(false)
+  }
+})
+
+
+test('cancels staged files and retries a saved upload without uploading it twice', async ({ page }) => {
+  const seeded = await seedExpenseFiles(page, `staging-${Date.now()}`)
+  const uploadName = `staged-receipt-${Date.now()}.pdf`
+  let uploads = 0
+  page.on('request', request => {
+    if (request.method() === 'POST' && request.url().endsWith(`/api/trips/${seeded.tripId}/files`)) uploads++
+  })
+  await page.goto(`/trips/${seeded.tripId}?tab=finanzplan`)
+  await dismissSystemNotices(page)
+  await page.getByRole('button', { name: 'Edit', exact: true }).click()
+  let editor = page.getByRole('dialog')
+  await editor.getByRole('checkbox', { name: seeded.pdfName, exact: true }).uncheck()
+  await editor.getByRole('tab', { name: /^Upload/ }).click()
+  await editor.getByTestId('expense-upload-input').setInputFiles({
+    name: uploadName, mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n'),
+  })
+  await expect(editor.getByText(uploadName, { exact: true })).toBeVisible()
+  await editor.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(editor).not.toBeVisible()
+  expect(uploads).toBe(0)
+  const unchanged = await page.request.get(`/api/trips/${seeded.tripId}/budget/${seeded.expenseId}/files`)
+  expect((await unchanged.json()).files).toHaveLength(3)
+
+  let failAttachment = true
+  await page.route(`**/api/trips/${seeded.tripId}/budget/${seeded.expenseId}/files/*`, async route => {
+    if (route.request().method() === 'POST' && failAttachment) {
+      failAttachment = false
+      await route.fulfill({ status: 500, json: { error: 'Test attachment failure' } })
+    } else await route.continue()
+  })
+  await page.getByRole('button', { name: 'Edit', exact: true }).click()
+  editor = page.getByRole('dialog')
+  await editor.getByRole('checkbox', { name: seeded.pdfName, exact: true }).uncheck()
+  await editor.getByRole('checkbox', { name: seeded.markdownName, exact: true }).uncheck()
+  await editor.getByRole('tab', { name: /^Upload/ }).click()
+  await editor.getByTestId('expense-upload-input').setInputFiles({
+    name: uploadName, mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n'),
+  })
+  await expect(editor.getByText(uploadName, { exact: true })).toBeVisible()
+  await editor.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(editor.getByTestId('expense-attachment-failure-summary')).toBeVisible()
+  expect(uploads).toBe(1)
+  await editor.getByRole('button', { name: `Retry ${uploadName}`, exact: true }).click()
+  await expect(editor).not.toBeVisible()
+  expect(uploads).toBe(1)
+  const attached = await page.request.get(`/api/trips/${seeded.tripId}/budget/${seeded.expenseId}/files`)
+  expect((await attached.json()).files.map((file: { original_name: string }) => file.original_name)).toEqual([
+    seeded.imageName, uploadName,
+  ])
+  const allFiles = await page.request.get(`/api/trips/${seeded.tripId}/files`)
+  expect((await allFiles.json()).files).toHaveLength(4)
 })

@@ -85,11 +85,10 @@ When a file supports expenses, the deletion confirmation states how many live ex
 
 A file can be tied to several places and bookings at once. The **Assign** pencil on a row opens the **Assign File** dialog, with the file name in the head band:
 
-The dialog also lists **Expense** links. Selecting an expense attaches the file; selecting it again detaches it while keeping the file and its other links. This requires both file editing and Costs editing permissions, and a connection. The same file may be attached to several expenses.
-
 - **Note** at the top takes a short description of the file. It is saved when you leave the field or press Enter, and shows under the file name in the list.
 - **Place** lists the trip's places grouped under the days they are planned on, with the day's title and date, then the places on no day under **Unassigned**.
 - **Booking** and **Transport** list the trip's bookings.
+- **Expense** lists the trip's expenses. Selecting one attaches the file; selecting it again detaches it while keeping its other links. This requires `file_edit` and a connection. The same file may be attached to several expenses.
 
 Click an entry to tie the file to it, and click it again to untie it; a tied entry is highlighted with a check mark. Every click is saved at once, so the dialog has no save button: close it when you are done.
 

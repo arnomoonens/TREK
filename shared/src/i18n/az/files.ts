@@ -81,15 +81,14 @@ const files: TranslationStrings = {
 
   'files.noteLabel': 'Qeyd',
   'files.notePlaceholder': 'Qeyd əlavə edin...',
-  'files.sourceExpense': "Xərcdən",
-  'files.assignExpense': "Xərc",
-  'files.confirm.deleteWithExpense': "Bu fayl 1 aktiv xərclə əlaqəlidir. Zibil qutusuna köçürülsün?",
-  'files.confirm.deleteWithExpenses': "Bu fayl {count} aktiv xərclə əlaqəlidir. Zibil qutusuna köçürülsün?",
-  'files.confirm.permanentDeleteWithExpense': "Bu fayl 1 aktiv xərclə əlaqəlidir. Həmişəlik silinsin?",
-  'files.confirm.permanentDeleteWithExpenses': "Bu fayl {count} aktiv xərclə əlaqəlidir. Həmişəlik silinsin?",
-  'files.offlineUnavailable': "Bu fayl oflayn rejimdə mövcud deyil. Açmaq və ya endirmək üçün internetə qoşulun.",
-  'files.offlineListUnavailable': "Fayllar hələ oflayn rejimdə mövcud deyil. Yükləmək üçün internetə qoşulun.",
-  'files.offlineReadOnly': "Oflayn rejimdə fayl əlaqələrini dəyişmək mümkün deyil.",
+  'files.sourceExpense': 'Xərcdən',
+  'files.assignExpense': 'Xərc',
+  'files.confirm.deleteWithExpense': 'Bu fayl 1 aktiv xərclə əlaqəlidir. Zibil qutusuna köçürülsün?',
+  'files.confirm.deleteWithExpenses': 'Bu fayl {count} aktiv xərclə əlaqəlidir. Zibil qutusuna köçürülsün?',
+  'files.confirm.permanentDeleteWithExpense': 'Bu fayl 1 aktiv xərclə əlaqəlidir. Həmişəlik silinsin?',
+  'files.confirm.permanentDeleteWithExpenses': 'Bu fayl {count} aktiv xərclə əlaqəlidir. Həmişəlik silinsin?',
+  'files.offlineUnavailable': 'Bu fayl oflayn rejimdə mövcud deyil. Açmaq və ya endirmək üçün internetə qoşulun.',
+  'files.offlineListUnavailable': 'Fayllar hələ oflayn rejimdə mövcud deyil. Yükləmək üçün internetə qoşulun.',
 };
 
 export default files;

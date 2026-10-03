@@ -175,6 +175,64 @@ describe('Expense attachments e2e', () => {
       .toEqual({ budget_item_id: null, reservation_id: reservationId, place_id: placeId });
   });
 
+  it('uses budget_edit for receipt_file_ids without requiring file_edit', async () => {
+    checkPermission.mockImplementation((action: string) => action === 'budget_edit');
+    const allowed = await request(server)
+      .post(`/api/trips/${tripId}/budget`)
+      .set('Cookie', sessionCookie(1))
+      .send({ name: 'Allowed receipt', total_price: 1, receipt_file_ids: [fileId] });
+    expect(allowed.status).toBe(201);
+    expect(db.prepare('SELECT budget_item_id FROM file_links WHERE file_id = ?').get(fileId))
+      .toEqual({ budget_item_id: allowed.body.item.id });
+  });
+
+  it('broadcasts enriched receipt mutations and keeps booking/place links when receipt_file_ids clears them', async () => {
+    const created = await request(server)
+      .post(`/api/trips/${tripId}/budget`)
+      .set('Cookie', sessionCookie(1))
+      .set('X-Socket-Id', 'receipt-origin')
+      .send({ name: 'Collaborative receipt', total_price: 8, receipt_file_ids: [fileId] });
+    expect(created.status).toBe(201);
+    const receiptExpenseId = created.body.item.id as number;
+    expect(broadcast).toHaveBeenCalledWith(
+      String(tripId),
+      'file:updated',
+      expect.objectContaining({ file: expect.objectContaining({
+        id: fileId,
+        linked_budget_item_ids: [receiptExpenseId],
+        expense_attachment_created_at: expect.objectContaining({ [String(receiptExpenseId)]: expect.any(String) }),
+      }) }),
+      'receipt-origin',
+    );
+
+    db.prepare(`
+      UPDATE file_links SET reservation_id = ?, place_id = ?
+      WHERE file_id = ? AND budget_item_id = ?
+    `).run(reservationId, placeId, fileId, receiptExpenseId);
+    broadcast.mockClear();
+
+    const cleared = await request(server)
+      .put(`/api/trips/${tripId}/budget/${receiptExpenseId}`)
+      .set('Cookie', sessionCookie(1))
+      .set('X-Socket-Id', 'receipt-origin')
+      .send({ receipt_file_ids: [] });
+    expect(cleared.status).toBe(200);
+    expect(db.prepare('SELECT budget_item_id, reservation_id, place_id FROM file_links WHERE file_id = ?').get(fileId))
+      .toEqual({ budget_item_id: null, reservation_id: reservationId, place_id: placeId });
+    expect(broadcast).toHaveBeenCalledWith(
+      String(tripId),
+      'file:updated',
+      expect.objectContaining({ file: expect.objectContaining({
+        id: fileId,
+        linked_budget_item_ids: [],
+        linked_reservation_ids: [reservationId],
+        linked_place_ids: [placeId],
+        expense_attachment_created_at: {},
+      }) }),
+      'receipt-origin',
+    );
+  });
+
   it('attaches idempotently, supports one file on multiple expenses, and excludes the origin socket', async () => {
     db.prepare('INSERT INTO file_links (file_id, reservation_id) VALUES (?, ?)').run(fileId, reservationId);
     const first = await request(server)
@@ -235,17 +293,28 @@ describe('Expense attachments e2e', () => {
     expect(foreignFile.body).toEqual({ error: 'Expense or file not found' });
   });
 
-  it('requires both budget_edit and file_edit for attach and detach', async () => {
+  it('accepts either existing edit permission for the shared REST relationship', async () => {
     checkPermission.mockImplementation((action: string) => action === 'budget_edit');
     const attach = await request(server)
       .post(`/api/trips/${tripId}/budget/${secondExpenseId}/files/${fileId}`)
       .set('Cookie', sessionCookie(1));
-    expect(attach.status).toBe(403);
+    expect(attach.status).toBe(200);
 
     const detach = await request(server)
       .delete(`/api/trips/${tripId}/budget/${secondExpenseId}/files/${fileId}`)
       .set('Cookie', sessionCookie(1));
-    expect(detach.status).toBe(403);
+    expect(detach.status).toBe(200);
+
+    checkPermission.mockImplementation((action: string) => action === 'file_edit');
+    const filesEdit = await request(server)
+      .post(`/api/trips/${tripId}/budget/${secondExpenseId}/files/${fileId}`)
+      .set('Cookie', sessionCookie(1));
+    expect(filesEdit.status).toBe(200);
+    checkPermission.mockReturnValue(false);
+    const denied = await request(server)
+      .delete(`/api/trips/${tripId}/budget/${secondExpenseId}/files/${fileId}`)
+      .set('Cookie', sessionCookie(1));
+    expect(denied.status).toBe(403);
 
     checkPermission.mockReturnValue(true);
     const visible = await request(server)

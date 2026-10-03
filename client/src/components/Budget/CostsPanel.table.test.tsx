@@ -85,6 +85,7 @@ describe('CostsPanel table view', () => {
     const user = userEvent.setup()
     render(<CostsPanel tripId={1} tripMembers={tripMembers} />)
     const table = await screen.findByRole('table')
+    await within(table).findByRole('button', { name: 'Name: Lunch' })
     await user.click(within(table).getByRole('button', { name: 'Add expense' }))
     await waitFor(() => expect(posted).toBeTruthy())
     expect(posted).toEqual(expect.objectContaining({ name: 'New Entry', category: 'food', total_price: 0, expense_date: '2025-06-15' }))

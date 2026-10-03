@@ -40,9 +40,9 @@ describe('filesSlice', () => {
       expect(files[0].filename).toBe('fresh.pdf');
     });
 
-    it('FE-FILES-002: loadFiles silently catches errors', async () => {
+    it('FE-FILES-002: loadFiles reports failure and preserves cached files', async () => {
       const existing = buildTripFile({ trip_id: 1, filename: 'existing.pdf' });
-      seedStore(useTripStore, { files: [existing] });
+      seedStore(useTripStore, { files: [existing], filesAvailability: 'available' });
 
       server.use(
         http.get('/api/trips/1/files', () =>
@@ -50,12 +50,13 @@ describe('filesSlice', () => {
         ),
       );
 
-      // Swallows the failure instead of rejecting, and leaves the list alone
-      await expect(useTripStore.getState().loadFiles(1)).resolves.toBeUndefined();
+      // Reports a failed refresh without dropping the cached list
+      await expect(useTripStore.getState().loadFiles(1)).resolves.toBe(false);
 
       const files = useTripStore.getState().files;
       expect(files).toHaveLength(1);
       expect(files[0].filename).toBe('existing.pdf');
+      expect(useTripStore.getState().filesAvailability).toBe('available');
     });
   });
 

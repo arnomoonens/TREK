@@ -17,6 +17,8 @@ import {
   upsertBudgetItems,
   upsertReservations,
   upsertTripFiles,
+  replaceTripFiles,
+  replaceBudgetItems,
   upsertAccommodations,
   upsertTripMembers,
   upsertTags,
@@ -63,6 +65,24 @@ afterEach(async () => {
 })
 
 describe('offlineDb — bulk upsert helpers', () => {
+  it('preserves cached files if an authoritative replacement fails', async () => {
+    const cached = buildTripFile({ id: 41, trip_id: 7 })
+    await offlineDb.tripFiles.put(cached)
+    const invalid = { ...cached, id: undefined } as unknown as typeof cached
+
+    await expect(replaceTripFiles(7, [invalid])).rejects.toThrow()
+    expect(await offlineDb.tripFiles.get(41)).toEqual(cached)
+  })
+
+  it('preserves cached expenses if an authoritative replacement fails', async () => {
+    const cached = buildBudgetItem({ id: 61, trip_id: 12 })
+    await offlineDb.budgetItems.put(cached)
+    const invalid = { ...cached, id: undefined } as unknown as typeof cached
+
+    await expect(replaceBudgetItems(12, [invalid])).rejects.toThrow()
+    expect(await offlineDb.budgetItems.get(61)).toEqual(cached)
+  })
+
   it('FE-DB-OFFLINE-001: every entity helper writes into its own table', async () => {
     await upsertTrip(buildTrip({ id: 1 }))
     await upsertDays([buildDay({ id: 1, trip_id: 1 })])

@@ -44,13 +44,7 @@ export type PluginRpcHandler = (params: Record<string, unknown>, ctx: PluginRpcC
  * `method` the wire name it answers to; they are deliberately independent.
  */
 export type PluginRpcEntry =
-  | {
-      kind: 'method';
-      methodName: string;
-      method: KnownMethod;
-      permission: string;
-      additionalPermissions?: readonly string[];
-    }
+  | { kind: 'method'; methodName: string; method: KnownMethod; permission: string }
   | { kind: 'open'; methodName: string; method: UnconditionalMethod }
   | { kind: 'hook'; methodName: string; hook: HookKey; permission: string; fn: string; timeoutMs: number };
 

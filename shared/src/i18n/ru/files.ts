@@ -67,9 +67,9 @@ const files: TranslationStrings = {
   'files.confirm.deleteWithExpense': 'Этот файл связан с 1 активным расходом. Переместить его в корзину?',
   'files.confirm.deleteWithExpenses': 'Этот файл связан с {count} активными расходами. Переместить его в корзину?',
   'files.confirm.permanentDeleteWithExpense': 'Этот файл связан с 1 активным расходом. Удалить его безвозвратно?',
-  'files.confirm.permanentDeleteWithExpenses': 'Этот файл связан с {count} активными расходами. Удалить его безвозвратно?',
+  'files.confirm.permanentDeleteWithExpenses':
+    'Этот файл связан с {count} активными расходами. Удалить его безвозвратно?',
   'files.offlineUnavailable': 'Этот файл недоступен офлайн. Подключитесь к интернету, чтобы открыть или скачать его.',
   'files.offlineListUnavailable': 'Файлы пока недоступны офлайн. Подключитесь к интернету, чтобы загрузить их.',
-  'files.offlineReadOnly': 'Связи файлов нельзя изменять офлайн.',
 };
 export default files;

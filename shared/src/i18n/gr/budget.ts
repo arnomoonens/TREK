@@ -176,7 +176,8 @@ const budget: TranslationStrings = {
   'costs.splitSumOver': 'Άθροισμα μεριδίων: {sum} από {total} ({diff} παραπάνω)',
   'costs.filesForExpense': 'Αρχεία για αυτή τη δαπάνη',
   'costs.uploadFiles': 'Μεταφόρτωση',
-  'costs.filesForExpenseHint': 'Επιλέξτε υπάρχοντα αρχεία για επισύναψη. Οι λεπτομέρειες των αρχείων διαχειρίζονται στα Αρχεία.',
+  'costs.filesForExpenseHint':
+    'Επιλέξτε υπάρχοντα αρχεία για επισύναψη. Οι λεπτομέρειες των αρχείων διαχειρίζονται στα Αρχεία.',
   'costs.noFilesForExpense': 'Δεν υπάρχουν ακόμη αρχεία για αυτή τη δαπάνη.',
   'costs.expenseSaveError': 'Η δαπάνη δεν ήταν δυνατό να αποθηκευτεί. Δεν έγιναν αλλαγές στα αρχεία.',
   'costs.attachmentsSaveError': 'Η δαπάνη αποθηκεύτηκε, αλλά δεν ήταν δυνατή η ενημέρωση ορισμένων συνημμένων.',
@@ -190,7 +191,8 @@ const budget: TranslationStrings = {
   'costs.noAttachments': 'Δεν υπάρχουν αρχεία συνημμένα σε αυτή τη δαπάνη.',
   'costs.confirm.deleteBodyWithFile': 'Το «{name}» θα διαγραφεί οριστικά. Θα παραμείνει 1 συνημμένο αρχείο.',
   'costs.confirm.deleteBodyWithFiles': 'Το «{name}» θα διαγραφεί οριστικά. Θα παραμείνουν {count} συνημμένα αρχεία.',
-  'costs.attachmentsUnavailable': 'Οι λεπτομέρειες των συνημμένων δεν είναι ακόμη διαθέσιμες εκτός σύνδεσης. Συνδεθείτε για να τις φορτώσετε.',
+  'costs.attachmentsUnavailable':
+    'Οι λεπτομέρειες των συνημμένων δεν είναι ακόμη διαθέσιμες εκτός σύνδεσης. Συνδεθείτε για να τις φορτώσετε.',
   'costs.expensesUnavailable': 'Οι δαπάνες δεν είναι ακόμη διαθέσιμες εκτός σύνδεσης. Συνδεθείτε για να τις φορτώσετε.',
   'costs.toggleSign': 'Εναλλαγή μεταξύ εξόδου και επιστροφής',
   'costs.receipts': 'Αποδείξεις',

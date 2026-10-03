@@ -175,12 +175,16 @@ const budget: TranslationStrings = {
   'costs.splitSumOver': 'Som van de delen: {sum} van {total} ({diff} te veel)',
   'costs.filesForExpense': 'Bestanden voor deze uitgave',
   'costs.uploadFiles': 'Uploaden',
-  'costs.filesForExpenseHint': 'Selecteer bestaande bestanden om aan deze uitgave te koppelen. Bestandsdetails beheer je bij Bestanden.',
+  'costs.filesForExpenseHint':
+    'Selecteer bestaande bestanden om aan deze uitgave te koppelen. Bestandsdetails beheer je bij Bestanden.',
   'costs.noFilesForExpense': 'Er zijn nog geen bestanden voor deze uitgave.',
   'costs.expenseSaveError': 'De uitgave kon niet worden opgeslagen. Er zijn geen bestandswijzigingen uitgevoerd.',
-  'costs.attachmentsSaveError': 'De uitgave is opgeslagen, maar sommige bestandsbijlagen konden niet worden bijgewerkt.',
-  'costs.attachmentFailure': 'De uitgave is opgeslagen, maar één bestandsbijlage is mislukt. Probeer het hieronder opnieuw.',
-  'costs.attachmentsFailure': 'De uitgave is opgeslagen, maar {count} bestandsbijlagen zijn mislukt. Probeer het hieronder opnieuw.',
+  'costs.attachmentsSaveError':
+    'De uitgave is opgeslagen, maar sommige bestandsbijlagen konden niet worden bijgewerkt.',
+  'costs.attachmentFailure':
+    'De uitgave is opgeslagen, maar één bestandsbijlage is mislukt. Probeer het hieronder opnieuw.',
+  'costs.attachmentsFailure':
+    'De uitgave is opgeslagen, maar {count} bestandsbijlagen zijn mislukt. Probeer het hieronder opnieuw.',
   'costs.attachmentFailed': 'Bijlage mislukt',
   'costs.retryAttachment': 'Opnieuw proberen',
   'costs.attachmentCount': '{count} bijlage',
@@ -188,7 +192,8 @@ const budget: TranslationStrings = {
   'costs.attachmentsTitle': 'Bijlagen voor "{name}"',
   'costs.noAttachments': 'Aan deze uitgave zijn geen bestanden gekoppeld.',
   'costs.confirm.deleteBodyWithFile': '"{name}" wordt permanent verwijderd. 1 bijgevoegd bestand blijft behouden.',
-  'costs.confirm.deleteBodyWithFiles': '"{name}" wordt permanent verwijderd. {count} bijgevoegde bestanden blijven behouden.',
+  'costs.confirm.deleteBodyWithFiles':
+    '"{name}" wordt permanent verwijderd. {count} bijgevoegde bestanden blijven behouden.',
   'costs.attachmentsUnavailable': 'Bijlagendetails zijn nog niet offline beschikbaar. Maak verbinding om ze te laden.',
   'costs.expensesUnavailable': 'Uitgaven zijn nog niet offline beschikbaar. Maak verbinding om ze te laden.',
   'costs.toggleSign': 'Wisselen tussen uitgave en terugbetaling',

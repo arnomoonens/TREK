@@ -13,6 +13,7 @@ function makeController(overrides: Partial<Record<keyof ExpenseAttachmentsServic
   const service = {
     list: vi.fn(),
     canMutate: vi.fn(() => true),
+    canEditFiles: vi.fn(() => false),
     attach: vi.fn(),
     detach: vi.fn(),
     ...overrides,
@@ -48,7 +49,7 @@ describe('ExpenseAttachmentsController', () => {
     });
   });
 
-  it('requires both mutation permissions before attaching', () => {
+  it('requires an existing Costs or Files edit permission before attaching', () => {
     const { controller, service } = makeController({ canMutate: vi.fn(() => false) });
 
     expect(thrown(() => controller.attach(user, trip, '5', '12', '8'))).toEqual({
@@ -56,6 +57,14 @@ describe('ExpenseAttachmentsController', () => {
       body: { error: 'No permission' },
     });
     expect(service.attach).not.toHaveBeenCalled();
+  });
+
+  it('allows the Files edit permission without the Costs edit permission', () => {
+    const { controller, service } = makeController({
+      canMutate: vi.fn(() => false), canEditFiles: vi.fn(() => true), attach: vi.fn(() => file),
+    });
+    expect(controller.attach(user, trip, '5', '12', '8')).toEqual({ file });
+    expect(service.attach).toHaveBeenCalledWith('5', '12', '8', undefined);
   });
 
   it('forwards the socket id and returns the attached file', () => {

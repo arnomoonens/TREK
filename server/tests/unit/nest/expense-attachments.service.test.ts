@@ -35,12 +35,12 @@ function makeService() {
 }
 
 describe('ExpenseAttachmentsService', () => {
-  it('requires both budget and file permissions', () => {
+  it('uses the existing Costs edit permission', () => {
     const { service, permissions } = makeService();
 
     expect(service.canMutate(trip, user)).toBe(true);
     expect(permissions.checkPermission).toHaveBeenNthCalledWith(1, 'budget_edit', 'user', 42, 7, true);
-    expect(permissions.checkPermission).toHaveBeenNthCalledWith(2, 'file_edit', 'user', 42, 7, true);
+    expect(permissions.checkPermission).toHaveBeenCalledTimes(1);
   });
 
   it('lists attached live Files from the batch-enriched trip collection', () => {

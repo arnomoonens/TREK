@@ -68,9 +68,9 @@ const files: TranslationStrings = {
   'files.confirm.deleteWithExpense': 'Ten plik jest powiązany z 1 aktywnym wydatkiem. Przenieść go do kosza?',
   'files.confirm.deleteWithExpenses': 'Ten plik jest powiązany z {count} aktywnymi wydatkami. Przenieść go do kosza?',
   'files.confirm.permanentDeleteWithExpense': 'Ten plik jest powiązany z 1 aktywnym wydatkiem. Usunąć go trwale?',
-  'files.confirm.permanentDeleteWithExpenses': 'Ten plik jest powiązany z {count} aktywnymi wydatkami. Usunąć go trwale?',
+  'files.confirm.permanentDeleteWithExpenses':
+    'Ten plik jest powiązany z {count} aktywnymi wydatkami. Usunąć go trwale?',
   'files.offlineUnavailable': 'Ten plik jest niedostępny offline. Połącz się, aby go otworzyć lub pobrać.',
   'files.offlineListUnavailable': 'Pliki nie są jeszcze dostępne offline. Połącz się, aby je wczytać.',
-  'files.offlineReadOnly': 'Powiązań plików nie można zmieniać offline.',
 };
 export default files;

@@ -18,7 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  HOOK_PERMISSION, KNOWN_METHODS, KNOWN_PERMISSIONS, METHOD_ADDITIONAL_PERMISSIONS, METHOD_PERMISSION,
+  HOOK_PERMISSION, KNOWN_METHODS, KNOWN_PERMISSIONS, METHOD_PERMISSION,
   EVENTS_PERMISSION, JOBS_PERMISSION, USER_DATA_PERMISSION, HTTP_OUTBOUND_PREFIX,
 } from '../src/nest/plugins/protocol/envelope';
 import { SNAPSHOT_GRANT, ENTITY_ID_KEYS } from '../src/plugin-event-sink';
@@ -42,8 +42,6 @@ const HEADER = [
 const list = (xs: readonly string[]) => xs.map((x) => `  '${x}',`).join('\n');
 const pairs = (o: Readonly<Record<string, string>>) =>
   Object.entries(o).map(([k, v]) => `  ${/^[A-Za-z_$][\w$]*$/.test(k) ? k : `'${k}'`}: '${v}',`).join('\n');
-const arrayPairs = (o: Readonly<Record<string, readonly string[]>>) =>
-  Object.entries(o).map(([k, values]) => `  ${/^[A-Za-z_$][\w$]*$/.test(k) ? k : `'${k}'`}: [${values.map((value) => `'${value}'`).join(', ')}],`).join('\n');
 
 /**
  * Types here are deliberately WIDE — Readonly<Record<string, string>> and string[] —
@@ -66,10 +64,6 @@ ${list(KNOWN_PERMISSIONS)}
 
 export const METHOD_PERMISSION: Readonly<Record<string, string>> = {
 ${pairs(METHOD_PERMISSION)}
-};
-
-export const METHOD_ADDITIONAL_PERMISSIONS: Readonly<Record<string, readonly string[]>> = {
-${arrayPairs(METHOD_ADDITIONAL_PERMISSIONS)}
 };
 
 export const KNOWN_METHODS: string[] = [

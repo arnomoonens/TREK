@@ -1,5 +1,6 @@
-import { z } from 'zod';
 import { tripFileSchema } from '../file/file.schema';
+
+import { z } from 'zod';
 
 export const expenseAttachmentListResponseSchema = z.object({
   files: z.array(tripFileSchema),

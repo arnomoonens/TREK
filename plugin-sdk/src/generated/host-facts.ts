@@ -210,12 +210,6 @@ export const METHOD_PERMISSION: Readonly<Record<string, string>> = {
   'scheduler.cancel': 'jobs:run',
 };
 
-export const METHOD_ADDITIONAL_PERMISSIONS: Readonly<Record<string, readonly string[]>> = {
-  'costs.listFiles': ['db:read:files'],
-  'costs.attachFile': ['db:write:files'],
-  'costs.detachFile': ['db:write:files'],
-};
-
 export const KNOWN_METHODS: string[] = [
   'db.exec',
   'db.query',

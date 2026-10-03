@@ -13,7 +13,7 @@ export function AssignModal(S: FileManagerState) {
   const [busyExpenseId, setBusyExpenseId] = useState<number | null>(null)
   const labelId = useId()
   const close = () => setAssignFileId(null)
-  const canAttachExpenses = can('budget_edit', trip) && can('file_edit', trip)
+  const canAttachExpenses = can('file_edit', trip)
   return (
     <DialogShell
       onClose={close}

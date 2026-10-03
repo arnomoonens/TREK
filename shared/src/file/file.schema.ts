@@ -44,30 +44,32 @@ export const fileLinkRequestSchema = z.object({
 export type FileLinkRequest = z.infer<typeof fileLinkRequestSchema>;
 
 /** The JSON representation returned by trip-file and expense-attachment reads. */
-export const tripFileSchema = z.object({
-  id: z.number().int().positive(),
-  trip_id: z.number().int().positive(),
-  place_id: nullableResponseIdField,
-  reservation_id: nullableResponseIdField,
-  note_id: nullableResponseIdField,
-  uploaded_by: nullableResponseIdField,
-  uploaded_by_name: z.string().nullable().optional(),
-  uploaded_by_avatar: z.string().nullable().optional(),
-  filename: z.string(),
-  original_name: z.string(),
-  file_size: z.number().nullable().optional(),
-  mime_type: z.string().nullable().optional(),
-  description: z.string().nullable().optional(),
-  starred: z.number().optional(),
-  deleted_at: z.string().nullable().optional(),
-  created_at: z.string().optional(),
-  reservation_title: z.string().nullable().optional(),
-  linked_reservation_ids: z.array(z.number().nullable()).optional(),
-  linked_place_ids: z.array(z.number().nullable()).optional(),
-  linked_budget_item_ids: z.array(z.number().int().positive()).optional(),
-  expense_attachment_created_at: z.record(z.string(), z.string()).optional(),
-  url: z.string(),
-}).passthrough();
+export const tripFileSchema = z
+  .object({
+    id: z.number().int().positive(),
+    trip_id: z.number().int().positive(),
+    place_id: nullableResponseIdField,
+    reservation_id: nullableResponseIdField,
+    note_id: nullableResponseIdField,
+    uploaded_by: nullableResponseIdField,
+    uploaded_by_name: z.string().nullable().optional(),
+    uploaded_by_avatar: z.string().nullable().optional(),
+    filename: z.string(),
+    original_name: z.string(),
+    file_size: z.number().nullable().optional(),
+    mime_type: z.string().nullable().optional(),
+    description: z.string().nullable().optional(),
+    starred: z.number().optional(),
+    deleted_at: z.string().nullable().optional(),
+    created_at: z.string().optional(),
+    reservation_title: z.string().nullable().optional(),
+    linked_reservation_ids: z.array(z.number().nullable()).optional(),
+    linked_place_ids: z.array(z.number().nullable()).optional(),
+    linked_budget_item_ids: z.array(z.number().int().positive()).optional(),
+    expense_attachment_created_at: z.record(z.string(), z.string()).optional(),
+    url: z.string(),
+  })
+  .passthrough();
 export type TripFileResponse = z.infer<typeof tripFileSchema>;
 
 /** Variants the photo streaming endpoints accept. */

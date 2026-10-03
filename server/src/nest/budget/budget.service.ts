@@ -7,6 +7,7 @@ import { avatarUrl } from '../common/avatarUrl';
 import { byCodeUnit } from '../common/compare';
 import type { User, BudgetItem, BudgetItemMember, BudgetItemPayer, BudgetItemReceipt } from '../../types';
 import { ExchangeRatesService } from './exchange-rates.service';
+import { getFileResponses } from '../files/file-response';
 
 type Trip = TripAccess;
 
@@ -302,6 +303,21 @@ export class BudgetService {
       } else {
         this.db.run('DELETE FROM file_links WHERE id = ?', row.id);
       }
+    }
+  }
+
+  private broadcastReceiptFileChanges(
+    tripId: string | number,
+    before: readonly number[],
+    after: readonly number[],
+    socketId?: string,
+  ): void {
+    const beforeIds = new Set(before);
+    const afterIds = new Set(after);
+    const changedIds = [...new Set([...before, ...after])]
+      .filter(id => beforeIds.has(id) !== afterIds.has(id));
+    for (const file of getFileResponses(this.db, changedIds, tripId)) {
+      this.broadcast(String(tripId), 'file:updated', { file }, socketId);
     }
   }
 
@@ -1607,14 +1623,25 @@ export class BudgetService {
     return this.calculateSettlement(tripId, { base: effectiveBase, rates, tripCurrency: trip, baseRate });
   }
 
-  async create(tripId: string, data: Parameters<BudgetService['createBudgetItem']>[1] & { fallback_fx?: BudgetFallbackFx }) {
+  async create(tripId: string, data: Parameters<BudgetService['createBudgetItem']>[1] & { fallback_fx?: BudgetFallbackFx }, socketId?: string) {
     await this.freezeForeignRate(tripId, data);
-    return this.createBudgetItem(tripId, data);
+    const item = this.createBudgetItem(tripId, data);
+    if (data.receipt_file_ids?.length) {
+      this.broadcastReceiptFileChanges(tripId, [], item.receipts?.map(receipt => receipt.id) ?? [], socketId);
+    }
+    return item;
   }
 
-  async update(id: string | number, tripId: string | number, data: Parameters<BudgetService['updateBudgetItem']>[2] & { fallback_fx?: BudgetFallbackFx }) {
+  async update(id: string | number, tripId: string | number, data: Parameters<BudgetService['updateBudgetItem']>[2] & { fallback_fx?: BudgetFallbackFx }, socketId?: string) {
+    const beforeReceiptIds = data.receipt_file_ids === undefined
+      ? undefined
+      : this.getBudgetItem(id, tripId)?.receipts?.map(receipt => receipt.id) ?? [];
     await this.freezeForeignRate(tripId, data, id);
-    return this.updateBudgetItem(id, tripId, data);
+    const item = this.updateBudgetItem(id, tripId, data);
+    if (item && beforeReceiptIds !== undefined) {
+      this.broadcastReceiptFileChanges(tripId, beforeReceiptIds, item.receipts?.map(receipt => receipt.id) ?? [], socketId);
+    }
+    return item;
   }
 
   remove(id: string, tripId: string): boolean {

@@ -71,21 +71,21 @@ test('manages an Expense/File link across Files, trash, restore, and deletion', 
   await expect(page.getByText(seeded.fileName, { exact: true })).toBeVisible()
   await expect(page.getByText(`From Expense · ${seeded.expenseName}`, { exact: true })).toBeVisible()
 
-  await page.getByTitle('Assign').click()
+  await page.getByRole('button', { name: 'Assign', exact: true }).click()
   await expect(page.getByText('Expense', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: seeded.expenseName, exact: true })).toHaveAttribute('aria-pressed', 'true')
   await toggleExpenseLink(page, seeded, 'DELETE', 'false')
   await toggleExpenseLink(page, seeded, 'POST', 'true')
   await page.getByRole('button', { name: 'Close' }).click()
 
-  const fileRow = page.locator('.file-actions').first()
+  const fileDeleteButton = page.getByRole('button', { name: 'Delete', exact: true })
   const liveDeleteResponse = page.waitForResponse(response =>
     response.url().includes(`/api/trips/${seeded.tripId}/files/${seeded.fileId}`)
       && response.request().method() === 'DELETE',
   )
   await acceptBrowserConfirm(
     page,
-    () => fileRow.getByTitle('Delete').click(),
+    () => fileDeleteButton.click(),
     '1 live Expense',
   )
   expect((await liveDeleteResponse).ok()).toBeTruthy()
@@ -107,7 +107,7 @@ test('manages an Expense/File link across Files, trash, restore, and deletion', 
     response.url().includes(`/api/trips/${seeded.tripId}/files/${seeded.fileId}/restore`)
       && response.request().method() === 'POST',
   )
-  await page.getByTitle('Restore').click()
+  await page.getByRole('button', { name: 'Restore', exact: true }).click()
   expect((await restoreResponse).ok()).toBeTruthy()
   await expect(page.getByText(seeded.fileName, { exact: true })).not.toBeVisible()
 
@@ -120,11 +120,9 @@ test('manages an Expense/File link across Files, trash, restore, and deletion', 
   const expenseRow = page.locator('.exp-row').filter({ hasText: seeded.expenseName }).first()
   await expect(expenseRow).toBeVisible()
   await expect(expenseRow.getByRole('button', { name: '1 attachment', exact: true })).toBeVisible()
-  await acceptBrowserConfirm(
-    page,
-    () => page.locator('.exp-actions button[title="Delete"]').first().click(),
-    '1 attached File',
-  )
+  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  await expect(page.getByText(/1 attached File/)).toBeVisible()
+  await page.getByRole('button', { name: 'Delete', exact: true }).last().click()
   await expect(expenseRow).not.toBeVisible()
 
   await page.goto(`/trips/${seeded.tripId}/files`)
@@ -134,14 +132,14 @@ test('manages an Expense/File link across Files, trash, restore, and deletion', 
 
   await acceptBrowserConfirm(
     page,
-    () => page.locator('.file-actions').first().getByTitle('Delete').click(),
+    () => page.getByRole('button', { name: 'Delete', exact: true }).click(),
     'Are you sure you want to delete this file?',
   )
   await page.getByRole('button', { name: 'Trash', exact: true }).click()
   await expect(page.getByText(seeded.fileName, { exact: true })).toBeVisible()
   await acceptBrowserConfirm(
     page,
-    () => page.getByTitle('Delete').click(),
+    () => page.getByRole('button', { name: 'Delete', exact: true }).click(),
     'Permanently delete this file?',
   )
   await expect(page.getByText(seeded.fileName, { exact: true })).not.toBeVisible()

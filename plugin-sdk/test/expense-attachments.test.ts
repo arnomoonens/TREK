@@ -36,10 +36,10 @@ describe('plugin SDK Expense attachment surface', () => {
     expect(await host.ctx.costs.listFiles(1, 10)).toEqual([file]);
   });
 
-  it('requires both capability grants, trip access, and app edit rights', async () => {
+  it('requires the Costs capability grant, trip access, and app edit rights', async () => {
     const fixture = { actingUserId: 42, trips: { 1: { members: [42], costs: [{ id: 9 }], files: [{ id: 3 }] } } };
     await expect(createMockHost({ ...fixture, grants: ['db:read:costs'] }).ctx.costs.listFiles(1, 9))
-      .rejects.toThrow(/PERMISSION_DENIED/);
+      .resolves.toEqual([]);
     await expect(createMockHost({ ...fixture, grants: ['db:read:files'] }).ctx.costs.listFiles(1, 9))
       .rejects.toThrow(/PERMISSION_DENIED/);
     await expect(createMockHost({ ...fixture, grants: ['db:write:costs', 'db:write:files'], actingUserId: 99 }).ctx.costs.attachFile(1, 9, 3))
@@ -53,7 +53,7 @@ describe('plugin SDK Expense attachment surface', () => {
       ...fixture,
       grants: ['db:write:costs', 'db:write:files'],
       trips: { 1: { members: [42], costs: [{ id: 9 }], files: [{ id: 3 }], can: { file_edit: false } } },
-    }).ctx.costs.attachFile(1, 9, 3)).rejects.toThrow(/RESOURCE_FORBIDDEN/);
+    }).ctx.costs.attachFile(1, 9, 3)).resolves.toMatchObject({ id: 3 });
   });
 
   it('keeps binary upload on files.create before attaching its returned File', async () => {

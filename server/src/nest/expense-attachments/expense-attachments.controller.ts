@@ -62,7 +62,7 @@ export class ExpenseAttachmentsController {
   }
 
   private assertMutation(trip: TripAccess, user: User): void {
-    if (!this.attachments.canMutate(trip, user)) {
+    if (!this.attachments.canMutate(trip, user) && !this.attachments.canEditFiles(trip, user)) {
       throw new HttpException({ error: 'No permission' }, 403);
     }
   }

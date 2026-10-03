@@ -1,6 +1,6 @@
 import {
   KNOWN_METHODS,
-  methodPermissions,
+  METHOD_PERMISSION,
   type KnownMethod,
   type RpcError,
   type RpcRequest,
@@ -24,7 +24,7 @@ export { BadParams, ForbiddenResource };
  * plugin cannot "call it anyway" — there is no shared object, only messages, and
  * the host is the sole holder of the trek.db handle and the broadcast fns.
  *
- * The handlers themselves no longer live here. Every one of the 117 wire methods is
+ * The handlers themselves no longer live here. Every one of the 113 wire methods is
  * a `@PluginMethod` / `@PluginOpenMethod` on a `@PluginController()` provider in its
  * own domain, and the registry binds the granted subset into the map below. What is
  * left is the part that was never domain-specific: build the map, dispatch into it,
@@ -124,7 +124,7 @@ export class PluginRpcHost {
         req.id,
         known ? 'PERMISSION_DENIED' : 'UNKNOWN_METHOD',
         known
-          ? this.missingPermissionMessage(req.method as KnownMethod)
+          ? `${req.method} requires the "${(METHOD_PERMISSION as Record<string, string>)[req.method]}" permission, which was not granted to plugin "${this.pluginId}"`
           : `unknown method ${req.method}`,
       );
     }
@@ -140,14 +140,6 @@ export class PluginRpcHost {
 
   private err(id: string, code: RpcError['error']['code'], message: string): RpcError {
     return { k: 'res', id, ok: false, error: { code, message } };
-  }
-
-  private missingPermissionMessage(method: KnownMethod): string {
-    const permissions = methodPermissions(method);
-    const requirement = permissions.length === 1
-      ? `the "${permissions[0]}" permission`
-      : `${permissions.map((permission) => `"${permission}"`).join(' and ')} permissions`;
-    return `${method} requires ${requirement}, which was not granted to plugin "${this.pluginId}"`;
   }
 
   /** Release host-held resources (the plugin's own db handle) on terminal stop. */

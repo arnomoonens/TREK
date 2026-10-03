@@ -263,7 +263,7 @@ export class FilesController {
   @UseGuards(TripAccessGuard)
   @Post(':id/link')
   @HttpCode(200) // Express answers link with res.json (200).
-  link(@CurrentUser() user: User, @Trip() trip: TripAccess, @Param('tripId') tripId: string, @Param('id') id: string, @Body() body: FileLinkDto) {
+  link(@CurrentUser() user: User, @Trip() trip: TripAccess, @Param('tripId') tripId: string, @Param('id') id: string, @Body() body: FileLinkDto, @Headers('x-socket-id') socketId?: string) {
     if (!this.files.can('file_edit', trip, user)) {
       throw new HttpException({ error: 'No permission' }, 403);
     }
@@ -272,13 +272,18 @@ export class FilesController {
       throw new HttpException({ error: 'File not found' }, 404);
     }
     this.assertLinkTargets(tripId, { reservation_id: body.reservation_id, assignment_id: body.assignment_id, place_id: body.place_id, budget_item_id: body.budget_item_id });
+    const before = this.files.getFileResponse(id, tripId);
     const links = this.files.createFileLink(id, { reservation_id: body.reservation_id, assignment_id: body.assignment_id, place_id: body.place_id, budget_item_id: body.budget_item_id });
+    if (body.budget_item_id != null && !before?.linked_budget_item_ids?.includes(Number(body.budget_item_id))) {
+      const updated = this.files.getFileResponse(id, tripId);
+      if (updated) this.files.broadcast(tripId, 'file:updated', { file: updated }, socketId);
+    }
     return { success: true, links };
   }
 
   @UseGuards(TripAccessGuard)
   @Delete(':id/link/:linkId')
-  unlink(@CurrentUser() user: User, @Trip() trip: TripAccess, @Param('tripId') tripId: string, @Param('id') id: string, @Param('linkId') linkId: string) {
+  unlink(@CurrentUser() user: User, @Trip() trip: TripAccess, @Param('tripId') tripId: string, @Param('id') id: string, @Param('linkId') linkId: string, @Headers('x-socket-id') socketId?: string) {
     if (!this.files.can('file_edit', trip, user)) {
       throw new HttpException({ error: 'No permission' }, 403);
     }
@@ -289,7 +294,11 @@ export class FilesController {
     if (!file) {
       throw new HttpException({ error: 'File not found' }, 404);
     }
-    this.files.deleteFileLink(linkId, id);
+    const deleted = this.files.deleteFileLink(linkId, id);
+    if (deleted?.budget_item_id != null) {
+      const updated = this.files.getFileResponse(id, tripId);
+      if (updated) this.files.broadcast(tripId, 'file:updated', { file: updated }, socketId);
+    }
     return { success: true };
   }
 

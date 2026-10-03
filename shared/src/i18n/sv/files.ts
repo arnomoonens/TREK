@@ -65,11 +65,12 @@ const files: TranslationStrings = {
   'files.sourceExpense': 'Från utgift',
   'files.assignExpense': 'Utgift',
   'files.confirm.deleteWithExpense': 'Den här filen är kopplad till 1 aktiv utgift. Flytta den till papperskorgen?',
-  'files.confirm.deleteWithExpenses': 'Den här filen är kopplad till {count} aktiva utgifter. Flytta den till papperskorgen?',
+  'files.confirm.deleteWithExpenses':
+    'Den här filen är kopplad till {count} aktiva utgifter. Flytta den till papperskorgen?',
   'files.confirm.permanentDeleteWithExpense': 'Den här filen är kopplad till 1 aktiv utgift. Ta bort den permanent?',
-  'files.confirm.permanentDeleteWithExpenses': 'Den här filen är kopplad till {count} aktiva utgifter. Ta bort den permanent?',
+  'files.confirm.permanentDeleteWithExpenses':
+    'Den här filen är kopplad till {count} aktiva utgifter. Ta bort den permanent?',
   'files.offlineUnavailable': 'Den här filen är inte tillgänglig offline. Anslut för att öppna eller ladda ner den.',
   'files.offlineListUnavailable': 'Filer är ännu inte tillgängliga offline. Anslut för att läsa in dem.',
-  'files.offlineReadOnly': 'Filrelationer kan inte ändras offline.',
 };
 export default files;

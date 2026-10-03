@@ -269,19 +269,19 @@ export interface PluginContext {
     delete(tripId: number, dayId: number, noteId: number): Promise<{ deleted: boolean }>;
   };
   // "Costs" = budget items. Reads are membership-checked against the current
-  // invocation's user (like `trips`); `create` additionally needs the acting
-  // user's 'budget_edit' permission and the Costs addon enabled.
+  // invocation's user (like `trips`); writes additionally need the acting
+  // user's 'budget_edit' permission and the Costs addon.
   costs: {
     getByTrip(tripId: number): Promise<unknown[]>;
     listMine(): Promise<unknown[]>;
     create(tripId: number, input: Record<string, unknown>): Promise<unknown>;
     update(tripId: number, itemId: number, input: Record<string, unknown>): Promise<unknown>;
     delete(tripId: number, itemId: number): Promise<{ deleted: boolean }>;
-    /** List live Files attached to an Expense. Needs 'db:read:costs' + 'db:read:files'. */
+    /** List live Files attached to an Expense. Needs 'db:read:costs'. */
     listFiles(tripId: number, expenseId: number): Promise<unknown[]>;
-    /** Attach an existing live File. Needs 'db:write:costs' + 'db:write:files', budget_edit and file_edit. */
+    /** Attach an existing live File. Needs 'db:write:costs' and budget_edit. */
     attachFile(tripId: number, expenseId: number, fileId: number): Promise<unknown>;
-    /** Detach an existing File. Needs 'db:write:costs' + 'db:write:files', budget_edit and file_edit. */
+    /** Detach an existing File. Needs 'db:write:costs' and budget_edit. */
     detachFile(tripId: number, expenseId: number, fileId: number): Promise<unknown>;
   };
   // Core planner writes (#1429). Each is membership-checked against the current

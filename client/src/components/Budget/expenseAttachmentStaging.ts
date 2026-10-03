@@ -1,8 +1,5 @@
-import { useState } from 'react'
 import type { TripFile } from '../../types'
 import { filesForExpense } from './expenseAttachmentUtils'
-
-let nextStagedUploadId = 0
 
 export interface ExpenseStagedUpload {
   id: string
@@ -36,54 +33,6 @@ export function expenseAttachmentOperationKey(
   return `${kind}:${identifier}`
 }
 
-function createStagedUploadId(): string {
-  nextStagedUploadId += 1
-  return `staged-upload-${nextStagedUploadId}`
-}
-
-export function useExpenseFileStaging(
-  canAttachFiles: boolean,
-  canUploadFiles: boolean,
-) {
-  const [stagedUploads, setStagedUploads] = useState<ExpenseStagedUpload[]>([])
-
-  const addStagedUploads = (newFiles: File[]) => {
-    if (!canAttachFiles || !canUploadFiles) return
-    setStagedUploads((previous) => [
-      ...previous,
-      ...newFiles.map((file) => ({ id: createStagedUploadId(), file })),
-    ])
-  }
-
-  const removeStagedUpload = (index: number) => {
-    if (!canAttachFiles || !canUploadFiles) return
-    setStagedUploads((previous) =>
-      previous.filter((_, currentIndex) => currentIndex !== index),
-    )
-  }
-
-  const markStagedUpload = (file: File, uploadedFile: TripFile) => {
-    setStagedUploads((previous) =>
-      previous.map((staged) =>
-        staged.file === file ? { ...staged, uploadedFile } : staged,
-      ),
-    )
-  }
-
-  const removeStagedUploadFile = (file: File) => {
-    setStagedUploads((previous) =>
-      previous.filter((staged) => staged.file !== file),
-    )
-  }
-
-  return {
-    stagedUploads,
-    addStagedUploads,
-    removeStagedUpload,
-    markStagedUpload,
-    removeStagedUploadFile,
-  }
-}
 
 export function mergeExpenseAttachmentResult(
   previousFailures: readonly ExpenseAttachmentFailure[],
@@ -102,26 +51,6 @@ export function mergeExpenseAttachmentResult(
     seenKeys.add(failure.key)
     return true
   })
-}
-
-export function useExpenseAttachmentRecovery() {
-  const [attachmentFailures, setAttachmentFailures] = useState<ExpenseAttachmentFailure[]>([])
-
-  const recordResult = (result: ExpenseAttachmentSaveResult) => {
-    setAttachmentFailures((previous) => mergeExpenseAttachmentResult(previous, result))
-  }
-
-  const forgetStagedUpload = (stagedUploadId: string) => {
-    setAttachmentFailures((previous) =>
-      previous.filter((failure) => failure.stagedUploadId !== stagedUploadId),
-    )
-  }
-
-  return {
-    attachmentFailures,
-    recordResult,
-    forgetStagedUpload,
-  }
 }
 
 type AddFile = (

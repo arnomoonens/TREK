@@ -49,10 +49,10 @@ type TFn = (key: string, params?: Record<string, string | number>) => string
  * exported desktop equivalent existed for it).
  */
 export default function MCostsTab({ planner, shell }: MTabScreenProps) {
-  const { t, tripId, trip, tripMembers, budgetItems, files, days, toast, filesAvailability } = planner
+  const { t, tripId, trip, tripMembers, budgetItems, budgetAvailability, files, days, toast, filesAvailability } = planner
   const { locale } = useTranslation()
   const canEdit = planner.can('budget_edit', trip)
-  const canAttachFiles = canEdit && planner.can('file_edit', trip)
+  const canAttachFiles = canEdit
   const canUploadFiles = canAttachFiles && planner.can('file_upload', trip)
   const me = useAuthStore(s => s.user?.id ?? -1)
 
@@ -554,7 +554,9 @@ export default function MCostsTab({ planner, shell }: MTabScreenProps) {
       })}
 
       {groups.length === 0 && (
-        budgetItems.length === 0 ? (
+        budgetItems.length === 0 && budgetAvailability === 'unavailable' ? (
+          <p role="status" className="py-12 text-center font-geist text-[0.8125rem] text-m-muted">{t('costs.expensesUnavailable')}</p>
+        ) : budgetItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <MDancingTrek scene="costs" className="mb-2" />
             <p className="font-geist text-[0.8125rem] font-medium text-m-muted">{t('costs.emptyText')}</p>

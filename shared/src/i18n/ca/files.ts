@@ -66,11 +66,14 @@ const files: TranslationStrings = {
   'files.sourceExpense': 'De la despesa',
   'files.assignExpense': 'Despesa',
   'files.confirm.deleteWithExpense': "Aquest fitxer està vinculat a 1 despesa activa. Vols moure'l a la paperera?",
-  'files.confirm.deleteWithExpenses': "Aquest fitxer està vinculat a {count} despeses actives. Vols moure'l a la paperera?",
-  'files.confirm.permanentDeleteWithExpense': "Aquest fitxer està vinculat a 1 despesa activa. Vols eliminar-lo definitivament?",
-  'files.confirm.permanentDeleteWithExpenses': "Aquest fitxer està vinculat a {count} despeses actives. Vols eliminar-lo definitivament?",
+  'files.confirm.deleteWithExpenses':
+    "Aquest fitxer està vinculat a {count} despeses actives. Vols moure'l a la paperera?",
+  'files.confirm.permanentDeleteWithExpense':
+    'Aquest fitxer està vinculat a 1 despesa activa. Vols eliminar-lo definitivament?',
+  'files.confirm.permanentDeleteWithExpenses':
+    'Aquest fitxer està vinculat a {count} despeses actives. Vols eliminar-lo definitivament?',
   'files.offlineUnavailable': "Aquest fitxer no està disponible sense connexió. Connecta't per obrir-lo o baixar-lo.",
-  'files.offlineListUnavailable': "Els fitxers encara no estan disponibles sense connexió. Connecta't per carregar-los.",
-  'files.offlineReadOnly': 'Les relacions dels fitxers no es poden canviar sense connexió.',
+  'files.offlineListUnavailable':
+    "Els fitxers encara no estan disponibles sense connexió. Connecta't per carregar-los.",
 };
 export default files;

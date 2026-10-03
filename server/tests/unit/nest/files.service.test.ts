@@ -61,6 +61,7 @@ import { createUser, createTrip, addTripMember, createPlace, createReservation, 
 import { DatabaseService, type TripAccess } from '../../../src/nest/database/database.service';
 import type { PermissionsService } from '../../../src/nest/permissions/permissions.service';
 import { FilesService } from '../../../src/nest/files/files.service';
+import { getFileResponses } from '../../../src/nest/files/file-response';
 import { AllowedFileTypesService } from '../../../src/nest/files/allowed-file-types.service';
 import {
   DEFAULT_ALLOWED_EXTENSIONS,
@@ -82,6 +83,13 @@ const svc = new FilesService(new DatabaseService(testDb), permissionsStub, new R
 beforeAll(() => {
   createTables(testDb);
   runMigrations(testDb);
+});
+
+it('returns an empty file snapshot batch without issuing SQL for an empty ID set', () => {
+  const database = new DatabaseService(testDb);
+  const all = vi.spyOn(database, 'all');
+  expect(getFileResponses(database, [], 1)).toEqual([]);
+  expect(all).not.toHaveBeenCalled();
 });
 
 beforeEach(() => {
@@ -301,6 +309,25 @@ describe('budget receipts', () => {
 
     svc.updateFile(file.id, file, { budget_item_id: null });
     expect(testDb.prepare('SELECT COUNT(*) c FROM file_links WHERE file_id = ? AND budget_item_id IS NOT NULL').get(file.id)).toEqual({ c: 0 });
+  });
+
+  it('FILE-SVC-044: detaching expenses preserves co-located booking/place links', () => {
+    const { user, trip } = seedTrip();
+    const item = seedItem(trip.id);
+    const reservation = createReservation(testDb, trip.id);
+    const place = createPlace(testDb, trip.id);
+    const coLocated = makeFile(trip.id, user.id);
+    const expenseOnly = makeFile(trip.id, user.id);
+    svc.createFileLink(coLocated.id, { reservation_id: reservation.id, place_id: place.id, budget_item_id: item });
+    svc.createFileLink(expenseOnly.id, { budget_item_id: item });
+
+    svc.updateFile(coLocated.id, coLocated, { budget_item_id: null });
+    svc.updateFile(expenseOnly.id, expenseOnly, { budget_item_id: null });
+
+    expect(testDb.prepare('SELECT reservation_id, place_id, budget_item_id FROM file_links WHERE file_id = ?').get(coLocated.id))
+      .toEqual({ reservation_id: reservation.id, place_id: place.id, budget_item_id: null });
+    expect(testDb.prepare('SELECT COUNT(*) AS count FROM file_links WHERE file_id = ?').get(expenseOnly.id))
+      .toEqual({ count: 0 });
   });
 
   it('FILE-SVC-043: leaving budget_item_id out touches no link', () => {
@@ -552,6 +579,18 @@ describe('createFileLink / deleteFileLink / getFileLinks', () => {
     expect(svc.getFileLinks(file.id)).toHaveLength(1);
     svc.deleteFileLink(link.id, file.id);
     expect(svc.getFileLinks(file.id)).toHaveLength(0);
+  });
+
+  it('FILE-SVC-045: deleting a link retains the existing whole-row deletion contract', () => {
+    const { user, trip } = seedTrip();
+    const reservation = createReservation(testDb, trip.id);
+    const place = createPlace(testDb, trip.id);
+    const item = Number(testDb.prepare('INSERT INTO budget_items (trip_id, name) VALUES (?, ?)').run(trip.id, 'Dinner').lastInsertRowid);
+    const file = makeFile(trip.id, user.id);
+    const [link] = svc.createFileLink(file.id, { reservation_id: reservation.id, place_id: place.id, budget_item_id: item }) as FileLinkRow[];
+
+    expect(svc.deleteFileLink(link.id, file.id)?.budget_item_id).toBe(item);
+    expect(svc.getFileLinks(file.id)).toEqual([]);
   });
 });
 

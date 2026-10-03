@@ -189,7 +189,7 @@ export class BudgetController {
   ) {
     const refusal = this.budget.linkRefusal(tripId, body);
     if (refusal) throw new HttpException({ error: refusal }, 400);
-    const item = await this.budget.create(tripId, body);
+    const item = await this.budget.create(tripId, body, socketId);
     // A booking mirrors the total of its expenses (#2084); a new one adds to it.
     if (item.reservation_id) this.budget.resyncReservationPrice(tripId, item.reservation_id, socketId);
     this.budget.broadcast(tripId, 'budget:created', { item }, socketId);
@@ -235,7 +235,7 @@ export class BudgetController {
     if (refusal) throw new HttpException({ error: refusal }, 400);
     // The booking an expense leaves also needs its price worked out again.
     const before = body.reservation_id !== undefined ? this.budget.getBudgetItem(id, tripId) : null;
-    const updated = await this.budget.update(id, tripId, body);
+    const updated = await this.budget.update(id, tripId, body, socketId);
     if (!updated) {
       throw new HttpException({ error: 'Budget item not found' }, 404);
     }

@@ -100,13 +100,13 @@ On the phone the booking, transport and place sheets carry the same block. Tap a
 
 ### Receipts and invoices
 
-An expense can carry receipts, invoices and other supporting files. **Files for this expense** in the expense editor offers **Upload** for new files and **Trip Files** for existing ones. Both allow several files, and Upload accepts the same types and size limits as Files. A file can support more than one expense.
+An expense can carry receipts, invoices and other supporting files. **Files for this expense** in the expense editor offers **Upload** for new files and **Files for this expense** for existing ones. Both allow several files, and Upload accepts the same types and size limits as Files. A file can support more than one expense.
 
 A paperclip count beside the expense opens a read-only list of its live attachments, in the list or table view and on the phone. File names, sizes and descriptions identify the evidence; images, PDFs and Markdown use the same previews as Files. Global file details are edited in Files.
 
 File selections, removals and uploads are staged until **Save**. Cancel leaves the files unchanged. Save records the expense first; if a file operation fails afterwards, the expense and successful attachments stay saved, the editor remains open, and **Retry** repeats only the failed work. An uploaded file whose attachment failed stays in Files and is reused by retry.
 
-Attaching or detaching requires both `budget_edit` and `file_edit`; uploading additionally requires `file_upload`. Removing an attachment or deleting an expense keeps the file and its other links. File deletion still requires `file_delete`. Trashing a file hides it from attachment counts; restoring it brings the links back. Cached attachment details and cached file content can be viewed offline, while attachment changes require connectivity. Duplicating a trip also copies live files attached to its expenses, once per file, with their copied booking and place links. See [Documents-and-Files](Documents-and-Files).
+Attaching or detaching from Costs requires `budget_edit`; managing those links from Files requires `file_edit`. Uploading additionally requires `file_upload`. Removing an attachment or deleting an expense keeps the file and its other links. File deletion still requires `file_delete`. Trashing a file hides it from attachment counts; restoring it brings the links back. Cached attachment details and cached file content can be viewed offline, while attachment changes require connectivity. Duplicating a trip also copies live files attached to its expenses, once per file, with their copied booking and place links. See [Documents-and-Files](Documents-and-Files).
 
 ### Scanning a receipt
 

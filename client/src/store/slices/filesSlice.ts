@@ -12,7 +12,8 @@ type SetState = StoreApi<TripStoreState>['setState']
 type GetState = StoreApi<TripStoreState>['getState']
 
 export interface FilesSlice {
-  loadFiles: (tripId: number | string) => Promise<void>
+  /** Returns false when a usable file list is unavailable; keeps the last files on failure. */
+  loadFiles: (tripId: number | string) => Promise<boolean>
   addFile: (tripId: number | string, formData: FormData) => Promise<TripFile>
   deleteFile: (tripId: number | string, id: number) => Promise<void>
   /** Links a file the trip already has to a booking, place or expense, then reloads the files. */
@@ -27,11 +28,13 @@ export const createFilesSlice = (set: SetState, get: GetState): FilesSlice => ({
       const data = await fileRepo.list(tripId)
       if (data.cacheStatus === 'unavailable') {
         set({ filesAvailability: data.cacheStatus })
-        return
+        return false
       }
       set({ files: data.files.map(normalizeTripFile), filesAvailability: data.cacheStatus })
+      return true
     } catch (err: unknown) {
       console.error('Failed to load files:', err)
+      return false
     }
   },
 

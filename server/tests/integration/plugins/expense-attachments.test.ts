@@ -113,7 +113,7 @@ describe('Expense attachment plugin RPC production harness', () => {
     expect(socketBroadcast.mock.calls.every(([tripId, event]) => tripId === String(trip.id) && event === 'file:updated')).toBe(true);
   });
 
-  it('refuses another trip, missing combined grants, and denied app permissions', async () => {
+  it('refuses another trip, missing Costs grants, and denied app permissions', async () => {
     const { user: tripOwner } = createUser(testDb);
     const { user } = createUser(testDb);
     const { user: otherUser } = createUser(testDb);
@@ -131,7 +131,7 @@ describe('Expense attachment plugin RPC production harness', () => {
     )) as RpcError;
     expect(crossTrip.error).toEqual({ code: 'RESOURCE_FORBIDDEN', message: `no access to trip ${otherTrip.id}` });
 
-    const missingFiles = (await host(['db:read:costs']).dispatch(
+    const missingFiles = (await host(['db:read:files']).dispatch(
       req('costs.listFiles', { tripId: trip.id, expenseId: expense.id }),
       user.id,
     )) as RpcError;

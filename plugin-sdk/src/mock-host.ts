@@ -2,7 +2,7 @@ import { PLUGIN_SESSION_MAX_KEYS, PLUGIN_SESSION_MAX_KEY_LENGTH, PLUGIN_SESSION_
 import type { PluginContext, PluginDefinition, PluginRequest, PluginResponse, Trip, Place, Day, Reservation, PackingItem, TripFile, BudgetItem, User, NotificationMessage, PluginActionResult, PluginSessionStorage } from './index.js';
 import { CHANNEL_EVENTS } from './manifest.js';
 import { PermissionDenied, HOOK_PERMISSION, USER_DATA_PERMISSION, EVENTS_PERMISSION, JOBS_PERMISSION } from './permissions.js';
-import { METHOD_ADDITIONAL_PERMISSIONS, METHOD_PERMISSION } from './generated/host-facts.js';
+import { METHOD_PERMISSION } from './generated/host-facts.js';
 
 /**
  * A mock PluginContext for unit-testing a plugin without a running TREK
@@ -332,9 +332,7 @@ export function createMockHost(opts: MockHostOptions = {}): MockHost {
     calls.push({ method, args: [] });
     const primary = METHOD_PERMISSION[method];
     if (!primary) throw new Error(`unknown host method: ${method}`);
-    const permissions = [primary, ...(METHOD_ADDITIONAL_PERMISSIONS[method] ?? [])];
-    const missing = permissions.find((permission) => !grants.has(permission));
-    if (missing) throw new PermissionDenied(`PERMISSION_DENIED: ${method} requires ${missing}`);
+    if (!grants.has(primary)) throw new PermissionDenied(`PERMISSION_DENIED: ${method} requires ${primary}`);
   };
   const assertMember = (tripId: number, asUserId: number) => {
     const t = opts.trips?.[tripId];
@@ -429,7 +427,6 @@ export function createMockHost(opts: MockHostOptions = {}): MockHost {
       if (t.canEditCosts === false) {
         throw new Error(`RESOURCE_FORBIDDEN: no permission to edit costs on trip ${tripId}`);
       }
-      assertRight(t, 'file_edit', tripId);
       if (!rows(t.costs).some((x) => x.id === expenseId)) {
         throw new Error(`RESOURCE_FORBIDDEN: no cost ${expenseId} on trip ${tripId}`);
       }

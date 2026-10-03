@@ -158,8 +158,8 @@ Requires `budget:read` or `budget:write` scope. The Budget addon must be enabled
 | `create_budget_item` | Add an expense with name, category, and price. |
 | `update_budget_item` | Update an expense's details, split (persons/days), or notes. `reservation_id` / `place_id` link it to a booking or place of the same trip; `null` unlinks it. |
 | `delete_budget_item` | Remove a budget item. |
-| `list_expense_files` | List the live files supporting one expense. Requires both `budget:read` and `files:read` scopes. |
-| `attach_expense_file` | Attach an existing live file from the same trip to an expense. Idempotent; requires both `budget:write` and `files:write` scopes and the Costs and Files edit permissions. |
+| `list_expense_files` | List the live files supporting one expense. Requires the `budget:read` scope. |
+| `attach_expense_file` | Attach an existing live file from the same trip to an expense. Idempotent; requires `budget:write` and the Costs edit permission. |
 | `detach_expense_file` | Remove an expense's link to a file, keeping the file and its other links. Uses the same scopes and permissions as attach; safe to repeat. |
 | `set_budget_item_members` | Set which members are splitting a budget item (replaces current list). |
 | `toggle_budget_member_paid` | Mark or unmark a member as having paid their share. |

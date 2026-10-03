@@ -20,7 +20,9 @@ function fsvc(o: Partial<FilesService> = {}): FilesService {
   return {
     verifyTripAccess: vi.fn().mockReturnValue({ user_id: 1 }),
     can: vi.fn().mockReturnValue(true),
+    getFileLink: vi.fn().mockReturnValue(undefined),
     findForeignLinkTarget: vi.fn().mockReturnValue(null),
+    getFileResponse: vi.fn(),
     broadcast: vi.fn(),
     ...o,
   } as unknown as FilesService;
@@ -90,7 +92,7 @@ describe('FilesController (parity with the legacy /api/trips/:tripId/files route
       const s = fsvc({ createFile, broadcast } as Partial<FilesService>);
       expect(await fc(s).upload(user, '5', file, { description: 'd' }, 'sock')).toEqual({ file: { id: 9 } });
       expect(storageStub.put).toHaveBeenCalledWith('files', 'a.pdf', { tmpPath: undefined });
-      expect(createFile).toHaveBeenCalledWith('5', file, 1, { place_id: undefined, description: 'd', reservation_id: undefined });
+      expect(createFile).toHaveBeenCalledWith('5', file, 1, { place_id: undefined, description: 'd', reservation_id: undefined, budget_item_id: undefined });
       expect(broadcast).toHaveBeenCalledWith('5', 'file:created', { file: { id: 9 } }, 'sock');
     });
 

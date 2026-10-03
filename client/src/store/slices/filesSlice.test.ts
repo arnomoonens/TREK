@@ -116,4 +116,19 @@ describe('filesSlice.unlinkFileFromReservation', () => {
     // The reload in finally replaced the list all the same.
     expect(useTripStore.getState().files.map(f => f.id)).toEqual([99]);
   });
+
+  it('returns a failed refresh status without replacing the cached files', async () => {
+    const cached = buildTripFile({ id: 12, trip_id: 1, original_name: 'cached.pdf' })
+    seedStore(useTripStore, { files: [cached], filesAvailability: 'available' })
+    server.use(http.get('/api/trips/1/files', () => HttpResponse.json({ error: 'Unavailable' }, { status: 500 })))
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    try {
+      expect(await useTripStore.getState().loadFiles(1)).toBe(false)
+      expect(useTripStore.getState().files).toEqual([cached])
+      expect(useTripStore.getState().filesAvailability).toBe('available')
+    } finally {
+      consoleError.mockRestore()
+    }
+  });
 });

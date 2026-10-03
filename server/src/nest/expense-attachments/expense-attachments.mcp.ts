@@ -24,10 +24,10 @@ import { ExpenseAttachmentsService } from './expense-attachments.service';
 const budgetAddonOn = addonGate(ADDON_IDS.BUDGET);
 
 const canReadExpenseFiles = (ctx: McpContext): boolean =>
-  canRead(ctx.scopes, 'budget') && canRead(ctx.scopes, 'files');
+  canRead(ctx.scopes, 'budget');
 
 const canWriteExpenseFiles = (ctx: McpContext): boolean =>
-  canWrite(ctx.scopes, 'budget') && canWrite(ctx.scopes, 'files');
+  canWrite(ctx.scopes, 'budget');
 
 /** MCP's focused Costs ↔ Files relationship surface. */
 @McpController()

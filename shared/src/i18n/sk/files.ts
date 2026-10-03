@@ -62,14 +62,14 @@ const files: TranslationStrings = {
   'files.confirm.emptyTrash': 'Trvalo zmazať všetky súbory v koši? Túto akciu nie je možné vrátiť.',
   'files.noteLabel': 'Poznámka',
   'files.notePlaceholder': 'Pridať poznámku...',
-  'files.sourceExpense': "Z výdavku",
-  'files.assignExpense': "Výdavok",
-  'files.confirm.deleteWithExpense': "Tento súbor je prepojený s 1 aktívnym výdavkom. Presunúť do koša?",
-  'files.confirm.deleteWithExpenses': "Tento súbor je prepojený s {count} aktívnymi výdavkami. Presunúť do koša?",
-  'files.confirm.permanentDeleteWithExpense': "Tento súbor je prepojený s 1 aktívnym výdavkom. Natrvalo odstrániť?",
-  'files.confirm.permanentDeleteWithExpenses': "Tento súbor je prepojený s {count} aktívnymi výdavkami. Natrvalo odstrániť?",
-  'files.offlineUnavailable': "Tento súbor nie je dostupný offline. Pripojte sa, aby ste ho otvorili alebo stiahli.",
-  'files.offlineListUnavailable': "Súbory zatiaľ nie sú dostupné offline. Pripojte sa, aby sa načítali.",
-  'files.offlineReadOnly': "Prepojenia súborov nie je možné meniť offline.",
+  'files.sourceExpense': 'Z výdavku',
+  'files.assignExpense': 'Výdavok',
+  'files.confirm.deleteWithExpense': 'Tento súbor je prepojený s 1 aktívnym výdavkom. Presunúť do koša?',
+  'files.confirm.deleteWithExpenses': 'Tento súbor je prepojený s {count} aktívnymi výdavkami. Presunúť do koša?',
+  'files.confirm.permanentDeleteWithExpense': 'Tento súbor je prepojený s 1 aktívnym výdavkom. Natrvalo odstrániť?',
+  'files.confirm.permanentDeleteWithExpenses':
+    'Tento súbor je prepojený s {count} aktívnymi výdavkami. Natrvalo odstrániť?',
+  'files.offlineUnavailable': 'Tento súbor nie je dostupný offline. Pripojte sa, aby ste ho otvorili alebo stiahli.',
+  'files.offlineListUnavailable': 'Súbory zatiaľ nie sú dostupné offline. Pripojte sa, aby sa načítali.',
 };
 export default files;

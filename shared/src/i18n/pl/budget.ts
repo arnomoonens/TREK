@@ -179,8 +179,10 @@ const budget: TranslationStrings = {
   'costs.noFilesForExpense': 'Nie ma jeszcze plików do tego wydatku.',
   'costs.expenseSaveError': 'Nie udało się zapisać wydatku. Nie zmieniono żadnych plików.',
   'costs.attachmentsSaveError': 'Wydatek został zapisany, ale nie udało się zaktualizować niektórych załączników.',
-  'costs.attachmentFailure': 'Wydatek został zapisany, ale nie udało się dodać jednego załącznika. Spróbuj ponownie poniżej.',
-  'costs.attachmentsFailure': 'Wydatek został zapisany, ale nie udało się dodać {count} załączników. Spróbuj ponownie poniżej.',
+  'costs.attachmentFailure':
+    'Wydatek został zapisany, ale nie udało się dodać jednego załącznika. Spróbuj ponownie poniżej.',
+  'costs.attachmentsFailure':
+    'Wydatek został zapisany, ale nie udało się dodać {count} załączników. Spróbuj ponownie poniżej.',
   'costs.attachmentFailed': 'Dodanie załącznika nie powiodło się',
   'costs.retryAttachment': 'Spróbuj ponownie',
   'costs.attachmentCount': '{count} załącznik',

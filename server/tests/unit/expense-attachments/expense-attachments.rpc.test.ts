@@ -42,8 +42,8 @@ function build(opts: { access?: boolean; canMutate?: boolean; addonOn?: boolean 
   return { attachments, host };
 }
 
-const READ_GRANTS = ['db:read:costs', 'db:read:files'];
-const WRITE_GRANTS = ['db:write:costs', 'db:write:files'];
+const READ_GRANTS = ['db:read:costs'];
+const WRITE_GRANTS = ['db:write:costs'];
 
 describe('ExpenseAttachmentsRpc', () => {
   it('lists through the shared attachment service after trip and addon checks', async () => {
@@ -57,23 +57,22 @@ describe('ExpenseAttachmentsRpc', () => {
     expect(f.attachments.list).toHaveBeenCalledWith(1, 12);
   });
 
-  it('requires both read grants before binding the list method', async () => {
+  it('requires the Costs read grant before binding the list method', async () => {
     const f = build();
-    for (const grants of [['db:read:costs'], ['db:read:files'], []]) {
+    for (const grants of [['db:read:files'], []]) {
       const response = (await f.host(...grants).dispatch(
         req('costs.listFiles', { tripId: 1, expenseId: 12 }),
         42,
       )) as RpcError;
       expect(response.error.code).toBe('PERMISSION_DENIED');
       expect(response.error.message).toContain('db:read:costs');
-      expect(response.error.message).toContain('db:read:files');
     }
     expect(f.attachments.list).not.toHaveBeenCalled();
   });
 
-  it('requires both write grants and delegates attach and detach', async () => {
+  it('requires the Costs write grant and delegates attach and detach', async () => {
     const f = build();
-    for (const grants of [['db:write:costs'], ['db:write:files']]) {
+    for (const grants of [['db:write:files'], []]) {
       const response = (await f.host(...grants).dispatch(
         req('costs.attachFile', { tripId: 1, expenseId: 12, fileId: 8 }),
         42,
@@ -91,7 +90,7 @@ describe('ExpenseAttachmentsRpc', () => {
     expect(f.attachments.detach).toHaveBeenCalledWith(1, 12, 8);
   });
 
-  it('refuses an inaccessible trip or a user without the combined edit rights', async () => {
+  it('refuses an inaccessible trip or a user without the Costs edit right', async () => {
     const inaccessible = build({ access: false });
     const deniedTrip = (await inaccessible.host(...WRITE_GRANTS).dispatch(
       req('costs.attachFile', { tripId: 9, expenseId: 12, fileId: 8 }), 42,

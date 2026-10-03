@@ -424,31 +424,6 @@ export const KNOWN_PERMISSIONS = [
 export type KnownPermission = (typeof KNOWN_PERMISSIONS)[number];
 
 /**
- * Some core operations cross two permission families. The primary permission
- * remains in METHOD_PERMISSION as the primary declaration; these additional
- * grants are required at registration time as well.
- */
-export const METHOD_ADDITIONAL_PERMISSIONS = {
-  'costs.listFiles': ['db:read:files'],
-  'costs.attachFile': ['db:write:files'],
-  'costs.detachFile': ['db:write:files'],
-} as const satisfies Partial<Record<KnownMethod, readonly KnownPermission[]>>;
-
-export type MethodAdditionalPermissions<M extends KnownMethod> =
-  M extends keyof typeof METHOD_ADDITIONAL_PERMISSIONS
-    ? (typeof METHOD_ADDITIONAL_PERMISSIONS)[M]
-    : readonly [];
-export type MethodWithAdditionalPermissions = keyof typeof METHOD_ADDITIONAL_PERMISSIONS;
-
-/** The complete grant set required to register one method for a plugin. */
-export function methodPermissions(method: KnownMethod): readonly string[] {
-  return [
-    METHOD_PERMISSION[method],
-    ...((METHOD_ADDITIONAL_PERMISSIONS as Partial<Record<KnownMethod, readonly string[]>>)[method] ?? []),
-  ];
-}
-
-/**
  * hooks.<key> -> the permission that must ALSO be granted for the host to ever call it.
  *
  * A plugin may only act as a provider for a hook it BOTH implements (reported by the

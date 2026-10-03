@@ -223,7 +223,8 @@ export class FilesMcp {
     if (this.auth.isDemoUser(ctx.userId)) return demoDenied();
     if (!this.files.verifyTripAccess(tripId, ctx.userId)) return noAccess();
     if (!this.guards.hasTripPermission('file_edit', tripId, ctx.userId)) return permissionDenied();
-    if (!this.files.getFileById(fileId, tripId)) return errorResult('File not found.');
+    const file = this.files.getFileById(fileId, tripId);
+    if (!file) return errorResult('File not found.');
     // The REST body allows all three to be absent and stores a link row pointing at
     // nothing. A tool caller that gets here with no target made a mistake, and saying
     // so is more useful than a success that attached the file to nothing.
@@ -232,7 +233,14 @@ export class FilesMcp {
     }
     const foreign = this.files.findForeignLinkTarget(tripId, targets);
     if (foreign) return errorResult(`Linked item does not belong to this trip (${foreign}).`);
+    const before = this.files.getFileResponse(fileId, tripId);
+    const alreadyLinked = targets.budget_item_id != null
+      && before?.linked_budget_item_ids?.includes(Number(targets.budget_item_id));
     const links = this.files.createFileLink(fileId, targets);
+    if (targets.budget_item_id != null && !alreadyLinked) {
+      const updated = this.files.getFileResponse(fileId, tripId);
+      if (updated) this.guards.safeBroadcast(tripId, 'file:updated', { file: updated });
+    }
     return ok({ success: true, links });
   }
 
@@ -258,7 +266,11 @@ export class FilesMcp {
     // against :tripId first, exactly as the REST route does it. Otherwise a member of
     // any trip could drop a link row belonging to a foreign trip's file.
     if (!this.files.getFileById(fileId, tripId)) return errorResult('File not found.');
-    this.files.deleteFileLink(linkId, fileId);
+    const deleted = this.files.deleteFileLink(linkId, fileId);
+    if (deleted?.budget_item_id != null) {
+      const updated = this.files.getFileResponse(fileId, tripId);
+      if (updated) this.guards.safeBroadcast(tripId, 'file:updated', { file: updated });
+    }
     return ok({ success: true });
   }
 

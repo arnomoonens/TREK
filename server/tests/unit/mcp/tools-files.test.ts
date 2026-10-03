@@ -499,6 +499,45 @@ describe('Tool: update_trip_file', () => {
       expect(fileRow(file.id).description).toBeNull();
     });
   });
+
+  it('uses file_edit without budget_edit to change a receipt link and preserves co-located targets', async () => {
+    const { user: owner } = createUser(testDb);
+    const { user: member } = createUser(testDb);
+    const trip = createTrip(testDb, owner.id);
+    addTripMember(testDb, trip.id, member.id);
+    const reservation = createReservation(testDb, trip.id);
+    const place = createPlace(testDb, trip.id);
+    const file = insertFile(trip.id);
+    const expenseId = Number(testDb.prepare(
+      "INSERT INTO budget_items (trip_id, name, category, total_price) VALUES (?, 'Dinner', 'food', 10)",
+    ).run(trip.id).lastInsertRowid);
+    testDb.prepare('INSERT INTO file_links (file_id, reservation_id, place_id, budget_item_id) VALUES (?, ?, ?, ?)')
+      .run(file.id, reservation.id, place.id, expenseId);
+
+    setPermission('budget_edit', 'trip_member');
+    setPermission('file_edit', 'trip_owner');
+    await withHarness(member.id, async (h) => {
+      const result = await h.client.callTool({
+        name: 'link_trip_file',
+        arguments: { tripId: trip.id, fileId: file.id, budget_item_id: expenseId },
+      });
+      expect(result.isError).toBe(true);
+    });
+
+    setPermission('budget_edit', 'trip_owner');
+    setPermission('file_edit', 'trip_member');
+    await withHarness(member.id, async (h) => {
+      const result = parseToolResult(await h.client.callTool({
+        name: 'update_trip_file',
+        arguments: { tripId: trip.id, fileId: file.id, budget_item_id: null },
+      })) as any;
+      expect(result.file.linked_budget_item_ids).toEqual([]);
+      expect(result.file.linked_reservation_ids).toEqual([reservation.id]);
+      expect(result.file.linked_place_ids).toEqual([place.id]);
+    });
+    expect(linkRows(file.id)).toMatchObject([{ budget_item_id: null, reservation_id: reservation.id, place_id: place.id }]);
+    expect(broadcastMock).toHaveBeenCalledWith(trip.id, 'file:updated', expect.objectContaining({ _source: 'mcp' }));
+  });
 });
 
 // ---------------------------------------------------------------------------

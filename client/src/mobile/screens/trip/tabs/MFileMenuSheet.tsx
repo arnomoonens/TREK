@@ -10,7 +10,7 @@ import type { TripPlanner } from '../MTripShell'
 import { Eyebrow, TileHeader } from '../sheets/MTripSheetUi'
 import { formatFileDate, getFileTypeMeta } from './filesModel'
 import { useTranslation } from '../../../../i18n'
-import { fileErrorMessage, formatSize } from '../../../../components/Files/FileManager.helpers'
+import { formatSize } from '../../../../components/Files/FileManager.helpers'
 import { linkedExpenseIds } from '../../../../components/Budget/expenseAttachmentUtils'
 
 interface MFileMenuSheetProps {
@@ -70,7 +70,7 @@ export default function MFileMenuSheet({ planner, file, onClose, onOpenLinks }: 
       .finally(() => setSaving(false))
   }
 
-  const download = () => { downloadFile(shown.url, shown.original_name).catch(error => toast.error(fileErrorMessage(t, error))) }
+  const download = () => { downloadFile(shown.url, shown.original_name).catch(() => {}) }
 
   const remove = () => {
     setConfirmDelete(false)

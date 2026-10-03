@@ -70,6 +70,5 @@ const files: TranslationStrings = {
   'files.confirm.permanentDeleteWithExpenses': 'Bu dosya {count} etkin harcamaya bağlı. Kalıcı olarak silinsin mi?',
   'files.offlineUnavailable': 'Bu dosya çevrimdışı kullanılamıyor. Açmak veya indirmek için bağlanın.',
   'files.offlineListUnavailable': 'Dosyalar henüz çevrimdışı kullanılamıyor. Yüklemek için bağlanın.',
-  'files.offlineReadOnly': 'Dosya ilişkileri çevrimdışı değiştirilemez.',
 };
 export default files;

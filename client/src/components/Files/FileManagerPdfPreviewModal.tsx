@@ -7,7 +7,7 @@ import { DialogHeader, DialogShell, DialogTile, NEUTRAL_TINT, PILL } from '../sh
 
 /** A PDF read in place, in the planner's dialog: the name on the head band, open and download beside it. */
 export function PdfPreviewModal(S: FilePreviewState) {
-  const { previewFile, setPreviewFile, previewFileUrl, toast, t } = S
+  const { previewFile, setPreviewFile, previewFileUrl, previewError, toast, t } = S
   const labelId = useId()
   const close = () => setPreviewFile(null)
   if (!previewFile) return null
@@ -38,7 +38,7 @@ export function PdfPreviewModal(S: FilePreviewState) {
         />
       )}
     >
-      <object
+      {previewError ? <p role="alert" className="p-6 text-center text-content-muted">{fileErrorMessage(t, previewError)}</p> : <object
         data={previewFileUrl ? `${previewFileUrl}#view=FitH` : undefined}
         type="application/pdf"
         className="h-[74vh] w-full border-0"
@@ -47,7 +47,7 @@ export function PdfPreviewModal(S: FilePreviewState) {
         <p className="p-6 text-center text-content-muted">
           <button type="button" onClick={openInTab} className="text-content underline">{t('files.downloadPdf')}</button>
         </p>
-      </object>
+      </object>}
     </DialogShell>
   )
 }

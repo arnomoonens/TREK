@@ -66,11 +66,13 @@ const files: TranslationStrings = {
   'files.sourceExpense': 'Uit uitgave',
   'files.assignExpense': 'Uitgave',
   'files.confirm.deleteWithExpense': 'Dit bestand is gekoppeld aan 1 actieve uitgave. Naar de prullenbak verplaatsen?',
-  'files.confirm.deleteWithExpenses': 'Dit bestand is gekoppeld aan {count} actieve uitgaven. Naar de prullenbak verplaatsen?',
+  'files.confirm.deleteWithExpenses':
+    'Dit bestand is gekoppeld aan {count} actieve uitgaven. Naar de prullenbak verplaatsen?',
   'files.confirm.permanentDeleteWithExpense': 'Dit bestand is gekoppeld aan 1 actieve uitgave. Permanent verwijderen?',
-  'files.confirm.permanentDeleteWithExpenses': 'Dit bestand is gekoppeld aan {count} actieve uitgaven. Permanent verwijderen?',
-  'files.offlineUnavailable': 'Dit bestand is offline niet beschikbaar. Maak verbinding om het te openen of te downloaden.',
+  'files.confirm.permanentDeleteWithExpenses':
+    'Dit bestand is gekoppeld aan {count} actieve uitgaven. Permanent verwijderen?',
+  'files.offlineUnavailable':
+    'Dit bestand is offline niet beschikbaar. Maak verbinding om het te openen of te downloaden.',
   'files.offlineListUnavailable': 'Bestanden zijn nog niet offline beschikbaar. Maak verbinding om ze te laden.',
-  'files.offlineReadOnly': 'Bestandskoppelingen kunnen offline niet worden gewijzigd.',
 };
 export default files;

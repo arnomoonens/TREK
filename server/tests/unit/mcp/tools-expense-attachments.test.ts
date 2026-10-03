@@ -97,7 +97,7 @@ function relationshipCount(expenseId: number, fileId: number): number {
 }
 
 describe('Expense attachment MCP discovery', () => {
-  it('registers the focused tools behind both existing scopes and no upload tool', async () => {
+  it('registers the focused tools behind the existing Costs scope and no upload tool', async () => {
     const { user } = createUser(testDb);
 
     await withHarness(user.id, null, async (h) => {
@@ -110,9 +110,8 @@ describe('Expense attachment MCP discovery', () => {
 
     await withHarness(user.id, ['budget:read'], async (h) => {
       const names = (await h.client.listTools()).tools.map((tool) => tool.name);
-      expect(names).not.toEqual(expect.arrayContaining([
-        'list_expense_files', 'attach_expense_file', 'detach_expense_file',
-      ]));
+      expect(names).toContain('list_expense_files');
+      expect(names).not.toEqual(expect.arrayContaining(['attach_expense_file', 'detach_expense_file']));
     });
 
     await withHarness(user.id, ['budget:read', 'files:read'], async (h) => {
@@ -179,7 +178,7 @@ describe('Tools: attach_expense_file and detach_expense_file', () => {
     });
   });
 
-  it('refuses cross-trip identities and both user permission failures', async () => {
+  it('refuses cross-trip identities and the Costs permission failure', async () => {
     const { user } = createUser(testDb);
     const firstTrip = createTrip(testDb, user.id);
     const secondTrip = createTrip(testDb, user.id);
@@ -212,12 +211,12 @@ describe('Tools: attach_expense_file and detach_expense_file', () => {
     setPermission('budget_edit', 'trip_member');
     setPermission('file_edit', 'trip_owner');
     await withHarness(member.id, null, async (h) => {
-      const fileDenied = await h.client.callTool({
+      const fileAllowed = await h.client.callTool({
         name: 'attach_expense_file',
         arguments: { tripId: firstTrip.id, expenseId: firstExpense.id, fileId: memberFile },
       });
-      expect(fileDenied.isError).toBe(true);
-      expect(relationshipCount(firstExpense.id, memberFile)).toBe(0);
+      expect(fileAllowed.isError).not.toBe(true);
+      expect(relationshipCount(firstExpense.id, memberFile)).toBe(1);
     });
   });
 

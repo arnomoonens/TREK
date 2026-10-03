@@ -10,8 +10,12 @@ export const fileRepo = {
     return onlineThenCache(
       async () => {
         const result = await filesApi.list(tripId)
-        await replaceTripFiles(numericTripId, result.files)
-        await markFileMetadataCached(numericTripId)
+        try {
+          await replaceTripFiles(numericTripId, result.files)
+          await markFileMetadataCached(numericTripId)
+        } catch (error) {
+          console.warn('Unable to cache trip files', error)
+        }
         return { ...result, source: 'network', cacheStatus: 'available' }
       },
       async () => {

@@ -4,7 +4,7 @@ import { Eye, Paperclip, Upload, X } from 'lucide-react'
 import { useTranslation } from '../../i18n'
 import { useToast } from '../shared/Toast'
 import type { TripFile } from '../../types'
-import { getAuthUrl } from '../../api/authUrl'
+import { useFilePreviewUrl } from '../Files/useFilePreviewUrl'
 import { openFile as openFileInTab } from '../../utils/fileDownload'
 import { AuthedImg } from '../Files/FileManagerAuthedImg'
 import { ImageLightbox } from '../Files/FileManagerImageLightbox'
@@ -57,8 +57,7 @@ export default function ExpenseFilePicker({
   toastRef.current = toast
   const [activeTab, setActiveTab] = useState<PickerTab>('expense-files')
   const [previewFile, setPreviewFile] = useState<TripFile | null>(null)
-  const [previewFileUrl, setPreviewFileUrl] = useState('')
-  const [previewError, setPreviewError] = useState(false)
+  const { url: previewFileUrl, error: previewError } = useFilePreviewUrl(previewFile?.url)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const liveFiles = useMemo(() => files.filter(file => !file.deleted_at), [files])
   const mediaFiles = useMemo(() => liveFiles.filter(file => isMedia(file.mime_type)), [liveFiles])
@@ -77,30 +76,9 @@ export default function ExpenseFilePicker({
     onRetryAttachment(failure)
   }
 
-  const previewUrl = previewFile?.url
   useEffect(() => {
-    if (!previewUrl) {
-      setPreviewFileUrl('')
-      setPreviewError(false)
-      return
-    }
-    let current = true
-    setPreviewFileUrl('')
-    setPreviewError(false)
-    const resolve = getAuthUrl(previewUrl, 'download')
-    resolve
-      .then(url => {
-        if (current) setPreviewFileUrl(url)
-      })
-      .catch(() => {
-        if (!current) return
-        setPreviewError(true)
-        toastRef.current.error(t('files.openError'))
-      })
-    return () => {
-      current = false
-    }
-  }, [previewUrl, t])
+    if (previewError) toastRef.current.error(fileErrorMessage(t, previewError))
+  }, [previewError, t])
 
   const openFile = (file: TripFile) => {
     if (isMedia(file.mime_type)) {
@@ -118,7 +96,7 @@ export default function ExpenseFilePicker({
   const previewState: FilePreviewState = {
     previewFile,
     setPreviewFile,
-    previewFileUrl: previewError ? '' : previewFileUrl,
+    previewFileUrl, previewError,
     toast,
     t,
   }

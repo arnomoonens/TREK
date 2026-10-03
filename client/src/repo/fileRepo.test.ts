@@ -95,4 +95,15 @@ describe('fileRepo.list', () => {
     server.use(http.get('/api/trips/7/files', () => HttpResponse.json({ error: 'forbidden' }, { status: 403 })))
     await expect(fileRepo.list(7)).rejects.toThrow()
   })
+
+  it('returns fresh network files even when the local cache cannot be written', async () => {
+    const file = buildTripFile({ id: 41, trip_id: 7 })
+    server.use(http.get('/api/trips/7/files', () => HttpResponse.json({ files: [file] })))
+    const failure = new Error('Quota exceeded')
+    vi.spyOn(offlineDb.tripFiles, 'bulkPut').mockRejectedValueOnce(failure)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    await expect(fileRepo.list(7)).resolves.toMatchObject({ files: [file], source: 'network' })
+    expect(warn).toHaveBeenCalledWith('Unable to cache trip files', failure)
+  })
 })

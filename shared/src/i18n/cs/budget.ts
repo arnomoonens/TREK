@@ -189,7 +189,8 @@ const budget: TranslationStrings = {
   'costs.noAttachments': 'K tomuto výdaji nejsou připojeny žádné soubory.',
   'costs.confirm.deleteBodyWithFile': '„{name}“ bude trvale smazáno. Zůstane 1 připojený soubor.',
   'costs.confirm.deleteBodyWithFiles': '„{name}“ bude trvale smazáno. Zůstanou připojené soubory: {count}.',
-  'costs.attachmentsUnavailable': 'Podrobnosti příloh zatím nejsou offline dostupné. Připojte se k internetu a načtěte je.',
+  'costs.attachmentsUnavailable':
+    'Podrobnosti příloh zatím nejsou offline dostupné. Připojte se k internetu a načtěte je.',
   'costs.expensesUnavailable': 'Výdaje zatím nejsou offline dostupné. Připojte se k internetu a načtěte je.',
   'costs.toggleSign': 'Přepnout mezi výdajem a vratkou',
   'costs.receipts': 'Účtenky',

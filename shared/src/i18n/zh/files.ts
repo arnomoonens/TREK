@@ -70,6 +70,5 @@ const files: TranslationStrings = {
   'files.confirm.permanentDeleteWithExpenses': '此文件关联到 {count} 笔有效支出。要永久删除吗？',
   'files.offlineUnavailable': '此文件离线不可用。请连接网络后打开或下载。',
   'files.offlineListUnavailable': '文件暂时无法离线使用。请连接网络后加载。',
-  'files.offlineReadOnly': '离线时无法更改文件关联。',
 };
 export default files;

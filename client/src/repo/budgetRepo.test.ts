@@ -74,4 +74,15 @@ describe('budgetRepo.list', () => {
     server.use(http.get('/api/trips/12/budget', () => HttpResponse.json({ error: 'boom' }, { status: 500 })))
     await expect(budgetRepo.list(12)).rejects.toThrow()
   })
+
+  it('returns fresh network expenses even when the local cache cannot be written', async () => {
+    const item = buildBudgetItem({ id: 61, trip_id: 12 })
+    server.use(http.get('/api/trips/12/budget', () => HttpResponse.json({ items: [item] })))
+    const failure = new Error('Quota exceeded')
+    vi.spyOn(offlineDb.budgetItems, 'bulkPut').mockRejectedValueOnce(failure)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    await expect(budgetRepo.list(12)).resolves.toMatchObject({ items: [item], source: 'network' })
+    expect(warn).toHaveBeenCalledWith('Unable to cache trip expenses', failure)
+  })
 })

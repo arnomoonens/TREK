@@ -179,9 +179,11 @@ const budget: TranslationStrings = {
   'costs.filesForExpenseHint': 'Sélectionnez des fichiers existants à joindre. Les détails se gèrent dans Fichiers.',
   'costs.noFilesForExpense': "Aucun fichier pour cette dépense pour l'instant.",
   'costs.expenseSaveError': 'La dépense n’a pas pu être enregistrée. Aucun fichier n’a été modifié.',
-  'costs.attachmentsSaveError': "La dépense a été enregistrée, mais certaines pièces jointes n'ont pas pu être mises à jour.",
+  'costs.attachmentsSaveError':
+    "La dépense a été enregistrée, mais certaines pièces jointes n'ont pas pu être mises à jour.",
   'costs.attachmentFailure': 'La dépense a été enregistrée, mais une pièce jointe a échoué. Réessayez ci-dessous.',
-  'costs.attachmentsFailure': 'La dépense a été enregistrée, mais {count} pièces jointes ont échoué. Réessayez ci-dessous.',
+  'costs.attachmentsFailure':
+    'La dépense a été enregistrée, mais {count} pièces jointes ont échoué. Réessayez ci-dessous.',
   'costs.attachmentFailed': 'Échec de la pièce jointe',
   'costs.retryAttachment': 'Réessayer',
   'costs.attachmentCount': '{count} pièce jointe',
@@ -189,9 +191,12 @@ const budget: TranslationStrings = {
   'costs.attachmentsTitle': 'Pièces jointes de "{name}"',
   'costs.noAttachments': "Aucun fichier n'est joint à cette dépense.",
   'costs.confirm.deleteBodyWithFile': '« {name} » sera définitivement supprimé. 1 fichier joint restera disponible.',
-  'costs.confirm.deleteBodyWithFiles': '« {name} » sera définitivement supprimé. {count} fichiers joints resteront disponibles.',
-  'costs.attachmentsUnavailable': 'Les détails des pièces jointes ne sont pas encore disponibles hors connexion. Connectez-vous pour les charger.',
-  'costs.expensesUnavailable': 'Les dépenses ne sont pas encore disponibles hors connexion. Connectez-vous pour les charger.',
+  'costs.confirm.deleteBodyWithFiles':
+    '« {name} » sera définitivement supprimé. {count} fichiers joints resteront disponibles.',
+  'costs.attachmentsUnavailable':
+    'Les détails des pièces jointes ne sont pas encore disponibles hors connexion. Connectez-vous pour les charger.',
+  'costs.expensesUnavailable':
+    'Les dépenses ne sont pas encore disponibles hors connexion. Connectez-vous pour les charger.',
   'costs.toggleSign': 'Basculer entre dépense et remboursement',
   'costs.receipts': 'Reçus',
   'costs.receiptsTitle': 'Reçus et factures',

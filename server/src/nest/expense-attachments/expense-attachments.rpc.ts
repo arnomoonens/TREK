@@ -16,7 +16,6 @@ export class ExpenseAttachmentsRpc {
 
   @PluginMethod('costs.listFiles', {
     permission: 'db:read:costs',
-    additionalPermissions: ['db:read:files'],
   })
   listFiles(params: Record<string, unknown>, ctx: PluginRpcContext): unknown {
     return this.guards.tripRead(params, ctx, () => {
@@ -31,7 +30,6 @@ export class ExpenseAttachmentsRpc {
 
   @PluginMethod('costs.attachFile', {
     permission: 'db:write:costs',
-    additionalPermissions: ['db:write:files'],
   })
   attachFile(params: Record<string, unknown>, ctx: PluginRpcContext): unknown {
     return this.mutate(params, ctx, (tripId, expenseId, fileId) =>
@@ -40,7 +38,6 @@ export class ExpenseAttachmentsRpc {
 
   @PluginMethod('costs.detachFile', {
     permission: 'db:write:costs',
-    additionalPermissions: ['db:write:files'],
   })
   detachFile(params: Record<string, unknown>, ctx: PluginRpcContext): unknown {
     return this.mutate(params, ctx, (tripId, expenseId, fileId) =>

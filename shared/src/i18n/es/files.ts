@@ -66,10 +66,11 @@ const files: TranslationStrings = {
   'files.assignExpense': 'Gasto',
   'files.confirm.deleteWithExpense': 'Este archivo está vinculado a 1 gasto activo. ¿Moverlo a la papelera?',
   'files.confirm.deleteWithExpenses': 'Este archivo está vinculado a {count} gastos activos. ¿Moverlo a la papelera?',
-  'files.confirm.permanentDeleteWithExpense': 'Este archivo está vinculado a 1 gasto activo. ¿Eliminarlo permanentemente?',
-  'files.confirm.permanentDeleteWithExpenses': 'Este archivo está vinculado a {count} gastos activos. ¿Eliminarlo permanentemente?',
+  'files.confirm.permanentDeleteWithExpense':
+    'Este archivo está vinculado a 1 gasto activo. ¿Eliminarlo permanentemente?',
+  'files.confirm.permanentDeleteWithExpenses':
+    'Este archivo está vinculado a {count} gastos activos. ¿Eliminarlo permanentemente?',
   'files.offlineUnavailable': 'Este archivo no está disponible sin conexión. Conéctate para abrirlo o descargarlo.',
   'files.offlineListUnavailable': 'Los archivos aún no están disponibles sin conexión. Conéctate para cargarlos.',
-  'files.offlineReadOnly': 'Las relaciones de archivos no se pueden cambiar sin conexión.',
 };
 export default files;

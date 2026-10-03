@@ -6,7 +6,6 @@ import type { Request } from 'express';
 import type { TrekWsPayload, TrekWsTripEventName } from '@trek/shared';
 import { RealtimeService } from '../realtime/realtime.service';
 import { PermissionsService } from '../permissions/permissions.service';
-import { avatarUrl } from '../common/avatarUrl';
 import { EphemeralTokenService } from '../auth/ephemeral-token.service';
 import { verifyJwtAndLoadUser } from '../auth/jwt-verify';
 import type { User, TripFile } from '../../types';
@@ -14,6 +13,7 @@ import { DatabaseService, type TripAccess } from '../database/database.service';
 import { DEFAULT_ALLOWED_EXTENSIONS } from './files.constants';
 import { StorageService } from '../storage/storage.service';
 import { StorageNotFoundError, StorageInvalidKeyError, type ObjectStat } from '../storage/storage.types';
+import { addFileRelationshipMetadata, getFileResponses } from './file-response';
 
 type Trip = TripAccess;
 type FilePermission = 'file_upload' | 'file_edit' | 'file_delete';
@@ -25,21 +25,13 @@ const FILE_SELECT = `
   LEFT JOIN users u ON f.uploaded_by = u.id
 `;
 
-function formatFile(file: TripFile & { uploaded_by_avatar?: string | null }) {
-  const tripId = file.trip_id;
-  return {
-    ...file,
-    url: `/api/trips/${tripId}/files/${file.id}/download`,
-    uploaded_by_avatar: avatarUrl({ avatar: file.uploaded_by_avatar }),
-  };
-}
-
 export interface FileLink {
+  id: number;
   file_id: number;
   reservation_id: number | null;
+  assignment_id: number | null;
   place_id: number | null;
   budget_item_id: number | null;
-  created_at: string;
 }
 
 /**
@@ -87,7 +79,7 @@ export class FilesService {
     return this.db.canAccessTrip(tripId, userId);
   }
 
-  can(action: FilePermission, trip: Trip, user: User): boolean {
+  can(action: FilePermission, trip: Trip, user: Pick<User, 'id' | 'role'>): boolean {
     return this.permissions.checkPermission(action, user.role, trip.user_id, user.id, trip.user_id !== user.id);
   }
 
@@ -171,42 +163,7 @@ export class FilesService {
 
   /** Return one file in the same response shape as the authoritative trip list. */
   getFileResponse(id: string | number, tripId: string | number): TripFile | undefined {
-    const file = this.db.get<TripFile>(`${FILE_SELECT} WHERE f.id = ? AND f.trip_id = ?`, id, tripId);
-    if (!file) return undefined;
-    return this.addFileRelationshipMetadata([file])[0];
-  }
-
-  private addFileRelationshipMetadata(files: TripFile[]): TripFile[] {
-    const fileIds = files.map(file => file.id);
-    const linksMap: Record<number, FileLink[]> = {};
-    if (fileIds.length > 0) {
-      const placeholders = fileIds.map(() => '?').join(',');
-      const links = this.db.all<FileLink>(
-        `SELECT file_id, reservation_id, place_id, budget_item_id, created_at
-         FROM file_links
-         WHERE file_id IN (${placeholders})
-         ORDER BY created_at ASC, id ASC`,
-        ...fileIds,
-      );
-      for (const link of links) {
-        (linksMap[link.file_id] ||= []).push(link);
-      }
-    }
-
-    const formatted = files.map(file => {
-      const fileLinks = linksMap[file.id] || [];
-      const expenseLinks = fileLinks.filter(link => link.budget_item_id !== null);
-      return {
-        ...formatFile(file),
-        linked_reservation_ids: fileLinks.filter(link => link.reservation_id).map(link => link.reservation_id),
-        linked_place_ids: fileLinks.filter(link => link.place_id).map(link => link.place_id),
-        linked_budget_item_ids: expenseLinks.map(link => link.budget_item_id!),
-        expense_attachment_created_at: Object.fromEntries(
-          expenseLinks.map(link => [String(link.budget_item_id), link.created_at]),
-        ),
-      };
-    });
-    return formatted;
+    return getFileResponses(this.db, [id], tripId)[0];
   }
 
   /**
@@ -272,7 +229,7 @@ export class FilesService {
       ? 'f.trip_id = ? AND f.deleted_at IS NOT NULL AND f.message_id IS NULL'
       : 'f.trip_id = ? AND f.deleted_at IS NULL AND f.message_id IS NULL';
     const files = this.db.all<TripFile>(`${FILE_SELECT} WHERE ${where} ORDER BY f.starred DESC, f.created_at DESC`, tripId);
-    return this.addFileRelationshipMetadata(files);
+    return addFileRelationshipMetadata(this.db, files);
   }
 
   createFile(
@@ -341,7 +298,18 @@ export class FilesService {
       if (updates.budget_item_id) {
         this.db.run('INSERT OR IGNORE INTO file_links (file_id, budget_item_id) VALUES (?, ?)', id, updates.budget_item_id);
       } else {
-        this.db.run('DELETE FROM file_links WHERE file_id = ? AND budget_item_id IS NOT NULL', id);
+        const links = this.db.all<FileLink>(
+          `SELECT id, file_id, reservation_id, assignment_id, place_id, budget_item_id
+           FROM file_links WHERE file_id = ? AND budget_item_id IS NOT NULL`,
+          id,
+        );
+        for (const link of links) {
+          if (link.reservation_id || link.assignment_id || link.place_id) {
+            this.db.run('UPDATE file_links SET budget_item_id = NULL WHERE id = ?', link.id);
+          } else {
+            this.db.run('DELETE FROM file_links WHERE id = ?', link.id);
+          }
+        }
       }
     }
 
@@ -422,8 +390,21 @@ export class FilesService {
     return this.db.all('SELECT * FROM file_links WHERE file_id = ?', fileId);
   }
 
+  getFileLink(linkId: string | number, fileId: string | number): FileLink | undefined {
+    return this.db.get<FileLink>(
+      `SELECT id, file_id, reservation_id, assignment_id, place_id, budget_item_id
+       FROM file_links WHERE id = ? AND file_id = ?`,
+      linkId,
+      fileId,
+    );
+  }
+
   deleteFileLink(linkId: string | number, fileId: string | number) {
-    this.db.run('DELETE FROM file_links WHERE id = ? AND file_id = ?', linkId, fileId);
+    const link = this.getFileLink(linkId, fileId);
+    if (!link) return undefined;
+
+    this.db.run('DELETE FROM file_links WHERE id = ? AND file_id = ?', link.id, fileId);
+    return link;
   }
 
   getFileLinks(fileId: string | number) {

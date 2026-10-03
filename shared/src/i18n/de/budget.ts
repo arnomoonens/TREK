@@ -175,12 +175,16 @@ const budget: TranslationStrings = {
   'costs.splitSumOver': 'Summe der Anteile: {sum} von {total} ({diff} zu viel)',
   'costs.filesForExpense': 'Dateien für diese Ausgabe',
   'costs.uploadFiles': 'Hochladen',
-  'costs.filesForExpenseHint': 'Wähle vorhandene Dateien zum Anhängen aus. Dateidetails werden unter Dateien verwaltet.',
+  'costs.filesForExpenseHint':
+    'Wähle vorhandene Dateien zum Anhängen aus. Dateidetails werden unter Dateien verwaltet.',
   'costs.noFilesForExpense': 'Noch keine Dateien für diese Ausgabe.',
   'costs.expenseSaveError': 'Die Ausgabe konnte nicht gespeichert werden. Es wurden keine Dateiänderungen vorgenommen.',
-  'costs.attachmentsSaveError': 'Die Ausgabe wurde gespeichert, aber einige Dateianhänge konnten nicht aktualisiert werden.',
-  'costs.attachmentFailure': 'Die Ausgabe wurde gespeichert, aber ein Dateianhang ist fehlgeschlagen. Unten erneut versuchen.',
-  'costs.attachmentsFailure': 'Die Ausgabe wurde gespeichert, aber {count} Dateianhänge sind fehlgeschlagen. Unten erneut versuchen.',
+  'costs.attachmentsSaveError':
+    'Die Ausgabe wurde gespeichert, aber einige Dateianhänge konnten nicht aktualisiert werden.',
+  'costs.attachmentFailure':
+    'Die Ausgabe wurde gespeichert, aber ein Dateianhang ist fehlgeschlagen. Unten erneut versuchen.',
+  'costs.attachmentsFailure':
+    'Die Ausgabe wurde gespeichert, aber {count} Dateianhänge sind fehlgeschlagen. Unten erneut versuchen.',
   'costs.attachmentFailed': 'Anhang fehlgeschlagen',
   'costs.retryAttachment': 'Erneut versuchen',
   'costs.attachmentCount': '{count} Anhang',
@@ -188,7 +192,8 @@ const budget: TranslationStrings = {
   'costs.attachmentsTitle': 'Anhänge für „{name}“',
   'costs.noAttachments': 'An diese Ausgabe sind keine Dateien angehängt.',
   'costs.confirm.deleteBodyWithFile': '„{name}“ wird unwiderruflich gelöscht. Eine angehängte Datei bleibt erhalten.',
-  'costs.confirm.deleteBodyWithFiles': '„{name}“ wird unwiderruflich gelöscht. {count} angehängte Dateien bleiben erhalten.',
+  'costs.confirm.deleteBodyWithFiles':
+    '„{name}“ wird unwiderruflich gelöscht. {count} angehängte Dateien bleiben erhalten.',
   'costs.attachmentsUnavailable': 'Anhangdetails sind offline noch nicht verfügbar. Verbinde dich, um sie zu laden.',
   'costs.expensesUnavailable': 'Ausgaben sind offline noch nicht verfügbar. Verbinde dich, um sie zu laden.',
   'costs.toggleSign': 'Zwischen Ausgabe und Erstattung wechseln',

@@ -180,7 +180,8 @@ const budget: TranslationStrings = {
   'costs.expenseSaveError': '支出を保存できませんでした。ファイルは変更されていません。',
   'costs.attachmentsSaveError': '支出は保存されましたが、一部のファイル添付を更新できませんでした。',
   'costs.attachmentFailure': '支出は保存されましたが、1件のファイル添付に失敗しました。下から再試行してください。',
-  'costs.attachmentsFailure': '支出は保存されましたが、{count}件のファイル添付に失敗しました。下から再試行してください。',
+  'costs.attachmentsFailure':
+    '支出は保存されましたが、{count}件のファイル添付に失敗しました。下から再試行してください。',
   'costs.attachmentFailed': '添付に失敗',
   'costs.retryAttachment': '再試行',
   'costs.attachmentCount': '{count} 件の添付ファイル',

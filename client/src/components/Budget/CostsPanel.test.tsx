@@ -912,6 +912,7 @@ describe('CostsPanel — overview', () => {
     const alice = within(card).getByRole('button', { name: /You/ })
     await user.click(alice)
     expect(alice).toHaveAttribute('aria-expanded', 'true')
+    await within(card).findByText('Dinner')
     // The dinner is the server's 92 €, once as the line and once as its only row; the
     // 100 USD is never converted again here. What was entered labels the row (#2525).
     expect(within(card).getAllByText('+92,00 €')).toHaveLength(2)
@@ -942,7 +943,7 @@ describe('CostsPanel — overview', () => {
     const labels = within(breakdown).getAllByText(/Food & drink|Transport/).map(el => el.textContent)
     // Bars are ordered by spend, so the 90 € food row comes before the 30 € taxi.
     expect(labels).toEqual(['Food & drink', 'Transport'])
-    expect(within(breakdown).getByText('90 €')).toBeInTheDocument()
+    expect(await within(breakdown).findByText('90 €')).toBeInTheDocument()
     expect(within(breakdown).getByText('30 €')).toBeInTheDocument()
   })
 
@@ -952,6 +953,17 @@ describe('CostsPanel — overview', () => {
     expect(await screen.findByText('No expenses yet. Add your first one.')).toBeInTheDocument()
     expect(screen.getByText('No expenses yet.')).toBeInTheDocument()
     expect(screen.getByText("Everyone's square")).toBeInTheDocument()
+  })
+
+  it('distinguishes unavailable offline expenses from an empty expense list', () => {
+    seedStore(useTripStore, {
+      budgetItems: [],
+      budgetAvailability: 'unavailable',
+      loadBudgetItems: vi.fn().mockResolvedValue(undefined),
+    })
+    render(<CostsPanel tripId={1} tripMembers={tripMembers} />)
+    expect(screen.getByText('Expenses are not available offline yet. Connect to load them.')).toBeInTheDocument()
+    expect(screen.queryByText('No expenses yet. Add your first one.')).not.toBeInTheDocument()
   })
 
   it('FE-W5COSTS-007: an unknown currency falls back to a plainly formatted amount', async () => {
@@ -1490,15 +1502,16 @@ describe('CostsPanel — expense modal', () => {
 
     await user.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(put).toBeTruthy())
+    await waitFor(() => expect(screen.queryByDisplayValue('Apples')).not.toBeInTheDocument())
     expect(put!.total_price).toBe(10)
     expect(put!.members).toEqual(expect.arrayContaining([expect.objectContaining({ user_id: 1, amount: 10 })]))
   })
 
   it('FE-W5COSTS-032: an unparsable ticket note opens with an empty item list', async () => {
     const user = userEvent.setup()
-    mount([expense({ id: 151, name: 'Market run', category: 'groceries', total_price: 30, note: 'TICKETJSON:{oops', payers: [{ user_id: 1, amount: 30 }], members: [{ user_id: 1, username: 'alice' }] })])
+    mount([expense({ id: 151, name: 'Malformed receipt', category: 'groceries', total_price: 30, note: 'TICKETJSON:{oops', payers: [{ user_id: 1, amount: 30 }], members: [{ user_id: 1, username: 'alice' }] })])
 
-    await screen.findByText('Market run')
+    await screen.findByText('Malformed receipt')
     await user.click(screen.getByRole('button', { name: 'Edit' }))
 
     expect(await screen.findByRole('button', { name: /Add item/i })).toBeInTheDocument()
@@ -2504,9 +2517,9 @@ describe('CostsPanel: a bill entered in the display currency (#2525)', () => {
 
     await screen.findByText('Museum')
     // The trip currency has no frozen rate of its own and goes to dollars live.
-    expect(screen.getByText(/^100,00\s€ → \$115\.51$/)).toBeInTheDocument()
+    expect(await screen.findByText(/^100,00\s€ → \$115\.51$/)).toBeInTheDocument()
     // 1000 SEK at 10 per euro is 100 euro, then live to dollars in the pill.
-    expect(screen.getByText(/^1\s000,00\skr → 100,00\s€$/)).toBeInTheDocument()
+    expect(await screen.findByText(/^1\s000,00\skr → 100,00\s€$/)).toBeInTheDocument()
     expect(screen.getAllByText('$50.00').length).toBeGreaterThanOrEqual(2)
     expect(screen.queryByText(/^\$50\.00 →/)).toBeNull()
   })
@@ -2566,8 +2579,8 @@ describe('CostsPanel: a bill entered in the display currency (#2525)', () => {
     const card = (await screen.findByRole('region', { name: 'Final budget' })) as HTMLElement
     await user.click(await within(card).findByRole('button', { name: /You/ }))
     expect(within(card).getAllByText('+$791.55')).toHaveLength(2)
-    expect(within(card).getByText('Aparthotel Silver')).toBeInTheDocument()
-    expect(within(card).getByText('$801.76')).toBeInTheDocument()
+    expect(await within(card).findByText('Aparthotel Silver')).toBeInTheDocument()
+    expect(await within(card).findByText('$801.76')).toBeInTheDocument()
   })
 
   it('FE-W5COSTS-089: the final budget lists a bill that reads as typed without a second amount', async () => {

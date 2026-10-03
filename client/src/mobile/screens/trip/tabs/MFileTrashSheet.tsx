@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Loader2, RotateCcw, Trash2 } from 'lucide-react'
 import MSheet from '../../../components/MSheet'
 import MConfirmSheet from '../../settings/MConfirmSheet'
@@ -26,8 +26,6 @@ interface MFileTrashSheetProps {
 export default function MFileTrashSheet({ planner, open, onClose }: MFileTrashSheetProps) {
   const { t, tripId, can, trip, budgetItems, toast, tripActions } = planner
   const { locale } = useTranslation()
-  const toastRef = useRef(toast)
-  toastRef.current = toast
   const [files, setFiles] = useState<TripFile[]>([])
   const [loading, setLoading] = useState(false)
   const [busyId, setBusyId] = useState<number | null>(null)
@@ -41,10 +39,10 @@ export default function MFileTrashSheet({ planner, open, onClose }: MFileTrashSh
     setLoading(true)
     filesApi.list(tripId, true)
       .then((data: { files?: TripFile[] }) => { if (!cancelled) setFiles(data.files || []) })
-      .catch(() => toastRef.current.error(t('files.toast.deleteError')))
+      .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [open, tripId, t])
+  }, [open, tripId])
 
   const canDelete = can('file_delete', trip)
   const fileToDelete = confirmDeleteId == null ? null : files.find(file => file.id === confirmDeleteId)

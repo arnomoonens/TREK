@@ -175,7 +175,8 @@ const budget: TranslationStrings = {
   'costs.splitSumOver': 'Suma de las partes: {sum} de {total} (sobran {diff})',
   'costs.filesForExpense': 'Archivos de este gasto',
   'costs.uploadFiles': 'Subir',
-  'costs.filesForExpenseHint': 'Selecciona archivos existentes para adjuntarlos. Los detalles se gestionan en Archivos.',
+  'costs.filesForExpenseHint':
+    'Selecciona archivos existentes para adjuntarlos. Los detalles se gestionan en Archivos.',
   'costs.noFilesForExpense': 'Aún no hay archivos para este gasto.',
   'costs.expenseSaveError': 'No se pudo guardar el gasto. No se realizaron cambios en los archivos.',
   'costs.attachmentsSaveError': 'El gasto se guardó, pero no se pudieron actualizar algunos archivos adjuntos.',
@@ -189,7 +190,8 @@ const budget: TranslationStrings = {
   'costs.noAttachments': 'No hay archivos adjuntos a este gasto.',
   'costs.confirm.deleteBodyWithFile': '"{name}" se eliminará permanentemente. Quedará 1 archivo adjunto.',
   'costs.confirm.deleteBodyWithFiles': '"{name}" se eliminará permanentemente. Quedarán {count} archivos adjuntos.',
-  'costs.attachmentsUnavailable': 'Los detalles de los archivos adjuntos aún no están disponibles sin conexión. Conéctate para cargarlos.',
+  'costs.attachmentsUnavailable':
+    'Los detalles de los archivos adjuntos aún no están disponibles sin conexión. Conéctate para cargarlos.',
   'costs.expensesUnavailable': 'Los gastos aún no están disponibles sin conexión. Conéctate para cargarlos.',
   'costs.toggleSign': 'Cambiar entre gasto y reembolso',
   'costs.receipts': 'Recibos',

@@ -259,6 +259,12 @@ describe('MCostsTab', () => {
     expect(up(screen.getByText('costs.totalSpend'), 1).textContent).toContain('$0.00')
   })
 
+  it('distinguishes unavailable offline expenses from an empty expense list', async () => {
+    await renderTab(planner({ budgetItems: [], budgetAvailability: 'unavailable' }))
+    expect(screen.getByText('costs.expensesUnavailable')).toBeInTheDocument()
+    expect(screen.queryByText('costs.emptyText')).not.toBeInTheDocument()
+  })
+
   it('FE-MOB-COSTT-013: groups the expenses by day with a per-day total', async () => {
     await renderTab()
     expect(screen.getByText('Sat, May 2')).toBeInTheDocument()
@@ -419,7 +425,7 @@ describe('MCostsTab', () => {
     await renderTab(p)
     fireEvent.click(within(rowOf('Ramen')).getByRole('button', { name: 'common.delete' }))
     const dialog = screen.getByRole('dialog', { name: 'costs.confirm.deleteTitle' })
-    expect(within(dialog).getByText('costs.confirm.deleteBody:Ramen')).toBeInTheDocument()
+    expect(within(dialog).getByText('costs.confirm.deleteBody:Ramen,0')).toBeInTheDocument()
     fireEvent.click(within(dialog).getByText('common.delete'))
     await waitFor(() => expect(p.tripActions.deleteBudgetItem).toHaveBeenCalledWith(7, 11))
     await waitFor(() => expect(settlementBases).toHaveLength(2))

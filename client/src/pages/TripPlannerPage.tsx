@@ -1074,7 +1074,7 @@ function TripPlannerPageDesktop(): React.ReactElement | null {
                 files={files || []}
                 onUpload={(fd) => tripActions.addFile(tripId, fd)}
                 onDelete={(id) => tripActions.deleteFile(tripId, id)}
-                onUpdate={() => tripActions.loadFiles(tripId)}
+                onUpdate={async () => { await tripActions.loadFiles(tripId) }}
                 places={places}
                 expenses={budgetItems}
                 trip={trip}

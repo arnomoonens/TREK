@@ -81,11 +81,13 @@ import { DatabaseModule } from '../../src/nest/database/database.module';
 import { RealtimeModule } from '../../src/nest/realtime/realtime.module';
 import { FilesModule } from '../../src/nest/files/files.module';
 import { PhotosModule } from '../../src/nest/photos/photos.module';
+import { RealtimeService } from '../../src/nest/realtime/realtime.service';
 import { TrekExceptionFilter } from '../../src/nest/common/trek-exception.filter';
 
 describe('Files + photos e2e (real auth guard + temp SQLite)', () => {
   let server: Server;
   let app: Awaited<ReturnType<typeof build>>;
+  let broadcast: MockInstance;
 
   async function build() {
     const moduleRef = await Test.createTestingModule({ imports: [DatabaseModule, RealtimeModule, FilesModule, PhotosModule] }).compile();
@@ -99,16 +101,19 @@ describe('Files + photos e2e (real auth guard + temp SQLite)', () => {
   beforeAll(async () => {
     seedUser(db as never, { id: 1 });
     db.prepare('INSERT INTO trips (id, user_id, title) VALUES (5, 1, ?)').run('Trip');
+    db.prepare("INSERT INTO budget_items (id, trip_id, name) VALUES (77, 5, 'Receipt expense')").run();
     db.prepare("INSERT INTO trip_files (id, trip_id, filename, original_name, uploaded_by) VALUES (1, 5, 'stored-a.pdf', 'a.pdf', 1)").run();
     db.prepare("INSERT INTO trip_files (id, trip_id, filename, original_name, uploaded_by, starred) VALUES (9, 5, 'stored-b.pdf', 'b.pdf', 1, 0)").run();
     app = await build();
     checkPermission = vi.spyOn(app.get(PermissionsService), 'checkPermission');
+    broadcast = vi.spyOn(app.get(RealtimeService), 'broadcast');
     server = app.getHttpServer();
   });
 
   beforeEach(() => {
     canAccessTrip.mockReturnValue({ id: 5, user_id: 1 });
     checkPermission.mockReturnValue(true);
+    broadcast.mockClear();
     helperSvc.canAccessTrekPhoto.mockReturnValue(true);
   });
 
@@ -151,6 +156,25 @@ describe('Files + photos e2e (real auth guard + temp SQLite)', () => {
     const res = await request(server).delete('/api/trips/5/files/9').set('Cookie', sessionCookie(1));
     expect(res.status).toBe(403);
     expect(res.body).toEqual({ error: 'No permission to delete files' });
+  });
+
+  it('uses file_edit for receipt links and broadcasts enriched changes', async () => {
+    const session = sessionCookie(1);
+    checkPermission.mockImplementation((action: string) => action === 'budget_edit');
+    const denied = await request(server).post('/api/trips/5/files/1/link')
+      .set('Cookie', session).send({ budget_item_id: 77 });
+    expect(denied.status).toBe(403);
+
+    checkPermission.mockImplementation((action: string) => action === 'file_edit');
+    const linked = await request(server).post('/api/trips/5/files/1/link')
+      .set('Cookie', session).set('X-Socket-Id', 'file-origin').send({ budget_item_id: 77 });
+    expect(linked.status).toBe(200);
+    expect(broadcast).toHaveBeenCalledWith('5', 'file:updated',
+      expect.objectContaining({ file: expect.objectContaining({ id: 1, linked_budget_item_ids: [77] }) }), 'file-origin');
+    const linkId = linked.body.links.find((row: { budget_item_id: number }) => row.budget_item_id === 77).id;
+    const unlinked = await request(server).delete(`/api/trips/5/files/1/link/${linkId}`).set('Cookie', session);
+    expect(unlinked.status).toBe(200);
+    expect(db.prepare('SELECT id FROM file_links WHERE id = ?').get(linkId)).toBeUndefined();
   });
 
   it('download is unguarded but enforces its own token auth (401 without one)', async () => {

@@ -62,14 +62,14 @@ const files: TranslationStrings = {
   'files.confirm.emptyTrash': "ลบไฟล์ในถังขยะทั้งหมดอย่างถาวรใช่ไหม สิ่งนี้ไม่สามารถยกเลิกได้",
   'files.noteLabel': "หมายเหตุ",
   'files.notePlaceholder': "เพิ่มบันทึก...",
-  'files.sourceExpense': "จากค่าใช้จ่าย",
-  'files.assignExpense': "ค่าใช้จ่าย",
-  'files.confirm.deleteWithExpense': "ไฟล์นี้เชื่อมโยงกับค่าใช้จ่ายที่ใช้งานอยู่ 1 รายการ ย้ายไปถังขยะหรือไม่?",
-  'files.confirm.deleteWithExpenses': "ไฟล์นี้เชื่อมโยงกับค่าใช้จ่ายที่ใช้งานอยู่ {count} รายการ ย้ายไปถังขยะหรือไม่?",
-  'files.confirm.permanentDeleteWithExpense': "ไฟล์นี้เชื่อมโยงกับค่าใช้จ่ายที่ใช้งานอยู่ 1 รายการ ลบอย่างถาวรหรือไม่?",
-  'files.confirm.permanentDeleteWithExpenses': "ไฟล์นี้เชื่อมโยงกับค่าใช้จ่ายที่ใช้งานอยู่ {count} รายการ ลบอย่างถาวรหรือไม่?",
-  'files.offlineUnavailable': "ไฟล์นี้ไม่พร้อมใช้งานแบบออฟไลน์ เชื่อมต่อเพื่อเปิดหรือดาวน์โหลด",
-  'files.offlineListUnavailable': "ไฟล์ยังไม่พร้อมใช้งานแบบออฟไลน์ เชื่อมต่อเพื่อโหลด",
-  'files.offlineReadOnly': "เปลี่ยนการเชื่อมโยงไฟล์ขณะออฟไลน์ไม่ได้",
+  'files.sourceExpense': 'จากค่าใช้จ่าย',
+  'files.assignExpense': 'ค่าใช้จ่าย',
+  'files.confirm.deleteWithExpense': 'ไฟล์นี้เชื่อมโยงกับค่าใช้จ่ายที่ใช้งานอยู่ 1 รายการ ย้ายไปถังขยะหรือไม่?',
+  'files.confirm.deleteWithExpenses': 'ไฟล์นี้เชื่อมโยงกับค่าใช้จ่ายที่ใช้งานอยู่ {count} รายการ ย้ายไปถังขยะหรือไม่?',
+  'files.confirm.permanentDeleteWithExpense': 'ไฟล์นี้เชื่อมโยงกับค่าใช้จ่ายที่ใช้งานอยู่ 1 รายการ ลบอย่างถาวรหรือไม่?',
+  'files.confirm.permanentDeleteWithExpenses':
+    'ไฟล์นี้เชื่อมโยงกับค่าใช้จ่ายที่ใช้งานอยู่ {count} รายการ ลบอย่างถาวรหรือไม่?',
+  'files.offlineUnavailable': 'ไฟล์นี้ไม่พร้อมใช้งานแบบออฟไลน์ เชื่อมต่อเพื่อเปิดหรือดาวน์โหลด',
+  'files.offlineListUnavailable': 'ไฟล์ยังไม่พร้อมใช้งานแบบออฟไลน์ เชื่อมต่อเพื่อโหลด',
 };
 export default files;

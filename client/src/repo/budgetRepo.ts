@@ -10,8 +10,12 @@ export const budgetRepo = {
     return onlineThenCache(
       async () => {
         const result = await budgetApi.list(tripId)
-        await replaceBudgetItems(numericTripId, result.items)
-        await markBudgetMetadataCached(numericTripId)
+        try {
+          await replaceBudgetItems(numericTripId, result.items)
+          await markBudgetMetadataCached(numericTripId)
+        } catch (error) {
+          console.warn('Unable to cache trip expenses', error)
+        }
         return { ...result, source: 'network', cacheStatus: 'available' }
       },
       async () => {

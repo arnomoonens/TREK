@@ -25,14 +25,9 @@ import { COST_CATEGORY_LIST, catMeta } from './costsCategories'
 import { usePercentSplit, type CustomSplitUnit } from './usePercentSplit'
 import ConfirmDialog from '../shared/ConfirmDialog'
 import ExpenseFilePicker from './ExpenseFilePicker'
-import {
-  mergeExpenseAttachmentResult,
-  saveExpenseFileAttachments,
-  useExpenseAttachmentRecovery,
-  useExpenseFileStaging,
-  type ExpenseAttachmentFailure,
-} from './expenseAttachmentStaging'
+import type { ExpenseAttachmentFailure } from './expenseAttachmentStaging'
 import { filesForExpense, getExpenseDeleteWarning } from './expenseAttachmentUtils'
+import { useExpenseAttachments } from './useExpenseAttachments'
 import { ExpenseAttachmentCount, ExpenseAttachmentsDialog, ExpenseAttachmentsSheet } from './ExpenseAttachments'
 import type { BudgetParticipantFinal, BudgetUnconverted, ReceiptLine } from '@trek/shared'
 import type { BudgetItem } from '../../types'
@@ -101,11 +96,11 @@ const FIELD_H = 40 // shared height for the amount / currency / day row in the m
 const COSTS_VIEW_KEY = 'trek:costs-view'
 
 export default function CostsPanel({ tripId, tripMembers = [] }: CostsPanelProps) {
-  const { trip, budgetItems, files, filesAvailability, deleteBudgetItem, loadBudgetItems, loadFiles, addBudgetItem, updateBudgetItem } = useTripStore()
+  const { trip, budgetItems, budgetAvailability, files, filesAvailability, deleteBudgetItem, loadBudgetItems, loadFiles, addBudgetItem, updateBudgetItem } = useTripStore()
   const me = useAuthStore(s => s.user?.id ?? -1)
   const can = useCanDo()
   const canEdit = can('budget_edit', trip)
-  const canAttachFiles = canEdit && can('file_edit', trip)
+  const canAttachFiles = canEdit
   const canUploadFiles = canAttachFiles && can('file_upload', trip)
   const receiptScan = useReceiptScan(tripId, canEdit)
   const toast = useToast()
@@ -176,7 +171,11 @@ export default function CostsPanel({ tripId, tripMembers = [] }: CostsPanelProps
       .catch(() => setSettlementError(true))
   }, [tripId, base, tripCurrency, displayPerTrip])
 
-  useEffect(() => { loadBudgetItems(tripId); loadFiles(tripId); loadSettlement() }, [tripId, loadBudgetItems, loadFiles, loadSettlement])
+  useEffect(() => {
+    loadBudgetItems(tripId)
+    loadFiles(tripId)
+  }, [tripId, loadBudgetItems, loadFiles])
+  useEffect(() => { loadSettlement() }, [tripId, loadSettlement])
   useEffect(() => { loadSettlement() }, [budgetItems.length, loadSettlement])
 
   // Rows the server could not count get a rate frozen from the browser's, and the
@@ -497,7 +496,9 @@ export default function CostsPanel({ tripId, tripMembers = [] }: CostsPanelProps
         <div className="costs-main" style={{ gridColumn: 'span 3', minWidth: 0 }}>
 
           {dayBanner}
-          {view === 'table' ? (
+          {budgetItems.length === 0 && budgetAvailability === 'unavailable' ? (
+            <p role="status" className="text-content-faint" style={{ textAlign: 'center', padding: '60px 20px' }}>{t('costs.expensesUnavailable')}</p>
+          ) : view === 'table' ? (
             filtered.length === 0 && budgetItems.length > 0 ? (
               <div className="text-content-faint" style={{ textAlign: 'center', padding: '60px 20px' }}>{t('costs.noMatch')}</div>
             ) : (
@@ -1478,13 +1479,28 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAt
 
   const [saving, setSaving] = useState(false)
   const [savedExpenseId, setSavedExpenseId] = useState<number | null>(null)
-  const [attachmentSelectionTouched, setAttachmentSelectionTouched] = useState(false)
-  const [selectedFileIds, setSelectedFileIds] = useState<Set<number>>(() =>
-    editing ? new Set(filesForExpense(files, editing.id).map(file => file.id)) : new Set(),
-  )
-  const { stagedUploads, addStagedUploads, removeStagedUpload, markStagedUpload, removeStagedUploadFile } = useExpenseFileStaging(canAttachFiles, canUploadFiles)
-  const { attachmentFailures, recordResult, forgetStagedUpload } = useExpenseAttachmentRecovery()
-  const [retryingAttachmentKey, setRetryingAttachmentKey] = useState<string | null>(null)
+  const {
+    selectedFileIds,
+    stagedUploads,
+    attachmentFailures,
+    retryingAttachmentKey,
+    addStagedUploads,
+    removeStagedUpload,
+    toggleFile,
+    saveAttachments,
+    retryAttachment: retryExpenseAttachment,
+  } = useExpenseAttachments({
+    tripId,
+    editingExpenseId: editing?.id,
+    savedExpenseId,
+    files,
+    canAttachFiles,
+    canUploadFiles,
+    addFile,
+    attachExpenseFile,
+    detachExpenseFile,
+    loadFiles,
+  })
   const seedUploads = useRef(seed.receiptFiles)
   const seedUploadsAdded = useRef(false)
   const addStagedUploadsRef = useRef(addStagedUploads)
@@ -1501,12 +1517,6 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAt
       addStagedUploadsRef.current(seedUploads.current)
     }
   }, [canAttachFiles, canUploadFiles])
-
-  useEffect(() => {
-    if (!attachmentSelectionTouched) {
-      setSelectedFileIds(editing ? new Set(filesForExpense(files, editing.id).map(file => file.id)) : new Set())
-    }
-  }, [editing, files, attachmentSelectionTouched])
 
   const isTicketMode = splitMode === 'ticket'
 
@@ -1652,79 +1662,14 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAt
     }))
   }
 
-  const toggleExpenseFile = (fileId: number) => {
-    if (!canAttachFiles) return
-    setAttachmentSelectionTouched(true)
-    setSelectedFileIds(previous => {
-      const next = new Set(previous)
-      if (next.has(fileId)) next.delete(fileId)
-      else next.add(fileId)
-      return next
-    })
-  }
-
-  const removeExpenseStagedUpload = (index: number) => {
-    const staged = stagedUploads[index]
-    if (!staged) return
-    forgetStagedUpload(staged.id)
-    removeStagedUpload(index)
-  }
-
-  const reconcileSavedAttachments = async (expenseId: number) => {
-    try {
-      await loadFiles(tripId)
-    } catch {
-      // Preserve the last known relationship if a test or alternate store rejects.
-    }
-    const actualFiles = useTripStore.getState().files
-    setSelectedFileIds(new Set(filesForExpense(actualFiles, expenseId).map(file => file.id)))
-    setAttachmentSelectionTouched(true)
-  }
-
-  const runAttachmentWork = async (expenseId: number, retryOnly?: ExpenseAttachmentFailure) => {
-    const result = await saveExpenseFileAttachments({
-      tripId,
-      expenseId,
-      files,
-      selectedFileIds,
-      stagedUploads,
-      canAttachFiles,
-      canUploadFiles,
-      addFile,
-      attachExpenseFile,
-      detachExpenseFile,
-      pendingFailures: retryOnly ? [] : attachmentFailures,
-      retryOnly,
-      onUploaded: markStagedUpload,
-      onAttached: removeStagedUploadFile,
-    })
-    recordResult(result)
-    return mergeExpenseAttachmentResult(attachmentFailures, result)
-  }
-
   const retryAttachment = async (failure: ExpenseAttachmentFailure) => {
     if (saving) return
     const expenseId = editing?.id ?? savedExpenseId
     if (!expenseId) return
     setSaving(true)
-    setRetryingAttachmentKey(failure.key)
     try {
-      let nextFailures: ExpenseAttachmentFailure[]
-      try {
-        nextFailures = await runAttachmentWork(expenseId, failure)
-      } catch {
-        await reconcileSavedAttachments(expenseId)
-        toast.error(t('costs.attachmentsSaveError'))
-        return
-      }
-      if (nextFailures.length > 0) {
-        await reconcileSavedAttachments(expenseId)
-        toast.error(t('costs.attachmentsSaveError'))
-        return
-      }
-      onSaved()
+      if (await retryExpenseAttachment(failure, expenseId)) onSaved()
     } finally {
-      setRetryingAttachmentKey(null)
       setSaving(false)
     }
   }
@@ -1790,19 +1735,7 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAt
         : await addBudgetItem(tripId, data)
       if (expenseId == null) setSavedExpenseId(savedExpense.id)
 
-      let nextFailures: ExpenseAttachmentFailure[]
-      try {
-        nextFailures = await runAttachmentWork(savedExpense.id)
-      } catch {
-        await reconcileSavedAttachments(savedExpense.id)
-        toast.error(t('costs.attachmentsSaveError'))
-        return
-      }
-      if (nextFailures.length > 0) {
-        await reconcileSavedAttachments(savedExpense.id)
-        toast.error(t('costs.attachmentsSaveError'))
-        return
-      }
+      if (!await saveAttachments(savedExpense.id)) return
       onSaved()
     } catch {
       toast.error(t('costs.expenseSaveError'))
@@ -2162,10 +2095,10 @@ export function ExpenseModal({ tripId, base, people, me, editing, prefill, canAt
           <ExpenseFilePicker
             files={files}
             selectedFileIds={selectedFileIds}
-            onToggleFile={toggleExpenseFile}
+            onToggleFile={toggleFile}
             stagedUploads={stagedUploads}
             onAddUploads={addStagedUploads}
-            onRemoveUpload={removeExpenseStagedUpload}
+            onRemoveUpload={removeStagedUpload}
             canAttachFiles={canAttachFiles}
             canUploadFiles={canUploadFiles}
             attachmentFailures={attachmentFailures}

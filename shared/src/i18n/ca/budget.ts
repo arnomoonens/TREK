@@ -180,7 +180,8 @@ const budget: TranslationStrings = {
   'costs.expenseSaveError': 'No s’ha pogut desar la despesa. No s’ha canviat cap fitxer.',
   'costs.attachmentsSaveError': 'La despesa s’ha desat, però no s’han pogut actualitzar alguns fitxers adjunts.',
   'costs.attachmentFailure': 'La despesa s’ha desat, però ha fallat un fitxer adjunt. Torna-ho a provar a sota.',
-  'costs.attachmentsFailure': 'La despesa s’ha desat, però han fallat {count} fitxers adjunts. Torna-ho a provar a sota.',
+  'costs.attachmentsFailure':
+    'La despesa s’ha desat, però han fallat {count} fitxers adjunts. Torna-ho a provar a sota.',
   'costs.attachmentFailed': 'Ha fallat el fitxer adjunt',
   'costs.retryAttachment': 'Torna-ho a provar',
   'costs.attachmentCount': '{count} fitxer adjunt',
@@ -212,7 +213,8 @@ const budget: TranslationStrings = {
 
   'costs.confirm.deleteBodyWithFile': '"{name}" se suprimirà definitivament. Quedarà 1 fitxer adjunt.',
   'costs.confirm.deleteBodyWithFiles': '"{name}" se suprimirà definitivament. Quedaran {count} fitxers adjunts.',
-  'costs.attachmentsUnavailable': "Els detalls dels fitxers adjunts encara no estan disponibles sense connexió. Connecta't per carregar-los.",
+  'costs.attachmentsUnavailable':
+    "Els detalls dels fitxers adjunts encara no estan disponibles sense connexió. Connecta't per carregar-los.",
   'costs.expensesUnavailable': "Les despeses encara no estan disponibles sense connexió. Connecta't per carregar-les.",
 };
 export default budget;

@@ -175,7 +175,8 @@ const budget: TranslationStrings = {
   'costs.splitSumOver': 'Сумма долей: {sum} из {total} (больше на {diff})',
   'costs.filesForExpense': 'Файлы для этой траты',
   'costs.uploadFiles': 'Загрузить',
-  'costs.filesForExpenseHint': 'Выберите существующие файлы для прикрепления. Данные файлов управляются в разделе «Файлы».',
+  'costs.filesForExpenseHint':
+    'Выберите существующие файлы для прикрепления. Данные файлов управляются в разделе «Файлы».',
   'costs.noFilesForExpense': 'Файлов для этой траты пока нет.',
   'costs.expenseSaveError': 'Не удалось сохранить расход. Файлы не изменены.',
   'costs.attachmentsSaveError': 'Расход сохранён, но некоторые вложения не удалось обновить.',
@@ -189,7 +190,8 @@ const budget: TranslationStrings = {
   'costs.noAttachments': 'К этому расходу не прикреплены файлы.',
   'costs.confirm.deleteBodyWithFile': '«{name}» будет удалено безвозвратно. 1 прикреплённый файл останется.',
   'costs.confirm.deleteBodyWithFiles': '«{name}» будет удалено безвозвратно. Останутся прикреплённые файлы: {count}.',
-  'costs.attachmentsUnavailable': 'Детали вложений пока недоступны офлайн. Подключитесь к интернету, чтобы загрузить их.',
+  'costs.attachmentsUnavailable':
+    'Детали вложений пока недоступны офлайн. Подключитесь к интернету, чтобы загрузить их.',
   'costs.expensesUnavailable': 'Расходы пока недоступны офлайн. Подключитесь к интернету, чтобы загрузить их.',
   'costs.toggleSign': 'Переключить между расходом и возвратом',
   'costs.receipts': 'Чеки',

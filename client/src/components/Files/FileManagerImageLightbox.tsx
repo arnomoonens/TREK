@@ -5,6 +5,7 @@ import { useTranslation } from '../../i18n'
 import { useToast } from '../shared/Toast'
 import type { TripFile } from '../../types'
 import { getAuthUrl } from '../../api/authUrl'
+import { useFilePreviewUrl } from './useFilePreviewUrl'
 import { openFile as openFileUrl } from '../../utils/fileDownload'
 import { fileErrorMessage, triggerDownload, isVideo } from './FileManager.helpers'
 import VideoPlayer from '../Journey/VideoPlayerLazy'
@@ -26,27 +27,16 @@ export function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxPro
   const toastRef = useRef(toast)
   toastRef.current = toast
   const [index, setIndex] = useState(initialIndex)
-  const [imgSrc, setImgSrc] = useState('')
+
   const [touchStart, setTouchStart] = useState<number | null>(null)
   const file = files[index]
 
   const fileIsVideo = isVideo(file?.mime_type)
 
+  const { url: imgSrc, error: previewError } = useFilePreviewUrl(fileIsVideo ? undefined : file?.url)
   useEffect(() => {
-    setImgSrc('')
-    // Images use a one-shot signed URL; a video must use the plain same-origin
-    // URL (cookie auth) so its many Range requests all authenticate (#823).
-    if (!file || isVideo(file.mime_type)) return
-    // Arrowing through the gallery leaves several mints in flight; only the one for
-    // the file still on screen may paint.
-    let current = true
-    void getAuthUrl(file.url, 'download').then(u => {
-      if (current) setImgSrc(u)
-    }, error => {
-      if (current) toastRef.current.error(fileErrorMessage(t, error))
-    })
-    return () => { current = false }
-  }, [file?.url, file?.mime_type, t])
+    if (previewError) toastRef.current.error(fileErrorMessage(t, previewError))
+  }, [previewError, t])
 
   const goPrev = () => setIndex(i => Math.max(0, i - 1))
   const goNext = () => setIndex(i => Math.min(files.length - 1, i + 1))

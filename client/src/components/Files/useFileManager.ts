@@ -60,11 +60,9 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
     try {
       const data = await filesApi.list(tripId, true)
       setTrashFiles(data.files || [])
-    } catch {
-      toast.error(t('files.toast.deleteError'))
-    }
+    } catch { /* */ }
     setLoadingTrash(false)
-  }, [tripId, t, toast])
+  }, [tripId])
 
   const toggleTrash = useCallback(() => {
     if (!showTrash) loadTrash()
@@ -80,9 +78,7 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
     try {
       await filesApi.toggleStar(tripId, fileId)
       refreshFiles()
-    } catch {
-      toast.error(t('files.toast.assignError'))
-    }
+    } catch { /* */ }
   }
 
   const handleRestore = async (fileId: number) => {
@@ -261,7 +257,7 @@ export function useFileManager({ files = [], onUpload, onDelete, onUpdate, place
 export type FileManagerState = ReturnType<typeof useFileManager>
 
 /** The state required by the Files preview dialogs, also reused in Costs. */
-export type FilePreviewState = Pick<FileManagerState, 'previewFile' | 'setPreviewFile' | 'previewFileUrl' | 'toast' | 't'>
+export type FilePreviewState = Pick<FileManagerState, 'previewFile' | 'setPreviewFile' | 'previewFileUrl' | 'toast' | 't'> & { previewError?: unknown }
 
 function linkedBudgetItemCount(file: TripFile, liveExpenses: ReadonlyArray<Pick<BudgetItem, 'id'>>): number {
   const linkedIds = new Set(file.linked_budget_item_ids || [])

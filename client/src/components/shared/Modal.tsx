@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useRef, useState } from 'react'
+import React, { useEffect, useCallback, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { lockBodyScroll } from '../../utils/bodyScrollLock'
@@ -50,6 +50,7 @@ function ModalFrame({
 }: Omit<ModalProps, 'isOpen'>) {
   const { t } = useTranslation()
   const panelRef = useRef<HTMLDivElement>(null)
+  const titleId = useId()
   const mouseDownTarget = useRef<EventTarget | null>(null)
   // Read while rendering, before a field inside can take the focus with autoFocus.
   const [focusedBefore] = useState(() => document.activeElement)
@@ -97,7 +98,7 @@ function ModalFrame({
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label={typeof title === 'string' ? title : undefined}
+        aria-labelledby={title != null ? titleId : undefined}
         tabIndex={-1}
         onKeyDown={e => { if (panelRef.current) trapTab(e, panelRef.current) }}
         className={`
@@ -111,7 +112,7 @@ function ModalFrame({
       >
         {/* Header — stays put even while the body scrolls */}
         <div className="flex items-center justify-between p-6 flex-shrink-0 border-b border-edge-secondary">
-          <h2 className="text-lg font-semibold text-content">{title}</h2>
+          <h2 id={titleId} className="text-lg font-semibold text-content">{title}</h2>
           {!hideCloseButton && (
             <Tooltip label={t('common.close')}>
             <button type="button"

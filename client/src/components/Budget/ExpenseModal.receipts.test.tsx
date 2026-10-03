@@ -49,7 +49,7 @@ describe('ExpenseModal receipts and note', () => {
     fireEvent.change(input, { target: { files: [new File(['a'], 'lunch.jpg', { type: 'image/jpeg' })] } })
     await within(receiptsCard()).findByText('lunch.jpg')
     fireEvent.change(input, { target: { files: [] } })
-    await user.click(within(receiptsCard()).getByRole('button', { name: 'Unlink lunch.jpg' }))
+    await user.click(within(receiptsCard()).getByRole('button', { name: 'Remove link lunch.jpg' }))
     expect(within(receiptsCard()).queryByText('lunch.jpg')).toBeNull()
     expect(screen.queryByTestId('expense-staged-upload')).toBeNull()
   })

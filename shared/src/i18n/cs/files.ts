@@ -68,8 +68,8 @@ const files: TranslationStrings = {
   'files.confirm.deleteWithExpenses': 'Tento soubor je propojen s {count} aktivními výdaji. Přesunout ho do koše?',
   'files.confirm.permanentDeleteWithExpense': 'Tento soubor je propojen s 1 aktivním výdajem. Trvale ho smazat?',
   'files.confirm.permanentDeleteWithExpenses': 'Tento soubor je propojen s {count} aktivními výdaji. Trvale ho smazat?',
-  'files.offlineUnavailable': 'Tento soubor není offline dostupný. Připojte se k internetu a otevřete ho nebo stáhněte.',
+  'files.offlineUnavailable':
+    'Tento soubor není offline dostupný. Připojte se k internetu a otevřete ho nebo stáhněte.',
   'files.offlineListUnavailable': 'Soubory zatím nejsou offline dostupné. Připojte se k internetu a načtěte je.',
-  'files.offlineReadOnly': 'Propojení souborů nelze offline měnit.',
 };
 export default files;

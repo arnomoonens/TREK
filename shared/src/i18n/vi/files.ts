@@ -65,11 +65,12 @@ const files: TranslationStrings = {
   'files.sourceExpense': 'Từ khoản chi',
   'files.assignExpense': 'Khoản chi',
   'files.confirm.deleteWithExpense': 'Tệp này được liên kết với 1 khoản chi đang hoạt động. Chuyển vào thùng rác?',
-  'files.confirm.deleteWithExpenses': 'Tệp này được liên kết với {count} khoản chi đang hoạt động. Chuyển vào thùng rác?',
+  'files.confirm.deleteWithExpenses':
+    'Tệp này được liên kết với {count} khoản chi đang hoạt động. Chuyển vào thùng rác?',
   'files.confirm.permanentDeleteWithExpense': 'Tệp này được liên kết với 1 khoản chi đang hoạt động. Xóa vĩnh viễn?',
-  'files.confirm.permanentDeleteWithExpenses': 'Tệp này được liên kết với {count} khoản chi đang hoạt động. Xóa vĩnh viễn?',
+  'files.confirm.permanentDeleteWithExpenses':
+    'Tệp này được liên kết với {count} khoản chi đang hoạt động. Xóa vĩnh viễn?',
   'files.offlineUnavailable': 'Tệp này không khả dụng khi ngoại tuyến. Hãy kết nối để mở hoặc tải xuống.',
   'files.offlineListUnavailable': 'Các tệp chưa khả dụng khi ngoại tuyến. Hãy kết nối để tải chúng.',
-  'files.offlineReadOnly': 'Không thể thay đổi liên kết tệp khi ngoại tuyến.',
 };
 export default files;

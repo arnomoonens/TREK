@@ -1,7 +1,6 @@
 import {
   HOOK_PERMISSION,
   KNOWN_METHODS,
-  METHOD_ADDITIONAL_PERMISSIONS,
   METHOD_PERMISSION,
   UNCONDITIONAL_METHODS,
   isKnownPermission,
@@ -121,23 +120,6 @@ export class PluginRpcRegistry {
             `method "${entry.method}" (${describeBound(bound)}) declares unknown permission "${entry.permission}"`,
           );
         }
-        const expectedAdditional =
-          (METHOD_ADDITIONAL_PERMISSIONS as Partial<Record<string, readonly string[]>>)[entry.method] ?? [];
-        const declaredAdditional = entry.additionalPermissions ?? [];
-        if (declaredAdditional.length !== expectedAdditional.length
-          || declaredAdditional.some((permission, index) => permission !== expectedAdditional[index])) {
-          problems.push(
-            `method "${entry.method}" (${describeBound(bound)}) declares additional permissions ` +
-              `[${declaredAdditional.join(', ')}] but the protocol requires [${expectedAdditional.join(', ')}]`,
-          );
-        }
-        for (const permission of declaredAdditional) {
-          if (!isKnownPermission(permission)) {
-            problems.push(
-              `method "${entry.method}" (${describeBound(bound)}) declares unknown additional permission "${permission}"`,
-            );
-          }
-        }
       } else if (entry.kind === 'open') {
         if (!(UNCONDITIONAL_METHODS as readonly string[]).includes(entry.method)) {
           problems.push(`open method "${entry.method}" (${describeBound(bound)}) is not in UNCONDITIONAL_METHODS`);
@@ -211,10 +193,7 @@ export class PluginRpcRegistry {
     for (const bound of this.bound) {
       const entry = bound.entry;
       if (entry.kind === 'hook') continue;
-      if (
-        entry.kind === 'method'
-        && (!granted.has(entry.permission) || (entry.additionalPermissions ?? []).some((permission) => !granted.has(permission)))
-      ) continue;
+      if (entry.kind === 'method' && !granted.has(entry.permission)) continue;
       if (map.has(entry.method)) {
         throw new Error(
           `plugin RPC method "${entry.method}" is registered twice ` +

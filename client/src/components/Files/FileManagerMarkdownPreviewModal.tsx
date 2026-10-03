@@ -16,7 +16,7 @@ import { DialogHeader, DialogShell, DialogTile, NEUTRAL_TINT, PILL } from '../sh
  * react-markdown v10 already drops raw HTML, so no script can execute.
  */
 export function MarkdownPreviewModal(S: FilePreviewState) {
-  const { previewFile, setPreviewFile, previewFileUrl, toast, t } = S
+  const { previewFile, setPreviewFile, previewFileUrl, previewError, toast, t } = S
   const [text, setText] = useState('')
   const [err, setErr] = useState<string | null>(null)
   const labelId = useId()
@@ -64,7 +64,9 @@ export function MarkdownPreviewModal(S: FilePreviewState) {
         />
       )}
     >
-      {err
+      {previewError
+        ? <p role="alert" className="text-content-muted">{fileErrorMessage(t, previewError)}</p>
+        : err
         ? <p className="text-content-muted">{err}</p>
         : <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} rehypePlugins={[rehypeSanitize]}>{text}</Markdown>}
     </DialogShell>

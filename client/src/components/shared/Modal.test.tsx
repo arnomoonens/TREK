@@ -27,6 +27,11 @@ describe('Modal', () => {
     expect(screen.getByText('My Modal Title')).toBeTruthy();
   });
 
+  it('names the dialog from a React node title', () => {
+    render(<Modal isOpen onClose={onClose} title={<><span>Expense</span> attachment</>} />);
+    expect(screen.getByRole('dialog', { name: 'Expense attachment' })).toBeTruthy();
+  });
+
   it('FE-COMP-MODAL-004: renders children content', () => {
     render(<Modal isOpen={true} onClose={onClose}><p>Hello World</p></Modal>);
     expect(screen.getByText('Hello World')).toBeTruthy();

@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Download, ExternalLink, Paperclip, X } from 'lucide-react'
 import { useTranslation } from '../../i18n'
 import { useToast } from '../shared/Toast'
 import Modal from '../shared/Modal'
 import MSheet from '../../mobile/components/MSheet'
 import type { TripFile } from '../../types'
-import { getAuthUrl } from '../../api/authUrl'
+import { useFilePreviewUrl } from '../Files/useFilePreviewUrl'
 import { openFile as openFileInTab } from '../../utils/fileDownload'
 import {
   formatSize,
@@ -96,34 +96,17 @@ export function ExpenseAttachmentsSheet({ open, onClose, ...props }: ExpenseAtta
 export function ExpenseAttachmentList({ expenseId, files, attachmentsUnavailable = false }: ExpenseAttachmentViewerProps) {
   const { t } = useTranslation()
   const toast = useToast()
+  const toastRef = useRef(toast)
+  toastRef.current = toast
   const [previewFile, setPreviewFile] = useState<TripFile | null>(null)
-  const [previewFileUrl, setPreviewFileUrl] = useState('')
-  const [previewError, setPreviewError] = useState(false)
+  const { url: previewFileUrl, error: previewError } = useFilePreviewUrl(previewFile?.url)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
-  const previewUrl = previewFile?.url
   const attachments = useMemo(() => filesForExpense(files, expenseId), [files, expenseId])
   const mediaFiles = useMemo(() => attachments.filter(file => isMedia(file.mime_type)), [attachments])
 
   useEffect(() => {
-    if (!previewUrl) {
-      setPreviewFileUrl('')
-      return
-    }
-    let current = true
-    setPreviewFileUrl('')
-    setPreviewError(false)
-    getAuthUrl(previewUrl, 'download')
-      .then(url => { if (current) setPreviewFileUrl(url) })
-      .catch(() => {
-        if (current) {
-          setPreviewError(true)
-          toast.error(t('files.openError'))
-        }
-      })
-    return () => {
-      current = false
-    }
-  }, [previewUrl, t, toast])
+    if (previewError) toastRef.current.error(fileErrorMessage(t, previewError))
+  }, [previewError, t])
 
   const openAttachment = (file: TripFile) => {
     if (isMedia(file.mime_type)) {
@@ -138,7 +121,7 @@ export function ExpenseAttachmentList({ expenseId, files, attachmentsUnavailable
     setPreviewFile(file)
   }
 
-  const previewState: FilePreviewState = { previewFile, setPreviewFile, previewFileUrl: previewError ? '' : previewFileUrl, toast, t }
+  const previewState: FilePreviewState = { previewFile, setPreviewFile, previewFileUrl, previewError, toast, t }
 
   return (
     <>
